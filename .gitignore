@@ -64,3 +64,5 @@ Thumbs.db
 
 # temporary files
 *.tmp
+
+node_modules/
