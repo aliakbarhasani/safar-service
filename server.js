@@ -1,18 +1,30 @@
-﻿const app = require('./src/app');
-const { connectDB } = require('./src/database/db');
+﻿/**
+ * نقطه ورود اصلی پروژه سفر سرویس
+ * 
+ * طبق بند ۱۶ سند مادر، فایل اصلی سرور در پوشه 01-core-system قرار دارد.
+ * این فایل صرفاً به عنوان پل (Bridge) برای سازگاری backward-compatibility عمل می‌کند.
+ */
 
-const PORT = 3000;
+const app = require('./01-core-system/app');
+const { connectDB } = require('./01-core-system/database/db');
+const config = require('./14-config-system/server.config');
+const logger = require('./13-logging-system/logger.service');
+
+const PORT = config.port;
+
+// راه‌اندازی سیستم لاگ مرکزی (طبق بند ۱۳ سند مادر)
+logger.initialize();
 
 connectDB()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      logger.log(logger.LOG_LEVELS.INFO, `Server is running on port ${PORT}`);
     });
   })
   .catch(err => {
-    console.error('MongoDB connection error:', err.message);
-    console.warn('Starting server without DB connection (read-only mode)');
+    logger.log(logger.LOG_LEVELS.ERROR, 'MongoDB connection error', { message: err.message });
+    logger.log(logger.LOG_LEVELS.WARNING, 'Starting server without DB connection (read-only mode)');
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT} (DB not connected)`);
+      logger.log(logger.LOG_LEVELS.INFO, `Server is running on port ${PORT} (DB not connected)`);
     });
   });
