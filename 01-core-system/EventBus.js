@@ -1,0 +1,75 @@
+/**
+ * EventBus.js - هسته مرکزی رویدادمحور (Pub/Sub)
+ * 
+ * طبق بند ۸ سند مادر: رویدادها قلب سیستم هستند
+ * این ماژول با استفاده از EventEmitter نود جی‌اس،
+ * ارتباط بدون وابستگی مستقیم (Decoupled) بین ماژول‌ها را فراهم می‌کند.
+ * 
+ * رویدادهای استاندارد سیستم:
+ * - TripCreated
+ * - TripFinished
+ * - PaymentCompleted
+ * - WalletCharged
+ * - AdPublished
+ * - UserRegistered
+ * - UserVerified
+ */
+
+const EventEmitter = require('events');
+
+class EventBus extends EventEmitter {
+  constructor() {
+    super();
+    this.setMaxListeners(50); // افزایش ظرفیت برای ماژول‌های متعدد
+  }
+
+  /**
+   * انتشار یک رویداد در سیستم
+   * @param {string} event - نام رویداد
+   * @param {*} data - داده‌های مرتبط با رویداد
+   */
+  publish(event, data) {
+    this.emit(event, { event, data, timestamp: new Date().toISOString() });
+  }
+
+  /**
+   * اشتراک در یک رویداد
+   * @param {string} event - نام رویداد
+   * @param {Function} handler - تابع پردازشگر
+   */
+  subscribe(event, handler) {
+    this.on(event, handler);
+  }
+
+  /**
+   * لغو اشتراک از یک رویداد
+   * @param {string} event - نام رویداد
+   * @param {Function} handler - تابع پردازشگر
+   */
+  unsubscribe(event, handler) {
+    this.off(event, handler);
+  }
+
+  /**
+   * اشتراک یکبار مصرف (فقط یک بار اجرا می‌شود)
+   * @param {string} event - نام رویداد
+   * @param {Function} handler - تابع پردازشگر
+   */
+  subscribeOnce(event, handler) {
+    this.once(event, handler);
+  }
+
+  /**
+   * دریافت تعداد شنوندگان یک رویداد
+   * @param {string} event - نام رویداد
+   * @returns {number}
+   */
+  listenerCount(event) {
+    return super.listenerCount(event);
+  }
+}
+
+// ایجاد یک نمونه Singleton از EventBus برای کل سیستم
+const eventBus = new EventBus();
+
+module.exports = eventBus;
