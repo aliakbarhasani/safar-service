@@ -1,22 +1,32 @@
-const mongoose = require('mongoose');
+const { Pool } = require('pg');
 const config = require('../../14-config-system/server.config');
+
+const pool = new Pool({
+  host: config.pg.host,
+  port: config.pg.port,
+  database: config.pg.database,
+  user: config.pg.user,
+  password: config.pg.password,
+  max: config.pg.max,
+  idleTimeoutMillis: config.pg.idleTimeoutMillis,
+  connectionTimeoutMillis: config.pg.connectionTimeoutMillis,
+});
 
 let connected = false;
 
 async function connectDB() {
-  const uri = config.db.uri;
-  try {
-    await mongoose.connect(uri);
-    connected = true;
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('MongoDB connection error:', err.message);
-    throw err;
-  }
+  const client = await pool.connect();
+  connected = true;
+  console.log('PostgreSQL connected');
+  client.release();
 }
 
 function isDBConnected() {
-  return connected || mongoose.connection.readyState === 1;
+  return connected;
 }
 
-module.exports = { connectDB, isDBConnected };
+function getPool() {
+  return pool;
+}
+
+module.exports = { connectDB, isDBConnected, getPool };

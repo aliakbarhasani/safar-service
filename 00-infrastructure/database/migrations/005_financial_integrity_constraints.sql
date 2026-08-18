@@ -76,6 +76,12 @@ CREATE INDEX idx_escrow_created ON escrow_transactions(created_at DESC);
 -- STRICT CONSTRAINTS ON wallets TABLE
 -- ============================================================================
 
+-- Drop the audit trigger and function before changing column types
+-- (PostgreSQL blocks ALTER TABLE ... ALTER COLUMN TYPE when a trigger
+--  references the column being altered via UPDATE OF column_list)
+DROP TRIGGER IF EXISTS trg_audit_wallet_change ON wallets;
+DROP FUNCTION IF EXISTS fn_audit_wallet_change;
+
 -- 1. Convert balance columns to NUMERIC(20,8)
 -- Safe because BIGINT values fit in NUMERIC(20,0)
 ALTER TABLE wallets
@@ -95,6 +101,52 @@ ALTER TABLE wallets DROP CONSTRAINT IF EXISTS ck_wallet_balance_total;
 ALTER TABLE wallets
     ADD CONSTRAINT ck_wallet_balance_total
     CHECK (balance = available_balance + frozen_balance);
+
+-- Recreate the audit trigger function and trigger on wallets table
+-- (was dropped above to allow column type changes)
+CREATE OR REPLACE FUNCTION fn_audit_wallet_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.balance IS DISTINCT FROM NEW.balance OR
+       OLD.available_balance IS DISTINCT FROM NEW.available_balance OR
+       OLD.frozen_balance IS DISTINCT FROM NEW.frozen_balance THEN
+
+        INSERT INTO financial_audit_logs (
+            event_type,
+            wallet_id,
+            user_id,
+            previous_state,
+            new_state,
+            description
+        ) VALUES (
+            'balance_changed',
+            NEW.id,
+            NEW.user_id,
+            jsonb_build_object(
+                'balance', OLD.balance,
+                'available_balance', OLD.available_balance,
+                'frozen_balance', OLD.frozen_balance,
+                'status', OLD.status
+            ),
+            jsonb_build_object(
+                'balance', NEW.balance,
+                'available_balance', NEW.available_balance,
+                'frozen_balance', NEW.frozen_balance,
+                'status', NEW.status
+            ),
+            'Wallet balance changed via trigger'
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_audit_wallet_change ON wallets;
+CREATE TRIGGER trg_audit_wallet_change
+    AFTER UPDATE OF balance, available_balance, frozen_balance ON wallets
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_audit_wallet_change();
 
 -- ============================================================================
 -- STRICT CONSTRAINTS ON transactions TABLE

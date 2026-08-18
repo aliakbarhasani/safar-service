@@ -27,7 +27,7 @@ const {
   updateTripStatus, cancelTrip, recordLocation,
   getTripRoute, getDriverTrips, getTimeline
 } = require('../controllers/trip.controller');
-const { authenticate, authorize } = require('../../04-auth-service/middleware/auth.middleware');
+const { authenticate, authorize } = require('../../13-auth-management/presentation/middleware/auth.middleware');
 
 // تمام مسیرها نیازمند احراز هویت هستند
 router.use(authenticate);

@@ -14,7 +14,7 @@ const {
   getDriverById,
   getAllDrivers
 } = require('../controllers/driver.controller');
-const { authenticate } = require('../../04-auth-service/middleware/auth.middleware');
+const { authenticate } = require('../../13-auth-management/presentation/middleware/auth.middleware');
 
 // ثبت‌نام راننده جدید
 router.post('/', authenticate, registerDriver);

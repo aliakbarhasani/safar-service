@@ -1,0 +1,16 @@
+{
+  "name": "safar-admin-panel",
+  "version": "1.0.0",
+  "description": "Safar Service Admin Panel",
+  "main": "run-server.js",
+  "scripts": {
+    "start": "node run-server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "helmet": "^8.0.0"
+  },
+  "private": true
+}

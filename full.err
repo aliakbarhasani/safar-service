@@ -1,0 +1,143 @@
+PASS 01-core-system/handlers/__tests__/AuthLoginToOperations.e2e.test.js (10.99 s)
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (13-auth-management/node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      [SMS][Console] To: +989192287905 | Message: Your login OTP code is: 60574. Valid for 120 seconds.
+
+      at ConsoleSmsProvider.log [as send] (13-auth-management/domain/strategies/ConsoleSmsProvider.js:17:13)
+
+    console.log
+      [SMS][Console] To: +989192291215 | Message: Your login OTP code is: 58750. Valid for 120 seconds.
+
+      at ConsoleSmsProvider.log [as send] (13-auth-management/domain/strategies/ConsoleSmsProvider.js:17:13)
+
+PASS 01-core-system/handlers/__tests__/BusinessRegistrationAdvertiser.integration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ suppress logs { quiet: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (13-auth-management/node_modules/dotenv/lib/main.js:131:11)
+
+PASS 13-auth-management/tests/integration/AuthIntegration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (13-auth-management/node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      [SMS][Console] To: +989123456789 | Message: Your login OTP code is: 75365. Valid for 120 seconds.
+
+      at ConsoleSmsProvider.log [as send] (13-auth-management/domain/strategies/ConsoleSmsProvider.js:17:13)
+
+    console.log
+      [SMS][Console] To: +989123456780 | Message: Your login OTP code is: 55463. Valid for 120 seconds.
+
+      at ConsoleSmsProvider.log [as send] (13-auth-management/domain/strategies/ConsoleSmsProvider.js:17:13)
+
+PASS 01-core-system/handlers/__tests__/BusinessRegistration.integration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (13-auth-management/node_modules/dotenv/lib/main.js:131:11)
+
+PASS 09-marketplace/__tests__/rbac-product.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.error
+      [ProductController] createProduct error: Error: Database not available
+          at ProductService.createProduct (D:\safar-service\09-marketplace\services\product.service.js:139:25)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at ProductController.createProduct (D:\safar-service\09-marketplace\controllers\product.controller.js:57:23)
+
+    [0m [90m 67 |[39m       [36mreturn[39m res[33m.[39mstatus([35m201[39m)[33m.[39mjson({ success[33m:[39m [36mtrue[39m[33m,[39m data[33m:[39m product })[33m;[39m
+     [90m 68 |[39m     } [36mcatch[39m (err) {
+    [31m[1m>[22m[39m[90m 69 |[39m       console[33m.[39merror([32m'[ProductController] createProduct error:'[39m[33m,[39m err)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 70 |[39m       [36mreturn[39m res[33m.[39mstatus([35m400[39m)[33m.[39mjson({ error[33m:[39m err[33m.[39mmessage })[33m;[39m
+     [90m 71 |[39m     }
+     [90m 72 |[39m   }[0m
+
+      at ProductController.error [as createProduct] (09-marketplace/controllers/product.controller.js:69:15)
+
+PASS 10-ads-service/__tests__/rbac-campaign.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.error
+      [CampaignController] createCampaign error: Error: Database not available
+          at CampaignService.createCampaign (D:\safar-service\10-ads-service\services\campaign.service.js:109:25)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at CampaignController.createCampaign (D:\safar-service\10-ads-service\controllers\campaign.controller.js:51:24)
+
+    [0m [90m 61 |[39m       [36mreturn[39m res[33m.[39mstatus([35m201[39m)[33m.[39mjson({ success[33m:[39m [36mtrue[39m[33m,[39m data[33m:[39m campaign })[33m;[39m
+     [90m 62 |[39m     } [36mcatch[39m (err) {
+    [31m[1m>[22m[39m[90m 63 |[39m       console[33m.[39merror([32m'[CampaignController] createCampaign error:'[39m[33m,[39m err)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 64 |[39m       [36mreturn[39m res[33m.[39mstatus([35m400[39m)[33m.[39mjson({ error[33m:[39m err[33m.[39mmessage })[33m;[39m
+     [90m 65 |[39m     }
+     [90m 66 |[39m   }[0m
+
+      at CampaignController.error [as createCampaign] (10-ads-service/controllers/campaign.controller.js:63:15)
+
+PASS 01-core-system/handlers/__tests__/UserRegisteredHandler.test.js
+
+Test Suites: 7 passed, 7 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        21.954 s, estimated 31 s
+Ran all test suites matching /01-core-system\\handlers\\__tests__\\UserRegisteredHandler.test.js|01-core-system\\handlers\\__tests__\\BusinessRegistration.integration.test.js|01-core-system\\handlers\\__tests__\\BusinessRegistrationAdvertiser.integration.test.js|01-core-system\\handlers\\__tests__\\AuthLoginToOperations.e2e.test.js|09-marketplace\\__tests__\\rbac-product.test.js|10-ads-service\\__tests__\\rbac-campaign.test.js|13-auth-management\\tests\\integration\\AuthIntegration.test.js|>|full.txt|2>&1/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

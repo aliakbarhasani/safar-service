@@ -1,0 +1,159 @@
+{
+  "app": {
+    "name": "سفر سرویس",
+    "shortName": "سفر",
+    "description": "پلتفرم جامع حمل و نقل و سفر",
+    "version": "1.0.0"
+  },
+  "api": {
+    "baseUrl": "http://localhost:3001",
+    "endpoints": {
+      "requestOtp": "/api/v1/auth/request-otp",
+      "verifyOtp": "/api/v1/auth/verify-otp",
+      "register": "/api/v1/auth/register",
+      "login": "/api/v1/auth/login",
+      "profile": "/api/v1/profile",
+      "profileUpdate": "/api/v1/profile/profile",
+      "settings": "/api/v1/profile/settings",
+      "refreshToken": "/api/v1/auth/refresh",
+      "marketplaceProducts": "/api/v1/marketplace/products",
+      "marketplaceProduct": "/api/v1/marketplace/products/:id",
+      "marketplaceSellers": "/api/v1/marketplace/sellers",
+      "marketplaceReviews": "/api/v1/marketplace/reviews/:productId",
+      "campaignsList": "/api/v1/ads/campaigns",
+      "campaign": "/api/v1/ads/campaigns/:id",
+      "adsHealth": "/api/v1/ads/health"
+    },
+    "timeout": 10000
+  },
+  "theme": {
+    "colors": {
+      "primary": "#1e40af",
+      "primaryLight": "#3b82f6",
+      "secondary": "#059669",
+      "accent": "#f59e0b",
+      "background": "#f8fafc",
+      "surface": "#ffffff",
+      "text": "#1e293b",
+      "textSecondary": "#64748b",
+      "error": "#dc2626",
+      "success": "#16a34a",
+      "border": "#e2e8f0"
+    },
+    "borderRadius": "0.5rem",
+    "fontFamily": "Vazirmatn, IRANSans, system-ui, sans-serif"
+  },
+  "texts": {
+    "splash": {
+      "title": "به سفر سرویس خوش آمدید",
+      "subtitle": "سریع، امن، مطمئن",
+      "loading": "در حال بارگذاری..."
+    },
+    "auth": {
+      "loginTitle": "ورود",
+      "loginSubtitle": "برای ورود شماره موبایل خود را وارد کنید",
+      "otpTitle": "کد تأیید",
+      "otpSubtitle": "کد ۵ رقمی ارسال شده را وارد کنید",
+      "registerTitle": "ثبت نام",
+      "registerSubtitle": "اطلاعات خود را تکمیل کنید",
+      "phoneLabel": "شماره موبایل",
+      "phonePlaceholder": "مثال: ۰۹۱۲۳۴۵۶۷۸۹",
+      "otpLabel": "کد تأیید",
+      "otpPlaceholder": "کد ۵ رقمی",
+      "firstNameLabel": "نام",
+      "lastNameLabel": "نام خانوادگی",
+      "emailLabel": "ایمیل (اختیاری)",
+      "submitButton": "تأیید",
+      "sendOtpButton": "ارسال کد",
+      "resendOtp": "ارسال مجدد کد",
+      "registerButton": "ثبت نام",
+      "loginLink": "قبلاً ثبت نام کرده‌اید؟ ورود",
+      "registerLink": "حساب کاربری ندارید؟ ثبت نام",
+      "otpSentTo": "کد تأیید به شماره {phone} ارسال شد",
+      "errors": {
+        "invalidPhone": "شماره موبایل معتبر نیست",
+        "invalidOtp": "کد تأیید معتبر نیست",
+        "required": "این فیلد الزامی است",
+        "serverError": "خطا در ارتباط با سرور",
+        "rateLimited": "تعداد درخواست بیش از حد مجاز است"
+      }
+    },
+    "dashboard": {
+      "title": "داشبورد",
+      "welcome": "خوش آمدید",
+      "logout": "خروج",
+      "profileLink": "پروفایل"
+    },
+    "profile": {
+      "title": "پروفایل",
+      "editTitle": "ویرایش پروفایل",
+      "saveButton": "ذخیره",
+      "backButton": "بازگشت"
+    },
+    "marketplace": {
+      "title": "بازارچه",
+      "subtitle": "کالا و خدمات",
+      "searchPlaceholder": "جستجوی محصولات",
+      "noProducts": "محصولی یافت نشد",
+      "addProduct": "افزودن محصول جدید",
+      "productName": "نام محصول",
+      "price": "قیمت",
+      "quantity": "تعداد",
+      "description": "توضیح",
+      "seller": "فروشنده"
+    },
+    "ads": {
+      "title": "تبلیغات",
+      "subtitle": "مدیریت کمپین‌های تبلیغی",
+      "noCampaigns": "کمپینی یافت نشد",
+      "createCampaign": "ایجاد کمپین جدید",
+      "campaignName": "نام کمپین",
+      "budget": "بودجه",
+      "startDate": "تاریخ شروع",
+      "endDate": "تاریخ پایان",
+      "status": "وضعیت",
+      "analytics": "تحلیل و آمار",
+      "impressions": "نمایش‌ها",
+      "clicks": "کلیک‌ها",
+      "conversions": "تبدیل‌ها"
+    }
+  }
+  ,
+  "i18n": {
+    "defaultLocale": "fa",
+    "supportedLocales": ["fa", "en"],
+    "rtlLocales": ["fa"]
+  },
+  "modules": [
+    { "id": "urban-taxi", "path": "/modules/urban-taxi", "enabled": true, "titleKey": "urbanTaxi" },
+    { "id": "intercity-taxi", "path": "/modules/intercity-taxi", "enabled": false, "titleKey": "intercityTaxi" },
+    { "id": "out-of-city", "path": "/modules/out-of-city", "enabled": false, "titleKey": "outOfCity" },
+    { "id": "cross-border", "path": "/modules/cross-border", "enabled": false, "titleKey": "crossBorder" },
+    { "id": "cargo", "path": "/modules/cargo", "enabled": false, "titleKey": "cargo" },
+    { "id": "store", "path": "/modules/store", "enabled": false, "titleKey": "store" },
+    { "id": "marketplace", "path": "/modules/marketplace", "enabled": false, "titleKey": "marketplace" },
+    { "id": "ads", "path": "/modules/ads", "enabled": false, "titleKey": "ads" },
+    { "id": "weather", "path": "/modules/weather", "enabled": false, "titleKey": "weather" },
+    { "id": "wallet", "path": "/modules/wallet", "enabled": true, "titleKey": "wallet" },
+    { "id": "support", "path": "/modules/support", "enabled": true, "titleKey": "support" },
+    { "id": "profile", "path": "/profile", "enabled": true, "titleKey": "profile" },
+    { "id": "admin", "path": "/modules/admin", "enabled": false, "titleKey": "admin" },
+    { "id": "future-services", "path": "/modules/future-services", "enabled": false, "titleKey": "futureServices" }
+  ],
+  "moduleTexts": {
+    "urbanTaxi": "تاکسی شهری",
+    "intercityTaxi": "تاکسی بین‌شهری",
+    "outOfCity": "سفر برون‌شهری",
+    "crossBorder": "سفر برون‌مرزی",
+    "cargo": "باربری",
+    "store": "فروشگاه",
+    "marketplace": "بازارچه",
+    "ads": "تبلیغات",
+    "weather": "آب و هوا",
+    "wallet": "کیف پول",
+    "support": "پشتیبانی",
+    "profile": "پروفایل",
+    "admin": "پنل مدیریت",
+    "futureServices": "خدمات آینده"
+  }
+}

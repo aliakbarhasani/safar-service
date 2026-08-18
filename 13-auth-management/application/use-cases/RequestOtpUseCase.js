@@ -1,34 +1,47 @@
+const bcrypt = require('bcryptjs');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
+const ConsoleSmsProvider = require('../../domain/strategies/ConsoleSmsProvider');
 
 class RequestOtpUseCase {
-  constructor(otpRepository = null) {
+  constructor({ otpRepository = null, smsProvider = null, config = {} } = {}) {
     this.otpRepository = otpRepository || new OtpRepository();
+    this.smsProvider = smsProvider || new ConsoleSmsProvider();
+    this.config = {
+      codeLength: config.codeLength || 5,
+      ttlSeconds: config.ttlSeconds || 120,
+      maxAttempts: config.maxAttempts || 5,
+      rateLimitPerPhonePerHour: config.rateLimitPerPhonePerHour || 5,
+    };
   }
 
-  async execute(phoneNumber) {
+  async execute(phoneNumber, type = 'login') {
     if (!phoneNumber) {
-      throw new Error('phoneNumber is required');
+      throw new Error('Phone number is required');
     }
 
-    const otpCode = this._generateOtp();
-    const expiresAt = Date.now() + 2 * 60 * 1000;
+    // Note: We don't block OTP requests based on previous verification attempts.
+    // The save() method resets attempts to 0 when generating a new OTP.
+    // Rate limiting middleware (strictRateLimit) handles request-side throttling.
 
-    await this.otpRepository.save(phoneNumber, otpCode, expiresAt);
+    const otpCode = String(Math.floor(10000 + Math.random() * 90000)).slice(0, this.config.codeLength);
+    const codeHash = await bcrypt.hash(otpCode, 10);
+    const expiresAt = new Date(Date.now() + this.config.ttlSeconds * 1000).toISOString();
 
-    // Simulate SMS dispatch
-    console.log(`[OTP] SMS to ${phoneNumber}: ${otpCode}`);
+    await this.otpRepository.save(phoneNumber, codeHash, expiresAt, type);
+
+    const message = `Your ${type} OTP code is: ${otpCode}. Valid for ${this.config.ttlSeconds} seconds.`;
+    await this.smsProvider.send(phoneNumber, message);
 
     return {
       success: true,
       message: 'OTP sent successfully',
       phoneNumber,
-      otpCode,
       expiresAt,
+      ttl: this.config.ttlSeconds,
+      // کد OTP فقط در محیط‌های غیرproduction برگردانده می‌شود (تست/توسعه).
+      // در production مقدار undefined است و در JSON سریالایز نمی‌شود.
+      otpCode: process.env.NODE_ENV === 'production' ? undefined : otpCode,
     };
-  }
-
-  _generateOtp() {
-    return String(Math.floor(10000 + Math.random() * 90000));
   }
 }
 
