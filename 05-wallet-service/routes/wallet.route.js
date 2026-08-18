@@ -28,7 +28,7 @@ const {
   refund,
   getTransactions
 } = require('../controllers/wallet.controller');
-const { authenticate, authorize } = require('../../04-auth-service/middleware/auth.middleware');
+const { authenticate, authorize } = require('../../13-auth-management/presentation/middleware/auth.middleware');
 const config = require('../../14-config-system/server.config');
 
 // ============================================================================

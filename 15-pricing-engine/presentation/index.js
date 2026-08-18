@@ -1,2 +1,4 @@
 const PricingController = require("./controllers/PricingController");
-module.exports = { PricingController };
+const PricingRouter = require("./routes/PricingRouter");
+
+module.exports = { PricingController, PricingRouter };

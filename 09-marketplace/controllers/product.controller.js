@@ -1,0 +1,91 @@
+const ProductService = require('../services/product.service');
+
+const productService = new ProductService();
+
+class ProductController {
+  async listProducts(req, res) {
+    try {
+      const { limit = 20, offset = 0, categoryId, sellerId, minPrice, maxPrice } = req.query;
+      const filters = { categoryId, sellerId, minPrice, maxPrice };
+
+      const { products, total } = await productService.getAllProducts(
+        parseInt(limit, 10),
+        parseInt(offset, 10),
+        filters
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          products,
+          total,
+          limit: parseInt(limit, 10),
+          offset: parseInt(offset, 10),
+        },
+      });
+    } catch (err) {
+      console.error('[ProductController] listProducts error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async getProduct(req, res) {
+    try {
+      const { id } = req.params;
+      const product = await productService.getProductById(id);
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      return res.status(200).json({ success: true, data: product });
+    } catch (err) {
+      console.error('[ProductController] getProduct error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async createProduct(req, res) {
+    try {
+      const { name, description, categoryId, price, quantity, imageUrl } = req.body;
+      const sellerId = req.user?.userId;
+
+      if (!sellerId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const product = await productService.createProduct({
+        sellerId,
+        name,
+        description,
+        categoryId,
+        price,
+        quantity,
+        imageUrl,
+      });
+
+      return res.status(201).json({ success: true, data: product });
+    } catch (err) {
+      console.error('[ProductController] createProduct error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async updateProduct(req, res) {
+    try {
+      const { id } = req.params;
+      const product = await productService.updateProduct(id, req.body);
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      return res.status(200).json({ success: true, data: product });
+    } catch (err) {
+      console.error('[ProductController] updateProduct error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+  }
+}
+
+module.exports = ProductController;

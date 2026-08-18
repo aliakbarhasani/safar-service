@@ -18,7 +18,8 @@ CREATE TYPE wallet_type AS ENUM (
     'user',      -- Regular user wallet (passengers)
     'driver',    -- Driver wallet
     'platform',  -- Platform/company wallet
-    'escrow'     -- Escrow/holding wallet for trip payments
+    'escrow',    -- Escrow/holding wallet for trip payments
+    'system'     -- System wallet (no user_id required)
 );
 
 -- ============================================================================
@@ -50,6 +51,16 @@ CREATE INDEX IF NOT EXISTS idx_wallets_type ON wallets(wallet_type);
 -- Drop existing constraint on balance (to be replaced by the new one)
 ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_balance_check;
 ALTER TABLE wallets ADD CONSTRAINT wallets_balance_check CHECK (balance >= 0);
+
+-- ============================================================================
+-- FIX: Allow system/platform/escrow wallets to have NULL user_id
+-- ============================================================================
+-- System wallets (platform, escrow, system) don't belong to a specific user.
+-- This change makes user_id optional for non-human wallet types.
+ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE wallets ADD CONSTRAINT check_user_id_for_humans CHECK (
+    wallet_type IN ('system', 'platform', 'escrow') OR user_id IS NOT NULL
+);
 
 -- ============================================================================
 -- TABLE: wallet_ledger
@@ -199,10 +210,12 @@ $$ LANGUAGE plpgsql;
 
 -- ============================================================================
 -- DEFAULT DATA: Create platform wallets for default currencies
+-- System wallets (platform type) are created with NULL user_id.
+-- The CHECK constraint allows this: wallet_type IN ('system','escrow','platform') OR user_id IS NOT NULL
 -- ============================================================================
 INSERT INTO wallets (user_id, currency_id, balance, available_balance, frozen_balance, status, wallet_type)
 SELECT
-    (SELECT id FROM users WHERE role = 'super_admin' LIMIT 1),
+    NULL,  -- Platform wallets are system wallets, no user_id needed
     c.id,
     0, 0, 0,
     'active',
