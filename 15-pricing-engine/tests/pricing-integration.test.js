@@ -25,6 +25,8 @@ const config = require('../../14-config-system/server.config');
 
 const PricingRepository = require('../infrastructure/PricingRepository');
 const GenerateQuoteUseCase = require('../application/GenerateQuoteUseCase');
+const GetQuoteUseCase = require('../application/GetQuoteUseCase');
+const ConsumeQuoteUseCase = require('../application/ConsumeQuoteUseCase');
 const PricingController = require('../presentation/PricingController');
 const createPricingRouter = require('../presentation/PricingRouter');
 const { Decimal } = require('decimal.js');
@@ -33,8 +35,14 @@ function createApp(repository) {
   const app = express();
   app.use(express.json());
 
-  const useCase = new GenerateQuoteUseCase(repository);
-  const controller = new PricingController(useCase);
+  const generateUseCase = new GenerateQuoteUseCase(repository);
+  const getUseCase = new GetQuoteUseCase(repository);
+  const consumeUseCase = new ConsumeQuoteUseCase(repository);
+  const controller = new PricingController({
+    generateQuoteUseCase: generateUseCase,
+    getQuoteUseCase: getUseCase,
+    consumeQuoteUseCase: consumeUseCase,
+  });
   app.use('/api/v1/pricing', createPricingRouter(controller));
 
   return app;
@@ -161,5 +169,104 @@ test('1) returns 400 when required params are missing', async () => {
     expect(auditRow.rows[0].action_type).toBe('QUOTE_GENERATED');
     expect(auditRow.rows[0].rule_snapshot).toBeTruthy();
     expect(auditRow.rows[0].calculation_steps).toBeTruthy();
+  });
+
+  test('4) GET /quotes/:quoteId returns 200 with a valid non-expired quote', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // Create a fresh quote to fetch via GET (independent of test #3 / afterEach cleanup).
+    const created = await request(app)
+      .post('/api/v1/pricing/calculate')
+      .send({
+        serviceType: 'urban_taxi',
+        distanceKm: 5,
+        durationMin: 10,
+        trafficMultiplier: 1.0,
+        referenceId: 'itest-get-ref-001',
+      });
+
+    expect(created.status).toBe(201);
+    const quoteId = created.body.data.quoteId;
+    global.__createdQuoteId = quoteId; // mark for afterEach cleanup
+
+    // Now fetch it back
+    const res = await request(app)
+      .get(`/api/v1/pricing/quotes/${quoteId}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const data = res.body.data;
+    expect(data.quoteId).toBe(quoteId);
+    expect(data.serviceType).toBe('urban_taxi');
+    expect(data.status).toBe('CREATED');
+    expect(data.isExpired).toBe(false); // freshly created quote is still valid
+    expect(data.customerFinalAmount).toBeDefined();
+    expect(data.expiresAt).toBeDefined();
+    expect(typeof data.isExpired).toBe('boolean');
+  });
+
+  test('5) GET /quotes/:unknownId returns 404', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    const res = await request(app)
+      .get('/api/v1/pricing/quotes/00000000-0000-0000-0000-000000000000');
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  test('6) consume a quote successfully then reject duplicate consumption (409)', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // Create a fresh quote
+    const created = await request(app)
+      .post('/api/v1/pricing/calculate')
+      .send({
+        serviceType: 'urban_taxi',
+        distanceKm: 8,
+        durationMin: 12,
+        trafficMultiplier: 1.0,
+      });
+
+    expect(created.status).toBe(201);
+    const quoteId = created.body.data.quoteId;
+    global.__createdQuoteId = quoteId; // mark for afterEach cleanup
+
+    // First consumption should succeed -> 200
+    const first = await request(app)
+      .post(`/api/v1/pricing/quotes/${quoteId}/consume`)
+      .send({ referenceId: 'trip-ref-001' });
+
+    expect(first.status).toBe(200);
+    expect(first.body.success).toBe(true);
+    expect(first.body.data.status).toBe('CONSUMED');
+    expect(first.body.data.referenceId).toBe('trip-ref-001');
+
+    // Verify status persisted in the DB
+    const row = await pool.query('SELECT status, consumed_at FROM quotes WHERE id = $1', [quoteId]);
+    expect(row.rows[0].status).toBe('CONSUMED');
+    expect(row.rows[0].consumed_at).toBeTruthy();
+
+    // Verify QUOTE_CONSUMED audit row was written
+    const audit = await pool.query(
+      'SELECT action_type FROM pricing_audit_logs WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [quoteId],
+    );
+    expect(audit.rows[0].action_type).toBe('QUOTE_CONSUMED');
+
+    // Second consumption attempt must fail -> 409 (already consumed)
+    const second = await request(app)
+      .post(`/api/v1/pricing/quotes/${quoteId}/consume`)
+      .send({ referenceId: 'trip-ref-002' });
+
+    expect(second.status).toBe(409);
+    expect(second.body.success).toBe(false);
   });
 });
