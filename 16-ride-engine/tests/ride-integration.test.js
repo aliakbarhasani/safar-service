@@ -1,0 +1,331 @@
+/**
+ * ride-integration.test.js
+ *
+ * Integration test for the Ride Engine + Pricing Engine connection.
+ * Scenario: create a real pricing quote -> feed it to CreateRideUseCase ->
+ * verify the quote is CONSUMED, a ride row exists, and the initial
+ * REQUESTED status log was written.
+ *
+ * Requires Postgres. Skips (non-failing) when the DB is unavailable.
+ */
+
+const { Pool } = require('pg');
+const request = require('supertest');
+const express = require('express');
+const config = require('../../14-config-system/server.config');
+
+const PricingRepository = require('../../15-pricing-engine/infrastructure/PricingRepository');
+const GenerateQuoteUseCase = require('../../15-pricing-engine/application/GenerateQuoteUseCase');
+
+const RideRepository = require('../infrastructure/RideRepository');
+const CreateRideUseCase = require('../application/CreateRideUseCase');
+const AcceptRideUseCase = require('../application/AcceptRideUseCase');
+const RideController = require('../presentation/RideController');
+const createRideRouter = require('../presentation/RideRouter');
+
+describe('Ride Engine - Integration (create ride with consumed quote)', () => {
+  let pool;
+  let dbAvailable = true;
+  let rideRepository;
+  let pricingRepository;
+  let passengerId; // a real user row created for the test (FK integrity)
+  let driverIdA;   // driver who accepts (FK integrity)
+  let driverIdB;   // second driver for concurrency test
+  let createdQuoteIds = [];
+  let app;
+
+  async function createTestUser(name) {
+    const res = await pool.query(
+      `INSERT INTO users (first_name, last_name, phone_number, password_hash, role)
+       VALUES ($1, $2, $3, $4, 'passenger')
+       RETURNING id`,
+      ['Test', name, `+989156${String(Date.now()).slice(-7)}`, 'test-hash'],
+    );
+    return res.rows[0].id;
+  }
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: config.pg.host,
+      port: config.pg.port,
+      database: config.pg.database,
+      user: config.pg.user,
+      password: config.pg.password,
+      max: 5,
+      connectionTimeoutMillis: 4000,
+    });
+
+    try {
+      const client = await pool.connect();
+      client.release();
+    } catch (error) {
+      console.warn('[ride-integration] PostgreSQL unavailable - skipping DB-backed tests:', error.message);
+      dbAvailable = false;
+    }
+
+    rideRepository = new RideRepository(pool);
+    pricingRepository = new PricingRepository(pool);
+
+    if (dbAvailable) {
+      passengerId = await createTestUser('RidePassenger');
+      driverIdA = await createTestUser('DriverA');
+      driverIdB = await createTestUser('DriverB');
+
+      // Build the Express app with both use cases (Presentation layer).
+      const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+      const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
+      const controller = new RideController({ createRideUseCase, acceptRideUseCase });
+      app = express();
+      app.use(express.json());
+      app.use('/api/v1/rides', createRideRouter(controller));
+    }
+  });
+
+  afterEach(async () => {
+    // Clean up any quotes created during this test (audit rows cascade via FK).
+    for (const qid of createdQuoteIds) {
+      try {
+        await pool.query('DELETE FROM quotes WHERE id = $1', [qid]);
+      } catch (e) {
+        // non-fatal cleanup
+      }
+    }
+    createdQuoteIds = [];
+  });
+
+  afterAll(async () => {
+    if (dbAvailable) {
+      try {
+        // Cleanup rides (and status logs cascade) + the test users.
+        if (passengerId) {
+          await pool.query('DELETE FROM rides WHERE passenger_id = $1', [passengerId]);
+        }
+        for (const uid of [passengerId, driverIdA, driverIdB]) {
+          if (uid) {
+            try { await pool.query('DELETE FROM users WHERE id = $1', [uid]); } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        console.warn('[ride-integration] cleanup error:', e.message);
+      }
+    }
+    if (pool) {
+      try { await pool.end(); } catch (e) { /* ignore */ }
+    }
+  });
+
+  test('creates a real quote, consumes it, and persists the ride + status log', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // ۱. ساخت یک Quote واقعی در موتور قیمت‌گذاری
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 5,
+      durationMin: 8,
+      trafficMultiplier: 1.0,
+    });
+    expect(quote.quoteId).toBeTruthy();
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    // ۲. ساخت سفر با CreateRideUseCase
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.7199,
+      originLng: 51.4100,
+      destLat: 35.7155,
+      destLng: 51.4049,
+      referenceId: `ride-ref-${Date.now()}`, // unique across repeated runs
+    });
+
+    expect(ride.rideId).toBeTruthy();
+    expect(ride.status).toBe('REQUESTED');
+    expect(ride.quoteId).toBe(quoteId);
+
+    // ۳. بررسی CONSUMED شدن Quote در دیتابیس
+    const quoteRow = await pool.query('SELECT status, consumed_at FROM quotes WHERE id = $1', [quoteId]);
+    expect(quoteRow.rows.length).toBe(1);
+    expect(quoteRow.rows[0].status).toBe('CONSUMED');
+    expect(quoteRow.rows[0].consumed_at).toBeTruthy();
+
+    // ۴. بررسی وجود رکورد سفر
+    const rideRow = await pool.query('SELECT * FROM rides WHERE id = $1', [ride.rideId]);
+    expect(rideRow.rows.length).toBe(1);
+    expect(rideRow.rows[0].status).toBe('REQUESTED');
+    expect(rideRow.rows[0].quote_id).toBe(quoteId);
+
+    // ۵. بررسی لاگ وضعیت اولیه REQUESTED
+    const logRows = await pool.query(
+      'SELECT * FROM ride_status_logs WHERE ride_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [ride.rideId],
+    );
+    expect(logRows.rows.length).toBe(1);
+    expect(logRows.rows[0].new_status).toBe('REQUESTED');
+    expect(logRows.rows[0].old_status).toBeNull();
+  });
+
+  test('rolls back everything when the quote is already consumed', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // create a fresh quote
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 3,
+      durationMin: 5,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    // consume it once (unique ref per run to avoid collisions across reruns)
+    const uniqueRef = `already-used-${Date.now()}`;
+    await pricingRepository.consumeQuote(quoteId, uniqueRef);
+
+    // second create ride should fail -> quote already consumed
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    await expect(
+      createRideUseCase.execute({
+        passengerId,
+        quoteId,
+        originLat: 35.7,
+        originLng: 51.4,
+        destLat: 35.6,
+        destLng: 51.3,
+      }),
+    ).rejects.toThrow(/قبلاً مصرف شده/);
+  });
+
+  test('API: create ride via POST /api/v1/rides', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // fresh quote
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 4,
+      durationMin: 6,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const res = await request(app)
+      .post('/api/v1/rides')
+      .send({
+        quoteId,
+        passengerId,
+        originLat: 35.7199,
+        originLng: 51.4100,
+        destLat: 35.7155,
+        destLng: 51.4049,
+        referenceId: `api-ref-${Date.now()}`,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.rideId).toBeTruthy();
+    expect(res.body.data.status).toBe('REQUESTED');
+
+    // cleanup this ride too (driver is null so rides.passenger_id filter)
+    await pool.query('DELETE FROM rides WHERE id = $1', [res.body.data.rideId]);
+  });
+
+  test('API: successful accept by driver A (200 ACCEPTED)', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // create a ride in REQUESTED via CreateRideUseCase (fast path)
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 2,
+      durationMin: 4,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.71,
+      originLng: 51.41,
+      destLat: 35.70,
+      destLng: 51.40,
+      referenceId: `acc1-${Date.now()}`,
+    });
+
+    // Move ride into SEARCHING so it is "findable" (accept requires SEARCHING per state machine).
+    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+
+    const res = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .send({ driverId: driverIdA });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe('ACCEPTED');
+    expect(res.body.data.driverId).toBe(driverIdA);
+
+    // cleanup this ride
+    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+  });
+
+  test('API: second driver B gets 409 (concurrency / already accepted)', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 2,
+      durationMin: 4,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.71,
+      originLng: 51.41,
+      destLat: 35.70,
+      destLng: 51.40,
+      referenceId: `acc2-${Date.now()}`,
+    });
+
+    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+
+    // First driver (A) accepts successfully.
+    const resA = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .send({ driverId: driverIdA });
+    expect(resA.status).toBe(200);
+
+    // Second driver (B) tries to accept the SAME ride -> must be rejected with 409.
+    const resB = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .send({ driverId: driverIdB });
+    expect(resB.status).toBe(409);
+    expect(resB.body.success).toBe(false);
+    expect(resB.body.error).toMatch(/قبلاً.*پذیرفته/);
+
+    // cleanup
+    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+  });
+});

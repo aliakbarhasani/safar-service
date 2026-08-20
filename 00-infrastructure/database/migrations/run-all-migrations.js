@@ -29,6 +29,7 @@ const MIGRATION_ORDER = [
   '013_pricing_configs.sql',
   '014_pricing_quotes_audit.sql',
   '015_quotes_audit_final.sql',
+  '016_create_rides_tables.sql',
   'V1_0__create_pricing_tables.sql',
 ];
 

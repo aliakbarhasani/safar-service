@@ -8,6 +8,7 @@
 
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const { getPool } = require('../01-core-system/database/db');
 const router = express.Router();
 
 // ===== مسیرهای عمومی =====
@@ -65,17 +66,42 @@ const adsProxy = createProxyMiddleware({
 router.use('/api/v1/ads', adsProxy);
 
 // ===== مسیرهای موتور قیمت‌گذاری (15-pricing-engine) =====
-const pricingProxy = createProxyMiddleware({
-  target: 'http://localhost:3005',
-  changeOrigin: true,
-  logLevel: 'warn',
-  pathRewrite: (path) => {
-    if (!path || path === '/') return '/api/v1/pricing';
-    if (path.startsWith('/api/v1/pricing')) return path;
-    return path.startsWith('/') ? `/api/v1/pricing${path}` : `/api/v1/pricing/${path}`;
-  },
+// روتر زنده‌ی موتور قیمت‌گذاری با تزریق Pool مشترک PostgreSQL تا از بیرون
+// (از طریق Gateway) مستقیماً قابل فراخوانی باشد.
+const PricingRepository = require('../15-pricing-engine/infrastructure/PricingRepository');
+const GenerateQuoteUseCase = require('../15-pricing-engine/application/GenerateQuoteUseCase');
+const GetQuoteUseCase = require('../15-pricing-engine/application/GetQuoteUseCase');
+const ConsumeQuoteUseCase = require('../15-pricing-engine/application/ConsumeQuoteUseCase');
+const PricingController = require('../15-pricing-engine/presentation/PricingController');
+const createPricingRouter = require('../15-pricing-engine/presentation/PricingRouter');
+
+const pricingPool = getPool();
+const pricingRepository = new PricingRepository(pricingPool);
+const generateQuoteUseCase = new GenerateQuoteUseCase(pricingRepository);
+const getQuoteUseCase = new GetQuoteUseCase(pricingRepository);
+const consumeQuoteUseCase = new ConsumeQuoteUseCase(pricingRepository);
+const pricingController = new PricingController({
+    generateQuoteUseCase,
+    getQuoteUseCase,
+    consumeQuoteUseCase,
 });
-router.use('/api/v1/pricing', pricingProxy);
+const pricingRouter = createPricingRouter(pricingController);
+router.use('/api/v1/pricing', pricingRouter);
+
+// ===== مسیرهای موتور سفر (16-ride-engine) =====
+const RideRepository = require('../16-ride-engine/infrastructure/RideRepository');
+const CreateRideUseCase = require('../16-ride-engine/application/CreateRideUseCase');
+const AcceptRideUseCase = require('../16-ride-engine/application/AcceptRideUseCase');
+const RideController = require('../16-ride-engine/presentation/RideController');
+const createRideRouter = require('../16-ride-engine/presentation/RideRouter');
+
+const ridePool = getPool();
+const rideRepository = new RideRepository(ridePool);
+const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
+const rideController = new RideController({ createRideUseCase, acceptRideUseCase });
+const rideRouter = createRideRouter(rideController);
+router.use('/api/v1/rides', rideRouter);
 
 // ===== مسیرهای سلامت =====
 const healthRoute = require('./routes/health.route');

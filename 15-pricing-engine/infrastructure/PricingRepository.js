@@ -1,4 +1,9 @@
 const { Pool } = require('pg');
+const {
+    QuoteNotFoundError,
+    QuoteAlreadyConsumedError,
+    QuoteExpiredError,
+} = require('../domain/errors/PricingErrors');
 
 class PricingRepository {
     constructor(dbClient) {
@@ -34,6 +39,93 @@ class PricingRepository {
             minimum_fare: row.minimum_fare,
             commission_rate: row.commission_rate / 100,
         };
+    }
+
+    async getQuoteById(quoteId) {
+        const query = `
+            SELECT id, reference_id, pricing_config_id, service_type, currency_code,
+                   gross_amount, discount_amount, tax_amount, commission_amount,
+                   provider_amount, customer_final_amount, status,
+                   input_snapshot, calculation_snapshot,
+                   created_at, expires_at, consumed_at, cancelled_at
+            FROM quotes
+            WHERE id = $1
+        `;
+        const result = await this.db.query(query, [quoteId]);
+        if (result.rows.length === 0) {
+            return null;
+        }
+        return result.rows[0];
+    }
+
+    async consumeQuote(quoteId, referenceId, injectedClient) {
+        const ownsClient = !injectedClient;
+        const client = injectedClient || await this.db.connect();
+        try {
+            if (ownsClient) {
+                await client.query('BEGIN');
+            }
+
+            // ۱. واکشی رکورد با قفل ردیف برای جلوگیری از مصرف همزمان (Race Condition)
+            const selectQuery = `
+                SELECT id, status, expires_at, reference_id
+                FROM quotes
+                WHERE id = $1
+                FOR UPDATE
+            `;
+            const selectResult = await client.query(selectQuery, [quoteId]);
+
+            if (selectResult.rows.length === 0) {
+                throw new QuoteNotFoundError(quoteId);
+            }
+
+            const quote = selectResult.rows[0];
+
+            // ۲. بررسی وضعیت — فقط پیش‌فاکتورهای CREATED قابل مصرف هستند
+            if (quote.status !== 'CREATED') {
+                throw new QuoteAlreadyConsumedError(quoteId);
+            }
+
+            // ۳. بررسی انقضا
+            const now = new Date();
+            if (now > new Date(quote.expires_at)) {
+                throw new QuoteExpiredError(quoteId);
+            }
+
+            // ۴. به‌روزرسانی وضعیت به CONSUMED و ثبت reference_id جدید
+            const updateQuery = `
+                UPDATE quotes
+                SET status = 'CONSUMED',
+                    consumed_at = NOW(),
+                    reference_id = COALESCE($2, reference_id)
+                WHERE id = $1
+                RETURNING id, status, reference_id, consumed_at
+            `;
+            const updateResult = await client.query(updateQuery, [quoteId, referenceId]);
+            const consumedQuote = updateResult.rows[0];
+
+            // ۵. ثبت رکورد حسابرسی QUOTE_CONSUMED
+            const auditQuery = `
+                INSERT INTO pricing_audit_logs (
+                    quote_id, action_type, rule_snapshot, calculation_steps
+                ) VALUES ($1, 'QUOTE_CONSUMED', $2::jsonb, $3::jsonb)
+            `;
+            await client.query(auditQuery, [
+                quoteId,
+                JSON.stringify({ quoteId, referenceId }),
+                JSON.stringify({ consumedAt: consumedQuote.consumed_at }),
+            ]);
+
+            await client.query('COMMIT');
+            return consumedQuote;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (ownsClient) {
+                client.release();
+            }
+        }
     }
 
     async saveQuoteAndAudit(quoteEntity) {
