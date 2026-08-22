@@ -1,0 +1,78 @@
+PASS 15-pricing-engine/__tests__/pricing-engine.test.js (73.055 s)
+  ● Console
+
+    console.log
+      
+      === PRICING RULE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:36:9)
+
+    console.log
+      
+      === DYNAMIC MULTIPLIER TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:104:9)
+
+    console.log
+      
+      === PRICE BREAKDOWN TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:145:9)
+
+    console.log
+      
+      === PRICE QUOTE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:200:9)
+
+    console.log
+      
+      === EVENT CONTRACT TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:280:9)
+
+    console.log
+      
+      === INTERFACE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:325:9)
+
+    console.log
+      
+      === MODULE LOADING TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:363:9)
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS 15-pricing-engine/__tests__/pricing-integration.test.js (6.68 s)
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.warn
+      [PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback: ECONNREFUSED
+
+    [0m [90m 47 |[39m       [36mreturn[39m result[33m.[39mrows [33m&&[39m result[33m.[39mrows[[35m0[39m] [33m?[39m result[33m.[39mrows[[35m0[39m] [33m:[39m record[33m;[39m
+     [90m 48 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 49 |[39m       console[33m.[39mwarn([32m'[PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 50 |[39m       [36mthis[39m[33m.[39m_memoryStore[33m.[39m[36mset[39m(quoteId[33m,[39m record)[33m;[39m
+     [90m 51 |[39m       [36mreturn[39m record[33m;[39m
+     [90m 52 |[39m     }[0m
+
+      at PostgresPricingRepository.warn [as saveQuote] (15-pricing-engine/infrastructure/repositories/PostgresPricingRepository.js:49:15)
+      at Object.<anonymous> (15-pricing-engine/__tests__/pricing-integration.test.js:75:24)
+
+
+Test Suites: 2 passed, 2 total
+Tests:       45 passed, 45 total
+Snapshots:   0 total
+Time:        85.409 s
+Ran all test suites matching /15-pricing-engine\\__tests__\\pricing-engine.test.js|15-pricing-engine\\__tests__\\pricing-integration.test.js/i.

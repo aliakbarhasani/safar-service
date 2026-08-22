@@ -1,0 +1,20 @@
+  console.log
+    ◇ injected env (31) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [TestServer] Listening on http://localhost:3099
+
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:25:15)
+
+  console.log
+    [TestServer] Closed
+
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:43:17)
+

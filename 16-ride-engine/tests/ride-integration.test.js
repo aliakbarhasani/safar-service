@@ -20,6 +20,10 @@ const GenerateQuoteUseCase = require('../../15-pricing-engine/application/Genera
 const RideRepository = require('../infrastructure/RideRepository');
 const CreateRideUseCase = require('../application/CreateRideUseCase');
 const AcceptRideUseCase = require('../application/AcceptRideUseCase');
+const DriverArrivedUseCase = require('../application/DriverArrivedUseCase');
+const StartTripUseCase = require('../application/StartTripUseCase');
+const CompleteRideUseCase = require('../application/CompleteRideUseCase');
+const CancelRideUseCase = require('../application/CancelRideUseCase');
 const RideController = require('../presentation/RideController');
 const createRideRouter = require('../presentation/RideRouter');
 
@@ -71,10 +75,21 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       driverIdA = await createTestUser('DriverA');
       driverIdB = await createTestUser('DriverB');
 
-      // Build the Express app with both use cases (Presentation layer).
+      // Build the Express app with all ride use cases (Presentation layer).
       const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
       const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
-      const controller = new RideController({ createRideUseCase, acceptRideUseCase });
+      const driverArrivedUseCase = new DriverArrivedUseCase({ rideRepository });
+      const startTripUseCase = new StartTripUseCase({ rideRepository });
+      const completeRideUseCase = new CompleteRideUseCase({ rideRepository });
+      const cancelRideUseCase = new CancelRideUseCase({ rideRepository });
+      const controller = new RideController({
+        createRideUseCase,
+        acceptRideUseCase,
+        driverArrivedUseCase,
+        startTripUseCase,
+        completeRideUseCase,
+        cancelRideUseCase,
+      });
       app = express();
       app.use(express.json());
       app.use('/api/v1/rides', createRideRouter(controller));
@@ -324,6 +339,144 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(resB.status).toBe(409);
     expect(resB.body.success).toBe(false);
     expect(resB.body.error).toMatch(/قبلاً.*پذیرفته/);
+
+    // cleanup
+    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+  });
+
+  // ==================== چرخه کامل زندگی سفر ====================
+  test('API: full lifecycle CREATE -> ACCEPT -> ARRIVED -> START -> COMPLETE', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 3,
+      durationMin: 5,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.72,
+      originLng: 51.40,
+      destLat: 35.70,
+      destLng: 51.42,
+      referenceId: `lifecycle-${Date.now()}`,
+    });
+    expect(ride.status).toBe('REQUESTED');
+
+    // State machine requires SEARCHING before accept (the "request a driver" step).
+    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+
+    // 1) accept
+    const accept = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .send({ driverId: driverIdA });
+    expect(accept.status).toBe(200);
+    expect(accept.body.data.status).toBe('ACCEPTED');
+
+    // 2) driver arrived
+    const arrived = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/arrived`)
+      .send({ userId: driverIdA });
+    expect(arrived.status).toBe(200);
+    expect(arrived.body.data.status).toBe('ARRIVED');
+
+    // 3) start trip
+    const start = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/start`)
+      .send({ userId: driverIdA });
+    expect(start.status).toBe(200);
+    expect(start.body.data.status).toBe('IN_PROGRESS');
+
+    // 4) complete trip
+    const complete = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/complete`)
+      .send({ userId: driverIdA });
+    expect(complete.status).toBe(200);
+    expect(complete.body.data.status).toBe('COMPLETED');
+    expect(complete.body.data.driverId).toBe(driverIdA);
+
+    // cleanup
+    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+  });
+
+  test('API: cancel ride from REQUESTED (CANCELLED)', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 1,
+      durationMin: 2,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.73,
+      originLng: 51.43,
+      destLat: 35.71,
+      destLng: 51.41,
+      referenceId: `cancel-${Date.now()}`,
+    });
+
+    const cancel = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/cancel`)
+      .send({ userId: passengerId });
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.data.status).toBe('CANCELLED');
+
+    // cleanup
+    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+  });
+
+  test('API: complete from REQUESTED returns 400 (invalid state)', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
+    const quote = await generateUseCase.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 1,
+      durationMin: 1,
+      trafficMultiplier: 1.0,
+    });
+    const quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const ride = await createRideUseCase.execute({
+      passengerId,
+      quoteId,
+      originLat: 35.73,
+      originLng: 51.43,
+      destLat: 35.71,
+      destLng: 51.41,
+      referenceId: `complete-invalid-${Date.now()}`,
+    });
+
+    // A ride freshly created is REQUESTED; completing it directly is not allowed.
+    const invalidComplete = await request(app)
+      .post(`/api/v1/rides/${ride.rideId}/complete`)
+      .send({ userId: driverIdA });
+    expect(invalidComplete.status).toBe(400);
+    expect(invalidComplete.body.success).toBe(false);
+    expect(invalidComplete.body.error).toMatch(/وضعیت/);
 
     // cleanup
     await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);

@@ -1,0 +1,9 @@
+PASS 16-ride-engine/tests/unit/Ride.test.js (19.245 s)
+PASS 15-pricing-engine/tests/unit/PricingCalculator.test.js (10.605 s)
+PASS 15-pricing-engine/tests/unit/Money.test.js (5.997 s)
+
+Test Suites: 3 passed, 3 total
+Tests:       35 passed, 35 total
+Snapshots:   0 total
+Time:        39.499 s
+Ran all test suites matching /16-ride-engine\\tests\\unit|15-pricing-engine\\tests\\unit/i.

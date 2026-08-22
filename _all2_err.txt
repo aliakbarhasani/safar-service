@@ -1,0 +1,308 @@
+PASS 16-ride-engine/tests/ride-integration.test.js (5.399 s)
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.error
+      [RideController] acceptRide error: RideAlreadyAcceptedError: سفر bc86d26a-9426-4c60-ae31-1f6772998f20 قبلاً توسط یک راننده پذیرفته شده است.
+          at AcceptRideUseCase.execute (D:\safar-service\16-ride-engine\application\AcceptRideUseCase.js:44:27)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at RideController.acceptRide (D:\safar-service\16-ride-engine\presentation\RideController.js:63:28) {
+        rideId: 'bc86d26a-9426-4c60-ae31-1f6772998f20',
+        code: 'RIDE_ALREADY_ACCEPTED',
+        statusCode: 409
+      }
+
+    [0m [90m 65 |[39m             [36mreturn[39m res[33m.[39mstatus([35m200[39m)[33m.[39mjson({ success[33m:[39m [36mtrue[39m[33m,[39m message[33m:[39m [32m'سفر توسط راننده پذیرفته شد.'[39m[33m,[39m data[33m:[39m result })[33m;[39m
+     [90m 66 |[39m         } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 67 |[39m             console[33m.[39merror([32m'[RideController] acceptRide error:'[39m[33m,[39m error)[33m;[39m
+     [90m    |[39m                     [31m[1m^[22m[39m
+     [90m 68 |[39m
+     [90m 69 |[39m             [36mif[39m (error [36minstanceof[39m [33mRideNotFoundError[39m [33m||[39m error[33m.[39mcode [33m===[39m [32m'RIDE_NOT_FOUND'[39m) {
+     [90m 70 |[39m                 [36mreturn[39m res[33m.[39mstatus([35m404[39m)[33m.[39mjson({ success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m[0m
+
+      at RideController.error [as acceptRide] (16-ride-engine/presentation/RideController.js:67:21)
+
+    console.error
+      [RideController] completeRide error: InvalidRideStateError: وضعیت فعلی سفر (REQUESTED) اجازه‌ی این عملیات را نمی‌دهد؛ وضعیت موردنیاز IN_PROGRESS است.
+          at CompleteRideUseCase.execute (D:\safar-service\16-ride-engine\application\CompleteRideUseCase.js:57:27)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at RideController.completeRide (D:\safar-service\16-ride-engine\presentation\RideController.js:149:28) {
+        code: 'INVALID_RIDE_STATE',
+        statusCode: 400,
+        status: 'REQUESTED',
+        expectedStatus: 'IN_PROGRESS'
+      }
+
+    [0m [90m 151 |[39m             [36mreturn[39m res[33m.[39mstatus([35m200[39m)[33m.[39mjson({ success[33m:[39m [36mtrue[39m[33m,[39m message[33m:[39m [32m'سفر با موفقیت تکمیل شد.'[39m[33m,[39m data[33m:[39m result })[33m;[39m
+     [90m 152 |[39m         } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 153 |[39m             console[33m.[39merror([32m'[RideController] completeRide error:'[39m[33m,[39m error)[33m;[39m
+     [90m     |[39m                     [31m[1m^[22m[39m
+     [90m 154 |[39m
+     [90m 155 |[39m             [36mif[39m (error [36minstanceof[39m [33mRideNotFoundError[39m [33m||[39m error[33m.[39mcode [33m===[39m [32m'RIDE_NOT_FOUND'[39m) {
+     [90m 156 |[39m                 [36mreturn[39m res[33m.[39mstatus([35m404[39m)[33m.[39mjson({ success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m[0m
+
+      at RideController.error [as completeRide] (16-ride-engine/presentation/RideController.js:153:21)
+
+PASS 15-pricing-engine/__tests__/pricing-dynamic.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS 15-pricing-engine/tests/integration/PricingRbacAndCalculation.integration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS 15-pricing-engine/tests/pricing-integration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ suppress logs { quiet: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.error
+      [PricingController] Error calculating quote: Error: هیچ کانفیگ فعالی برای سرویس flying_car یافت نشد.
+          at PricingRepository.getActiveConfig (D:\safar-service\15-pricing-engine\infrastructure\PricingRepository.js:25:19)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at GenerateQuoteUseCase.execute (D:\safar-service\15-pricing-engine\application\GenerateQuoteUseCase.js:11:24)
+          at PricingController.calculateQuote (D:\safar-service\15-pricing-engine\presentation\PricingController.js:35:28)
+
+    [0m [90m 42 |[39m
+     [90m 43 |[39m         } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 44 |[39m             console[33m.[39merror([32m'[PricingController] Error calculating quote:'[39m[33m,[39m error)[33m;[39m
+     [90m    |[39m                     [31m[1m^[22m[39m
+     [90m 45 |[39m             
+     [90m 46 |[39m             [90m// مدیریت خطاهای شناخته شده (مانند پیدا نشدن کانفیگ)[39m
+     [90m 47 |[39m             [36mif[39m (error[33m.[39mmessage [33m&&[39m error[33m.[39mmessage[33m.[39mincludes([32m'هیچ کانفیگ فعالی'[39m)) {[0m
+
+      at PricingController.error [as calculateQuote] (15-pricing-engine/presentation/PricingController.js:44:21)
+
+    console.error
+      [PricingController] Error getting quote: QuoteNotFoundError: هیچ پیش‌فاکتوری با شناسه 00000000-0000-0000-0000-000000000000 یافت نشد.
+          at GetQuoteUseCase.execute (D:\safar-service\15-pricing-engine\application\GetQuoteUseCase.js:28:19)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at PricingController.getQuote (D:\safar-service\15-pricing-engine\presentation\PricingController.js:69:28) {
+        quoteId: '00000000-0000-0000-0000-000000000000',
+        code: 'QUOTE_NOT_FOUND'
+      }
+
+    [0m [90m 74 |[39m             })[33m;[39m
+     [90m 75 |[39m         } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 76 |[39m             console[33m.[39merror([32m'[PricingController] Error getting quote:'[39m[33m,[39m error)[33m;[39m
+     [90m    |[39m                     [31m[1m^[22m[39m
+     [90m 77 |[39m
+     [90m 78 |[39m             [36mif[39m (error [36minstanceof[39m [33mQuoteNotFoundError[39m [33m||[39m (error[33m.[39mcode [33m===[39m [32m'QUOTE_NOT_FOUND'[39m)) {
+     [90m 79 |[39m                 [36mreturn[39m res[33m.[39mstatus([35m404[39m)[33m.[39mjson({ success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m[0m
+
+      at PricingController.error [as getQuote] (15-pricing-engine/presentation/PricingController.js:76:21)
+
+    console.error
+      [PricingController] Error consuming quote: QuoteAlreadyConsumedError: پیش‌فاکتور b65deac3-98eb-4d1f-8d65-5db9a0eabdbf قبلاً مصرف شده است.
+          at PricingRepository.consumeQuote (D:\safar-service\15-pricing-engine\infrastructure\PricingRepository.js:86:23)
+          at processTicksAndRejections (node:internal/process/task_queues:104:5)
+          at ConsumeQuoteUseCase.execute (D:\safar-service\15-pricing-engine\application\ConsumeQuoteUseCase.js:22:31)
+          at PricingController.consumeQuote (D:\safar-service\15-pricing-engine\presentation\PricingController.js:101:28) {
+        quoteId: 'b65deac3-98eb-4d1f-8d65-5db9a0eabdbf',
+        code: 'QUOTE_ALREADY_CONSUMED',
+        statusCode: 409
+      }
+
+    [0m [90m 107 |[39m             })[33m;[39m
+     [90m 108 |[39m         } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 109 |[39m             console[33m.[39merror([32m'[PricingController] Error consuming quote:'[39m[33m,[39m error)[33m;[39m
+     [90m     |[39m                     [31m[1m^[22m[39m
+     [90m 110 |[39m
+     [90m 111 |[39m             [36mif[39m (error [36minstanceof[39m [33mQuoteNotFoundError[39m [33m||[39m error[33m.[39mcode [33m===[39m [32m'QUOTE_NOT_FOUND'[39m) {
+     [90m 112 |[39m                 [36mreturn[39m res[33m.[39mstatus([35m404[39m)[33m.[39mjson({ success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m[0m
+
+      at PricingController.error [as consumeQuote] (15-pricing-engine/presentation/PricingController.js:109:21)
+
+PASS 15-pricing-engine/tests/integration/PricingIntegration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      ◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.log
+      [TestServer] Listening on http://localhost:3099
+
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:25:15)
+
+    console.log
+      [TestServer] Closed
+
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:46:17)
+
+PASS 15-pricing-engine/__tests__/pricing-engine.test.js
+  ● Console
+
+    console.log
+      
+      === PRICING RULE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:36:9)
+
+    console.log
+      
+      === DYNAMIC MULTIPLIER TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:104:9)
+
+    console.log
+      
+      === PRICE BREAKDOWN TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:145:9)
+
+    console.log
+      
+      === PRICE QUOTE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:200:9)
+
+    console.log
+      
+      === EVENT CONTRACT TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:280:9)
+
+    console.log
+      
+      === INTERFACE TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:325:9)
+
+    console.log
+      
+      === MODULE LOADING TESTS ===
+
+      at Object.log (15-pricing-engine/__tests__/pricing-engine.test.js:363:9)
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS 15-pricing-engine/__tests__/pricing-integration.test.js
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.warn
+      [PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback: ECONNREFUSED
+
+    [0m [90m 47 |[39m       [36mreturn[39m result[33m.[39mrows [33m&&[39m result[33m.[39mrows[[35m0[39m] [33m?[39m result[33m.[39mrows[[35m0[39m] [33m:[39m record[33m;[39m
+     [90m 48 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 49 |[39m       console[33m.[39mwarn([32m'[PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 50 |[39m       [36mthis[39m[33m.[39m_memoryStore[33m.[39m[36mset[39m(quoteId[33m,[39m record)[33m;[39m
+     [90m 51 |[39m       [36mreturn[39m record[33m;[39m
+     [90m 52 |[39m     }[0m
+
+      at PostgresPricingRepository.warn [as saveQuote] (15-pricing-engine/infrastructure/repositories/PostgresPricingRepository.js:49:15)
+      at Object.<anonymous> (15-pricing-engine/__tests__/pricing-integration.test.js:75:24)
+
+PASS 16-ride-engine/tests/unit/Ride.test.js
+PASS 15-pricing-engine/__tests__/infrastructure-api.test.js
+  ● Console
+
+    console.log
+      
+      === PRICING CONTROLLER TESTS ===
+
+      at log (15-pricing-engine/__tests__/infrastructure-api.test.js:62:9)
+
+    console.log
+      
+      === MODULE LOADING TESTS ===
+
+      at log (15-pricing-engine/__tests__/infrastructure-api.test.js:139:9)
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.warn
+      [PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback: ECONNREFUSED
+
+    [0m [90m 47 |[39m       [36mreturn[39m result[33m.[39mrows [33m&&[39m result[33m.[39mrows[[35m0[39m] [33m?[39m result[33m.[39mrows[[35m0[39m] [33m:[39m record[33m;[39m
+     [90m 48 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 49 |[39m       console[33m.[39mwarn([32m'[PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 50 |[39m       [36mthis[39m[33m.[39m_memoryStore[33m.[39m[36mset[39m(quoteId[33m,[39m record)[33m;[39m
+     [90m 51 |[39m       [36mreturn[39m record[33m;[39m
+     [90m 52 |[39m     }[0m
+
+      at PostgresPricingRepository.warn [as saveQuote] (15-pricing-engine/infrastructure/repositories/PostgresPricingRepository.js:49:15)
+      at Object.<anonymous> (15-pricing-engine/__tests__/infrastructure-api.test.js:28:17)
+
+    console.warn
+      [PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback: ECONNREFUSED
+
+    [0m [90m 47 |[39m       [36mreturn[39m result[33m.[39mrows [33m&&[39m result[33m.[39mrows[[35m0[39m] [33m?[39m result[33m.[39mrows[[35m0[39m] [33m:[39m record[33m;[39m
+     [90m 48 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 49 |[39m       console[33m.[39mwarn([32m'[PricingRepo] PostgreSQL saveQuote failed, using in-memory fallback:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 50 |[39m       [36mthis[39m[33m.[39m_memoryStore[33m.[39m[36mset[39m(quoteId[33m,[39m record)[33m;[39m
+     [90m 51 |[39m       [36mreturn[39m record[33m;[39m
+     [90m 52 |[39m     }[0m
+
+      at PostgresPricingRepository.warn [as saveQuote] (15-pricing-engine/infrastructure/repositories/PostgresPricingRepository.js:49:15)
+      at Object.<anonymous> (15-pricing-engine/__tests__/infrastructure-api.test.js:49:17)
+
+    console.warn
+      [PricingRepo] PostgreSQL getQuoteById failed, using in-memory fallback: ECONNREFUSED
+
+    [0m [90m 64 |[39m       }
+     [90m 65 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 66 |[39m       console[33m.[39mwarn([32m'[PricingRepo] PostgreSQL getQuoteById failed, using in-memory fallback:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 67 |[39m     }
+     [90m 68 |[39m
+     [90m 69 |[39m     [36mreturn[39m [36mthis[39m[33m.[39m_memoryStore[33m.[39m[36mget[39m(quoteId) [33m||[39m [36mnull[39m[33m;[39m[0m
+
+      at PostgresPricingRepository.warn [as getQuoteById] (15-pricing-engine/infrastructure/repositories/PostgresPricingRepository.js:66:15)
+
+PASS 15-pricing-engine/tests/unit/PricingCalculator.test.js
+PASS 15-pricing-engine/tests/unit/Money.test.js
+
+Test Suites: 11 passed, 11 total
+Tests:       125 passed, 125 total
+Snapshots:   0 total
+Time:        13.717 s, estimated 14 s
+Ran all test suites matching /15-pricing-engine\\__tests__|15-pricing-engine\\tests|16-ride-engine\\tests/i.
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.

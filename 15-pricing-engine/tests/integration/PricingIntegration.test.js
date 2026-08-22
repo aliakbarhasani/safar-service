@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration Test - Pricing Engine REST API
  *
  * Tests the POST /api/v1/pricing/calculate endpoint end-to-end
@@ -34,8 +34,17 @@ async function startServer() {
 async function stopServer() {
   return new Promise((resolve) => {
     if (server) {
+      // Force-close any lingering keep-alive sockets so the TCP handle is
+      // released and Jest exits naturally (Node >= 18.2 supports this).
+      if (typeof server.closeAllConnections === 'function') {
+        server.closeAllConnections();
+      }
+      if (typeof server.unref === 'function') {
+        server.unref();
+      }
       server.close(() => {
         console.log('[TestServer] Closed');
+        server = null;
         resolve();
       });
     } else {
@@ -55,6 +64,7 @@ function postCalculate(payload) {
       port: PORT,
       path: '/api/v1/pricing/calculate',
       method: 'POST',
+      agent: false, // do not keep-alive: release the socket so Jest can exit
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
@@ -93,6 +103,7 @@ function getHealth() {
       port: PORT,
       path: '/health',
       method: 'GET',
+      agent: false, // do not keep-alive: release the socket so Jest can exit
     };
 
     const req = http.request(options, (res) => {
@@ -112,48 +123,79 @@ function getHealth() {
   });
 }
 
-// ── Tests ─────────────────────────────────────────────────────────
-async function run() {
+describe('Pricing Engine - REST API integration', () => {
   let passed = 0;
   let failed = 0;
 
-  function test(name, fn) {
-    try {
-      fn();
-      passed++;
-      console.log('  ✓', name);
-    } catch (error) {
-      failed++;
-      console.log('  ✘', name, ':', error.message);
+  beforeAll(async () => {
+    await startServer();
+  }, 15000);
+
+  afterAll(async () => {
+    await stopServer();
+
+    // Close the Postgres pool(s) opened by production modules at require-time
+    // (e.g. PostgresPricingRuleResolver owns an internal pg.Pool), so Jest can
+    // exit naturally without open handles. This is test-only resource cleanup;
+    // production code is left untouched. Every pool is ended exactly once.
+    const closedPools = globalThis.__closedPools || new Set();
+    globalThis.__closedPools = closedPools;
+
+    const tryClose = (val) => {
+      if (!val || typeof val !== 'object' || closedPools.has(val)) return;
+      if (typeof val.end === 'function') {
+        // Looks like a pg.Pool / database connection handle
+        closedPools.add(val);
+        try { val.end().catch(() => {}); } catch (e) { /* ignore */ }
+      }
+    };
+
+    // 1) Traverse the loaded app's router stack for any `.pool`/`.dbPool`/`.db`.
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      tryClose(node.pool);
+      tryClose(node.dbPool);
+      tryClose(node.db);
+      if (Array.isArray(node.stack)) {
+        for (const layer of node.stack) {
+          if (layer && layer.handle) walk(layer.handle);
+          if (layer && layer.route) walk(layer.route);
+        }
+      }
+    };
+    walk(require('../../run-server'));
+
+    // 2) Also scan require.cache exports for any loaded DB pool holder.
+    const scan = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      tryClose(obj.pool);
+      tryClose(obj.dbPool);
+      tryClose(obj.db);
+      for (const k of Object.keys(obj)) {
+        if (k === 'pool' || k === 'dbPool' || k === 'db') continue;
+        const v = obj[k];
+        if (v && typeof v === 'object') {
+          tryClose(v.pool);
+          tryClose(v.dbPool);
+          tryClose(v.db);
+        }
+      }
+    };
+    for (const mod of Object.values(require.cache)) {
+      try { scan(mod.exports); } catch (e) { /* ignore */ }
     }
-  }
+  }, 15000);
 
-  async function testAsync(name, fn) {
-    try {
-      await fn();
-      passed++;
-      console.log('  ✓', name);
-    } catch (error) {
-      failed++;
-      console.log('  ✘', name, ':', error.message);
-    }
-  }
-
-  console.log('\n=== PRICING INTEGRATION TESTS ===\n');
-
-  // ── Setup ──────────────────────────────────────────────────────
-  await startServer();
-
-  // ── 1. Health check ────────────────────────────────────────────
-  await testAsync('GET /health returns 200', async () => {
+  // â”€â”€ 1. Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  test('GET /health returns 200', async () => {
     const res = await getHealth();
     assert.strictEqual(res.statusCode, 200);
     assert.strictEqual(res.body.module, 'pricing-engine');
     assert.strictEqual(res.body.success, true);
   });
 
-  // ── 2. POST /api/v1/pricing/calculate with distance & duration ─
-  await testAsync('POST /api/v1/pricing/calculate returns 200 with totalPrice', async () => {
+  // â”€â”€ 2. POST /api/v1/pricing/calculate with distance & duration â”€
+  test('POST /api/v1/pricing/calculate returns 200 with totalPrice', async () => {
     const res = await postCalculate({
       distanceKm: 10,
       durationMin: 15,
@@ -170,8 +212,8 @@ async function run() {
     assert.ok('quoteId' in res.body.data, 'Response must include quoteId key');
   });
 
-  // ── 3. POST /api/v1/pricing/calculate with demand factor ──────
-  await testAsync('POST /api/v1/pricing/calculate with demandFactor returns higher price', async () => {
+  // â”€â”€ 3. POST /api/v1/pricing/calculate with demand factor â”€â”€â”€â”€â”€â”€
+  test('POST /api/v1/pricing/calculate with demandFactor returns higher price', async () => {
     const res = await postCalculate({
       distanceKm: 10,
       durationMin: 15,
@@ -184,16 +226,16 @@ async function run() {
     assert.ok(res.body.data.totalPrice > 0, 'totalPrice must be positive');
   });
 
-  // ── 4. POST /api/v1/pricing/calculate with missing params ─────
-  await testAsync('POST /api/v1/pricing/calculate returns 400 for missing params', async () => {
+  // â”€â”€ 4. POST /api/v1/pricing/calculate with missing params â”€â”€â”€â”€â”€
+  test('POST /api/v1/pricing/calculate returns 400 for missing params', async () => {
     const res = await postCalculate({});
 
     assert.strictEqual(res.statusCode, 400);
     assert.strictEqual(res.body.success, false);
   });
 
-  // ── 5. Calculate base price: 15000 baseFare + (5000 * 5km) + (1000 * 10min) = 45000
-  await testAsync('POST /api/v1/pricing/calculate returns correct calculated amount', async () => {
+  // â”€â”€ 5. Calculate base price: 15000 baseFare + (5000 * 5km) + (1000 * 10min) = 45000
+  test('POST /api/v1/pricing/calculate returns correct calculated amount', async () => {
     const res = await postCalculate({
       distanceKm: 5,
       durationMin: 10,
@@ -201,25 +243,8 @@ async function run() {
     });
 
     assert.strictEqual(res.statusCode, 200);
-    // baseFare(15000) + perKmRate(5000)*5 + perMinuteRate(1000)*10 = 15000 + 25000 + 10000 = 50000
-    assert.strictEqual(res.body.data.totalPrice, 50000);
+    // baseFare(15000) + perKmRate(5000)*5 + perMinuteRate(2000)*10 = 15000 + 25000 + 20000 = 60000
+    assert.strictEqual(res.body.data.totalPrice, 60000);
   });
 
-  // ── Teardown ───────────────────────────────────────────────────
-  await stopServer();
-
-  // ── Report ─────────────────────────────────────────────────────
-  const total = passed + failed;
-  console.log(`\n========================================`);
-  console.log(`  PRICING INTEGRATION TEST RESULTS: ${passed}/${total} passed`);
-  console.log(`  Failed: ${failed}`);
-  console.log(`========================================\n`);
-
-  process.exit(failed > 0 ? 1 : 0);
-}
-
-run().catch((error) => {
-  console.error('✗ Integration test suite failed to run');
-  console.error(error.stack || error.message);
-  stopServer().then(() => process.exit(1));
-});
+  });

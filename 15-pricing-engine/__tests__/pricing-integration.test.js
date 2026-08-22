@@ -1,5 +1,4 @@
 const assert = require('assert');
-const path = require('path');
 
 const { PricingController } = require('../presentation');
 const { PostgresPricingRepository } = require('../infrastructure');
@@ -34,58 +33,54 @@ function createMockUseCase() {
   });
 }
 
-async function run() {
-  const controller = new PricingController({ generateQuote: createMockUseCase() });
+describe('Pricing Engine - integration (controller + repository fallback)', () => {
+  test('controller.createQuote returns 201 with a valid payload', async () => {
+    const controller = new PricingController({ generateQuote: createMockUseCase() });
 
-  const req = {
-    body: {
-      tripId: 'trip-integration-001',
-      distanceKm: 10,
-      durationMin: 15,
-      demandFactor: 1.2,
-    },
-  };
+    const req = {
+      body: {
+        tripId: 'trip-integration-001',
+        distanceKm: 10,
+        durationMin: 15,
+        demandFactor: 1.2,
+      },
+    };
 
-  const res = {
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload) {
-      this.body = payload;
-      return this;
-    },
-  };
+    const res = {
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        this.body = payload;
+        return this;
+      },
+    };
 
-  await controller.createQuote(req, res);
+    await controller.createQuote(req, res);
 
-  assert.strictEqual(res.statusCode, 201, 'Controller should return HTTP 201');
-  assert.strictEqual(res.body.success, true, 'Controller should return success payload');
-  assert.ok(res.body.data, 'Controller should include quote data');
-
-  const repo = new PostgresPricingRepository();
-  repo.dbPool = {
-    query: async () => {
-      throw Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' });
-    },
-  };
-
-  const savedQuote = await repo.saveQuote({
-    tripRequestId: 'fallback-test',
-    totalPrice: 15000,
-    currencyId: 'IRT',
-    status: 'ACTIVE',
+    assert.strictEqual(res.statusCode, 201, 'Controller should return HTTP 201');
+    assert.strictEqual(res.body.success, true, 'Controller should return success payload');
+    assert.ok(res.body.data, 'Controller should include quote data');
   });
 
-  assert.ok(savedQuote.id, 'Repository should save quote to fallback storage');
-  assert.ok(repo._memoryStore instanceof Map, 'Repository should activate the in-memory fallback Map');
-  assert.strictEqual(repo._memoryStore.get(savedQuote.id).id, savedQuote.id);
+  test('repository.saveQuote falls back to in-memory storage when DB is unreachable', async () => {
+    const repo = new PostgresPricingRepository();
+    repo.dbPool = {
+      query: async () => {
+        throw Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      },
+    };
 
-  console.log('✓ pricing-integration.test.js passed');
-}
+    const savedQuote = await repo.saveQuote({
+      tripRequestId: 'fallback-test',
+      totalPrice: 15000,
+      currencyId: 'IRT',
+      status: 'ACTIVE',
+    });
 
-run().catch((error) => {
-  console.error('✗ pricing-integration.test.js failed');
-  console.error(error.stack || error.message);
-  process.exit(1);
+    assert.ok(savedQuote.id, 'Repository should save quote to fallback storage');
+    assert.ok(repo._memoryStore instanceof Map, 'Repository should activate the in-memory fallback Map');
+    assert.strictEqual(repo._memoryStore.get(savedQuote.id).id, savedQuote.id);
+  });
 });

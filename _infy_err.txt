@@ -1,0 +1,18 @@
+PASS 15-pricing-engine/__tests__/infrastructure-api.test.js
+  Pricing Engine - Infrastructure & API
+    √ Repository: creates instance with memory fallback (373 ms)
+    √ Repository: saveQuote falls back to memory (43 ms)
+    √ Repository: findQuoteById from memory (19 ms)
+    √ Controller: constructor throws without deps (17 ms)
+    √ Controller: createQuote returns 201 with valid input (135 ms)
+    √ Controller: createQuote returns 400 when tripId missing (3 ms)
+    √ Controller: recalculateQuote returns 400 without originalQuoteId (11 ms)
+    √ Main module exports all 4 layers (1510 ms)
+    √ Infrastructure exports Repository (1 ms)
+    √ Presentation exports Controller (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        5.655 s
+Ran all test suites matching /15-pricing-engine\\__tests__\\infrastructure-api.test.js/i.

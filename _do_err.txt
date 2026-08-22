@@ -1,0 +1,31 @@
+PASS 15-pricing-engine/tests/integration/PricingIntegration.test.js
+  Pricing Engine - REST API integration
+    √ GET /health returns 200 (113 ms)
+    √ POST /api/v1/pricing/calculate returns 200 with totalPrice (184 ms)
+    √ POST /api/v1/pricing/calculate with demandFactor returns higher price (10 ms)
+    √ POST /api/v1/pricing/calculate returns 400 for missing params (12 ms)
+    √ POST /api/v1/pricing/calculate returns correct calculated amount (14 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        3.33 s, estimated 8 s
+Ran all test suites matching /15-pricing-engine\\tests\\integration\\PricingIntegration.test.js/i.
+
+Jest has detected the following 1 open handle potentially keeping Jest from exiting:
+
+  ●  TCPWRAP
+
+    [0m [90m 22 |[39m   [36mconst[39m app [33m=[39m require([32m'../../run-server'[39m)[33m;[39m
+     [90m 23 |[39m   [36mreturn[39m [36mnew[39m [33mPromise[39m((resolve) [33m=>[39m {
+    [31m[1m>[22m[39m[90m 24 |[39m     server [33m=[39m app[33m.[39mlisten([33mPORT[39m[33m,[39m () [33m=>[39m {
+     [90m    |[39m                  [31m[1m^[22m[39m
+     [90m 25 |[39m       console[33m.[39mlog([32m`[TestServer] Listening on http://localhost:${PORT}`[39m)[33m;[39m
+     [90m 26 |[39m       resolve()[33m;[39m
+     [90m 27 |[39m     })[33m;[39m[0m
+
+      at app.listen (node_modules/express/lib/application.js:635:24)
+      at listen (15-pricing-engine/tests/integration/PricingIntegration.test.js:24:18)
+      at startServer (15-pricing-engine/tests/integration/PricingIntegration.test.js:23:10)
+      at Object.startServer (15-pricing-engine/tests/integration/PricingIntegration.test.js:120:11)
+

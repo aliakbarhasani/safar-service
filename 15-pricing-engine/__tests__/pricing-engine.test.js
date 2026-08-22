@@ -28,20 +28,6 @@ const {
 const { EventContract, PricingEvents } = require('../application/events');
 const { GeneratePriceQuote, RecalculatePrice, ResolvePricingRule } = require('../application/useCases');
 
-let passed = 0;
-let failed = 0;
-
-function test(name, fn) {
-  try {
-    fn();
-    passed++;
-    console.log('  ✓', name);
-  } catch (error) {
-    failed++;
-    console.log('  ✘', name, ':', error.message);
-  }
-}
-
 function assertApprox(actual, expected, tolerance, msg) {
   const diff = Math.abs(actual - expected);
   assert.ok(diff <= tolerance, msg + ` - expected ${expected}, got ${actual}, diff ${diff}`);
@@ -401,13 +387,4 @@ test('Application exports all use cases', () => {
   assert.strictEqual(typeof mod.useCases.ResolvePricingRule, 'function');
 });
 
-// ============================================================
-// REPORT
-// ============================================================
-const total = passed + failed;
-console.log(`\n========================================`);
-console.log(`  TEST RESULTS: ${passed}/${total} passed`);
-console.log(`  Failed: ${failed}`);
-console.log(`========================================\n`);
 
-process.exit(failed > 0 ? 1 : 0);
