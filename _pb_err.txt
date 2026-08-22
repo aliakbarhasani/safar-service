@@ -1,0 +1,19 @@
+FAIL ./_probe.test.js
+  ● Test suite failed to run
+
+    Cannot find module '../15-pricing-engine/domain' from '_probe.test.js'
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m ﻿[36mconst[39m { [33mIRuleResolver[39m[33m,[39m [33mIPricingEventPublisher[39m[33m,[39m [33mICacheProvider[39m } [33m=[39m require([32m"../15-pricing-engine/domain"[39m)[33m;[39m
+     [90m   |[39m                                                                    [31m[1m^[22m[39m
+     [90m 2 |[39m [36mconst[39m [33mGeneratePriceQuote[39m [33m=[39m require([32m"../15-pricing-engine/application/useCases/GeneratePriceQuote"[39m)[33m;[39m
+     [90m 3 |[39m [36mconst[39m [33mResolvePricingRule[39m [33m=[39m require([32m"../15-pricing-engine/application/useCases/ResolvePricingRule"[39m)[33m;[39m
+     [90m 4 |[39m [36mconst[39m [33mCtrl[39m [33m=[39m require([32m"../15-pricing-engine/presentation/controllers/PricingController"[39m)[33m;[39m[0m
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (_probe.test.js:1:68)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        10.414 s
+Ran all test suites matching /_probe.test.js/i.

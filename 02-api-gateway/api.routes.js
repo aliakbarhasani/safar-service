@@ -92,6 +92,10 @@ router.use('/api/v1/pricing', pricingRouter);
 const RideRepository = require('../16-ride-engine/infrastructure/RideRepository');
 const CreateRideUseCase = require('../16-ride-engine/application/CreateRideUseCase');
 const AcceptRideUseCase = require('../16-ride-engine/application/AcceptRideUseCase');
+const DriverArrivedUseCase = require('../16-ride-engine/application/DriverArrivedUseCase');
+const StartTripUseCase = require('../16-ride-engine/application/StartTripUseCase');
+const CompleteRideUseCase = require('../16-ride-engine/application/CompleteRideUseCase');
+const CancelRideUseCase = require('../16-ride-engine/application/CancelRideUseCase');
 const RideController = require('../16-ride-engine/presentation/RideController');
 const createRideRouter = require('../16-ride-engine/presentation/RideRouter');
 
@@ -99,7 +103,18 @@ const ridePool = getPool();
 const rideRepository = new RideRepository(ridePool);
 const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
 const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
-const rideController = new RideController({ createRideUseCase, acceptRideUseCase });
+const driverArrivedUseCase = new DriverArrivedUseCase({ rideRepository });
+const startTripUseCase = new StartTripUseCase({ rideRepository });
+const completeRideUseCase = new CompleteRideUseCase({ rideRepository });
+const cancelRideUseCase = new CancelRideUseCase({ rideRepository });
+const rideController = new RideController({
+    createRideUseCase,
+    acceptRideUseCase,
+    driverArrivedUseCase,
+    startTripUseCase,
+    completeRideUseCase,
+    cancelRideUseCase,
+});
 const rideRouter = createRideRouter(rideController);
 router.use('/api/v1/rides', rideRouter);
 

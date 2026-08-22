@@ -1,0 +1,1496 @@
+FAIL 05-wallet-service/__tests__/wallet.service.test.js (5.512 s)
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  ● getWalletBalance() › should return zero balance for new user without wallet
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "active"
+    Received: "no_wallet"
+
+    [0m [90m 58 |[39m     expect(result[33m.[39mbalance)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 59 |[39m     expect(result[33m.[39mcurrencyId)[33m.[39mtoBe([32m'IRT'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 60 |[39m     expect(result[33m.[39mstatus)[33m.[39mtoBe([32m'active'[39m)[33m;[39m
+     [90m    |[39m                           [31m[1m^[22m[39m
+     [90m 61 |[39m   })[33m;[39m
+     [90m 62 |[39m
+     [90m 63 |[39m   test([32m'should return balance after deposit'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.toBe (05-wallet-service/__tests__/wallet.service.test.js:60:27)
+
+  ● getWalletBalance() › should return balance after deposit
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:64:5)
+
+  ● getWalletBalance() › should return separate balances for different currencies
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:73:5)
+
+  ● getWalletBalance() › should reject invalid currency
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"availableBalance": 0, "balance": 0, "currencyId": "XYZ", "frozenBalance": 0, "message": "No wallet found for this currency. Use deposit to create one.", "status": "no_wallet"}
+
+    [0m [90m 82 |[39m
+     [90m 83 |[39m   test([32m'should reject invalid currency'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+    [31m[1m>[22m[39m[90m 84 |[39m     [36mawait[39m expect(
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 85 |[39m       walletService[33m.[39mgetWalletBalance([33mTEST_USER_1[39m[33m,[39m [33mINVALID_CURRENCY[39m)
+     [90m 86 |[39m     )[33m.[39mrejects[33m.[39mtoThrow([32m'Invalid currency'[39m)[33m;[39m
+     [90m 87 |[39m   })[33m;[39m[0m
+
+      at expect (node_modules/expect/build/index.js:113:15)
+      at Object.expect (05-wallet-service/__tests__/wallet.service.test.js:84:11)
+
+  ● depositFunds() › should deposit funds and create wallet if not exists
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:105:20)
+
+  ● depositFunds() › should increase balance on multiple deposits
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:116:5)
+
+  ● depositFunds() › should prevent duplicate deposit with same referenceId
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:127:5)
+
+  ● depositFunds() › should reject invalid currency
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "Invalid currency"
+    Received message:   "Cannot read properties of undefined (reading 'status')"
+
+        [0m [90m 92 |[39m   }
+         [90m 93 |[39m
+        [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+         [90m    |[39m              [31m[1m^[22m[39m
+         [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+         [90m 96 |[39m   }
+         [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:151:5)
+      at Object.toThrow (node_modules/expect/build/index.js:218:22)
+      at Object.toThrow (05-wallet-service/__tests__/wallet.service.test.js:153:15)
+
+  ● depositFunds() › should publish WalletBalanceChanged event on successful deposit
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:163:5)
+
+  ● withdrawFunds() › should withdraw funds successfully
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should reject withdrawal when balance is insufficient
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should prevent duplicate withdrawal with same referenceId
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should reject withdrawal from non-existent wallet
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should reject negative withdrawal amount
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should reject withdrawal with zero amount
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should publish WalletBalanceChanged event on successful withdrawal
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● withdrawFunds() › should not allow balance to go negative
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:182:5)
+
+  ● transferFunds() › should transfer funds between two users successfully
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject transfer when sender has insufficient balance
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject self-transfer (sender = receiver)
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject transfer with missing receiver
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject transfer with missing sender
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should create wallets for receiver automatically
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should publish two WalletBalanceChanged events (DEBIT + CREDIT)
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject transfer with negative amount
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● transferFunds() › should reject transfer with invalid currency
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:274:5)
+
+  ● Balance Non-Negative Guarantee › should never allow negative balance after multiple operations
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:386:5)
+
+  ● getTransactionHistory() › should return transaction history for user
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● getTransactionHistory() › should filter by currency
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● getTransactionHistory() › should filter by transaction type
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● getTransactionHistory() › should support pagination
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● getTransactionHistory() › should return empty history for user with no transactions
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● getTransactionHistory() › should reject invalid userId
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:426:5)
+
+  ● Complex Integration Scenarios › complete trip payment flow: passenger pays driver
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:487:5)
+
+  ● Complex Integration Scenarios › multi-currency wallet management
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+    [0m [90m 92 |[39m   }
+     [90m 93 |[39m
+    [31m[1m>[22m[39m[90m 94 |[39m   [36mif[39m (wallet[33m.[39mstatus [33m!==[39m [32m'active'[39m) {
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 95 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`Wallet is ${wallet.status}. Cannot perform operations on a non-active wallet.`[39m)[33m;[39m
+     [90m 96 |[39m   }
+     [90m 97 |[39m[0m
+
+      at status (05-wallet-service/services/wallet.service.js:94:14)
+      at 05-wallet-service/services/wallet.service.js:178:20
+      at Object.transaction (05-wallet-service/db/pg.js:132:14)
+      at Object.depositFunds (05-wallet-service/services/wallet.service.js:168:10)
+      at Object.<anonymous> (05-wallet-service/__tests__/wallet.service.test.js:521:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m requested → cancelled_by_passenger is valid".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:163:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m arrived → cancelled_by_driver is valid".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:163:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m requested → expired is valid".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:163:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[34mInvalid Transitions[0m".
+
+    [0m [90m 170 |[39m   [90m// ۵. انتقال‌های غیرمجاز[39m
+     [90m 171 |[39m   [90m// ====================================================================[39m
+    [31m[1m>[22m[39m[90m 172 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.blue}Invalid Transitions${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 173 |[39m
+     [90m 174 |[39m   [36mconst[39m invalidTests [33m=[39m [
+     [90m 175 |[39m     [[32m'requested'[39m[33m,[39m [32m'completed'[39m][33m,[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:172:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m requested → completed is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m requested → in_progress is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m searching → completed is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m searching → arrived is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m accepted → completed is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m completed → requested is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m cancelled_by_passenger → requested is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m cancelled_by_driver → requested is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m expired → requested is INVALID".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:187:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[34mTerminal States[0m".
+
+    [0m [90m 194 |[39m   [90m// ۶. وضعیت‌های نهایی[39m
+     [90m 195 |[39m   [90m// ====================================================================[39m
+    [31m[1m>[22m[39m[90m 196 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.blue}Terminal States${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 197 |[39m
+     [90m 198 |[39m   [36mconst[39m terminalStates [33m=[39m [[32m'completed'[39m[33m,[39m [32m'cancelled_by_passenger'[39m[33m,[39m [32m'cancelled_by_driver'[39m[33m,[39m [32m'expired'[39m][33m;[39m
+     [90m 199 |[39m   [36mconst[39m nonTerminalStates [33m=[39m [[32m'requested'[39m[33m,[39m [32m'searching'[39m[33m,[39m [32m'accepted'[39m[33m,[39m [32m'arrived'[39m[33m,[39m [32m'in_progress'[39m][33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:196:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'completed' is terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:202:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'cancelled_by_passenger' is terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:202:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'cancelled_by_driver' is terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:202:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'expired' is terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:202:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'requested' is NOT terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:208:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'searching' is NOT terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:208:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'accepted' is NOT terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:208:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'arrived' is NOT terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:208:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'in_progress' is NOT terminal".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:208:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Terminal state rejects all transitions".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:213:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[34mPermission Checks[0m".
+
+    [0m [90m 222 |[39m   [90m// ۷. مجوزهای خاص[39m
+     [90m 223 |[39m   [90m// ====================================================================[39m
+    [31m[1m>[22m[39m[90m 224 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.blue}Permission Checks${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 225 |[39m
+     [90m 226 |[39m   [36mawait[39m test([32m'Passenger can cancel when status is REQUESTED'[39m[33m,[39m () [33m=>[39m {
+     [90m 227 |[39m     assert(stateMachine[33m.[39mcanPassengerCancel([32m'requested'[39m) [33m===[39m [36mtrue[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:224:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Passenger can cancel when status is REQUESTED".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:226:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Passenger can cancel when status is ARRIVED".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:230:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Passenger CANNOT cancel when status is IN_PROGRESS".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:234:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Driver can cancel when status is ACCEPTED".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:238:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Driver CANNOT cancel when status is REQUESTED".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:242:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Trip can start only when ARRIVED".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:246:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[34mEvent Mapping[0m".
+
+    [0m [90m 252 |[39m   [90m// ۸. رویدادها[39m
+     [90m 253 |[39m   [90m// ====================================================================[39m
+    [31m[1m>[22m[39m[90m 254 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.blue}Event Mapping${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 255 |[39m
+     [90m 256 |[39m   [36mconst[39m eventMap [33m=[39m {
+     [90m 257 |[39m     [32m'requested'[39m[33m:[39m [32m'TripCreated'[39m[33m,[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:254:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'requested' maps to 'TripCreated'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'searching' maps to 'TripSearching'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'accepted' maps to 'TripAccepted'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'arrived' maps to 'TripDriverArrived'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'in_progress' maps to 'TripInProgress'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'completed' maps to 'TripCompleted'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'cancelled_by_passenger' maps to 'TripCancelledByPassenger'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'cancelled_by_driver' maps to 'TripCancelledByDriver'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m 'expired' maps to 'TripExpired'".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:269:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[34mAllowed Transitions List[0m".
+
+    [0m [90m 275 |[39m   [90m// ۹. تست getAllowedTransitions[39m
+     [90m 276 |[39m   [90m// ====================================================================[39m
+    [31m[1m>[22m[39m[90m 277 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.blue}Allowed Transitions List${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 278 |[39m
+     [90m 279 |[39m   [36mawait[39m test([32m'REQUESTED allows 3 transitions'[39m[33m,[39m () [33m=>[39m {
+     [90m 280 |[39m     [36mconst[39m allowed [33m=[39m stateMachine[33m.[39mgetAllowedTransitions([32m'requested'[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:277:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m REQUESTED allows 3 transitions".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:279:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m IN_PROGRESS allows only 1 transition".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:287:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32m✓[0m Terminal states have 0 transitions".
+
+    [0m [90m 44 |[39m     [36mawait[39m fn()[33m;[39m
+     [90m 45 |[39m     passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     console[33m.[39mlog([32m`  ${colors.green}✓${colors.reset} ${name}`[39m)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 47 |[39m   } [36mcatch[39m (err) {
+     [90m 48 |[39m     failed[33m++[39m[33m;[39m
+     [90m 49 |[39m     failures[33m.[39mpush({ name[33m,[39m error[33m:[39m err[33m.[39mmessage })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:46:13)
+      at runAllTests (06-trip-service/__tests__/state-machine.test.js:293:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [1m[36m========================================[0m".
+
+    [0m [90m 301 |[39m   [90m// ====================================================================[39m
+     [90m 302 |[39m   [36mconst[39m total [33m=[39m passed [33m+[39m failed[33m;[39m
+    [31m[1m>[22m[39m[90m 303 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 304 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}   Test Results${colors.reset}`[39m)[33m;[39m
+     [90m 305 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:303:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[1m[36m   Test Results[0m".
+
+    [0m [90m 302 |[39m   [36mconst[39m total [33m=[39m passed [33m+[39m failed[33m;[39m
+     [90m 303 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 304 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}   Test Results${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 305 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m
+     [90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:304:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[1m[36m========================================[0m".
+
+    [0m [90m 303 |[39m   console[33m.[39mlog([32m`\n${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m 304 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}   Test Results${colors.reset}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 305 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m
+     [90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m
+     [90m 308 |[39m   console[33m.[39mlog([32m`  ${colors.red}Failed:${colors.reset} ${failed}`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:305:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [1mTotal:[0m  58".
+
+    [0m [90m 304 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}   Test Results${colors.reset}`[39m)[33m;[39m
+     [90m 305 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m
+     [90m 308 |[39m   console[33m.[39mlog([32m`  ${colors.red}Failed:${colors.reset} ${failed}`[39m)[33m;[39m
+     [90m 309 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Pass Rate:${colors.reset} ${((passed / total) * 100).toFixed(1)}%`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:306:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [32mPassed:[0m 58".
+
+    [0m [90m 305 |[39m   console[33m.[39mlog([32m`${colors.bright}${colors.cyan}========================================${colors.reset}`[39m)[33m;[39m
+     [90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 308 |[39m   console[33m.[39mlog([32m`  ${colors.red}Failed:${colors.reset} ${failed}`[39m)[33m;[39m
+     [90m 309 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Pass Rate:${colors.reset} ${((passed / total) * 100).toFixed(1)}%`[39m)[33m;[39m
+     [90m 310 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:307:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [31mFailed:[0m 0".
+
+    [0m [90m 306 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Total:${colors.reset}  ${total}`[39m)[33m;[39m
+     [90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 308 |[39m   console[33m.[39mlog([32m`  ${colors.red}Failed:${colors.reset} ${failed}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 309 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Pass Rate:${colors.reset} ${((passed / total) * 100).toFixed(1)}%`[39m)[33m;[39m
+     [90m 310 |[39m
+     [90m 311 |[39m   [36mif[39m (failures[33m.[39mlength [33m>[39m [35m0[39m) {[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:308:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  [1mPass Rate:[0m 100.0%".
+
+    [0m [90m 307 |[39m   console[33m.[39mlog([32m`  ${colors.green}Passed:${colors.reset} ${passed}`[39m)[33m;[39m
+     [90m 308 |[39m   console[33m.[39mlog([32m`  ${colors.red}Failed:${colors.reset} ${failed}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 309 |[39m   console[33m.[39mlog([32m`  ${colors.bright}Pass Rate:${colors.reset} ${((passed / total) * 100).toFixed(1)}%`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 310 |[39m
+     [90m 311 |[39m   [36mif[39m (failures[33m.[39mlength [33m>[39m [35m0[39m) {
+     [90m 312 |[39m     console[33m.[39mlog([32m`\n${colors.red}${colors.bright}Failed Tests:${colors.reset}`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:309:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    [32m[1m✓[0m All Trip Engine tests complete.
+    ".
+
+    [0m [90m 317 |[39m   }
+     [90m 318 |[39m
+    [31m[1m>[22m[39m[90m 319 |[39m   console[33m.[39mlog([32m`\n${colors.green}${colors.bright}✓${colors.reset} All Trip Engine tests complete.\n`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 320 |[39m   process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m
+     [90m 321 |[39m }
+     [90m 322 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (06-trip-service/__tests__/state-machine.test.js:319:11)
+
+  ●  process.exit called with "0"
+
+    [0m [90m 318 |[39m
+     [90m 319 |[39m   console[33m.[39mlog([32m`\n${colors.green}${colors.bright}✓${colors.reset} All Trip Engine tests complete.\n`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 320 |[39m   process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 321 |[39m }
+     [90m 322 |[39m
+     [90m 323 |[39m runAllTests()[33m.[39m[36mcatch[39m(err [33m=>[39m {[0m
+
+      at exit (06-trip-service/__tests__/state-machine.test.js:320:11)

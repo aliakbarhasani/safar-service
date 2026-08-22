@@ -1,0 +1,459 @@
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[TestServer] Listening on http://localhost:3099".
+
+    [0m [90m 23 |[39m   [36mreturn[39m [36mnew[39m [33mPromise[39m((resolve) [33m=>[39m {
+     [90m 24 |[39m     server [33m=[39m app[33m.[39mlisten([33mPORT[39m[33m,[39m () [33m=>[39m {
+    [31m[1m>[22m[39m[90m 25 |[39m       console[33m.[39mlog([32m`[TestServer] Listening on http://localhost:${PORT}`[39m)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 26 |[39m       resolve()[33m;[39m
+     [90m 27 |[39m     })[33m;[39m
+     [90m 28 |[39m   })[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:25:15)
+
+FAIL 15-pricing-engine/tests/integration/PricingIntegration.test.js
+  ● Test suite failed to run
+
+    Your test suite must contain at least one test.
+
+      at onResult (node_modules/@jest/core/build/TestScheduler.js:133:18)
+      at node_modules/@jest/core/build/TestScheduler.js:254:19
+      at node_modules/emittery/index.js:363:13
+          at Array.map (<anonymous>)
+      at Emittery.emit (node_modules/emittery/index.js:361:23)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  ✓ GET /health returns 200".
+
+    [0m [90m 133 |[39m       [36mawait[39m fn()[33m;[39m
+     [90m 134 |[39m       passed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 135 |[39m       console[33m.[39mlog([32m'  ✓'[39m[33m,[39m name)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 136 |[39m     } [36mcatch[39m (error) {
+     [90m 137 |[39m       failed[33m++[39m[33m;[39m
+     [90m 138 |[39m       console[33m.[39mlog([32m'  ✘'[39m[33m,[39m name[33m,[39m [32m':'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:135:15)
+      at run (15-pricing-engine/tests/integration/PricingIntegration.test.js:148:3)
+
+
+ReferenceError: You are trying to `import` a file after the Jest environment has been torn down. From 15-pricing-engine/tests/integration/PricingIntegration.test.js.
+
+      at Object.getCodec (node_modules/iconv-lite/lib/index.js:65:27)
+      at Object.getDecoder (node_modules/iconv-lite/lib/index.js:127:23)
+      at getDecoder (node_modules/raw-body/index.js:46:18)
+      at readStream (node_modules/raw-body/index.js:194:15)
+      at getRawBody (node_modules/raw-body/index.js:116:12)
+      at read (node_modules/body-parser/lib/read.js:79:3)
+      at jsonParser (node_modules/body-parser/lib/types/json.js:138:5)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at cors (node_modules/cors/lib/index.js:188:7)
+      at node_modules/cors/lib/index.js:224:17
+      at originCallback (node_modules/cors/lib/index.js:214:15)
+      at node_modules/cors/lib/index.js:219:13
+      at optionsCallback (node_modules/cors/lib/index.js:199:9)
+      at corsMiddleware (node_modules/cors/lib/index.js:204:7)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at internalNext (node_modules/helmet/index.cjs:527:6)
+      at xXssProtectionMiddleware (node_modules/helmet/index.cjs:307:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xPoweredByMiddleware (node_modules/helmet/index.cjs:300:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xPermittedCrossDomainPoliciesMiddleware (node_modules/helmet/index.cjs:293:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xFrameOptionsMiddleware (node_modules/helmet/index.cjs:277:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xDownloadOptionsMiddleware (node_modules/helmet/index.cjs:257:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xDnsPrefetchControlMiddleware (node_modules/helmet/index.cjs:250:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at xContentTypeOptionsMiddleware (node_modules/helmet/index.cjs:242:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at strictTransportSecurityMiddleware (node_modules/helmet/index.cjs:235:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at referrerPolicyMiddleware (node_modules/helmet/index.cjs:203:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at originAgentClusterMiddleware (node_modules/helmet/index.cjs:178:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at crossOriginResourcePolicyMiddleware (node_modules/helmet/index.cjs:171:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at crossOriginOpenerPolicyMiddleware (node_modules/helmet/index.cjs:155:3)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at contentSecurityPolicyMiddleware (node_modules/helmet/index.cjs:120:4)
+      at internalNext (node_modules/helmet/index.cjs:525:6)
+      at helmetMiddleware (node_modules/helmet/index.cjs:529:6)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at expressInit (node_modules/express/lib/middleware/init.js:40:5)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at query (node_modules/express/lib/middleware/query.js:45:5)
+      at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:328:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at router.handle (node_modules/express/lib/router/index.js:175:3)
+      at app.handle (node_modules/express/lib/application.js:181:10)
+      at Server.app (node_modules/express/lib/express.js:39:9)
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[PricingEngine] Error 415: unsupported charset "UTF-8"".
+
+    [0m [90m 42 |[39m   [36mconst[39m statusCode [33m=[39m err[33m.[39mstatusCode [33m||[39m [35m500[39m[33m;[39m
+     [90m 43 |[39m   [36mconst[39m message [33m=[39m err[33m.[39mmessage [33m||[39m [32m'Internal server error'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 44 |[39m   console[33m.[39merror([32m'[PricingEngine] Error'[39m[33m,[39m statusCode [33m+[39m [32m':'[39m[33m,[39m message)[33m;[39m
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 45 |[39m   res[33m.[39mstatus(statusCode)[33m.[39mjson({
+     [90m 46 |[39m     success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 47 |[39m     status_code[33m:[39m statusCode[33m,[39m[0m
+
+      at console.error (node_modules/@jest/console/build/BufferedConsole.js:127:10)
+      at error (15-pricing-engine/run-server.js:44:11)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at onfinished (node_modules/body-parser/lib/read.js:102:9)
+      at listener (node_modules/on-finished/index.js:170:15)
+      at onFinish (node_modules/on-finished/index.js:101:5)
+      at callback (node_modules/ee-first/index.js:55:10)
+      at IncomingMessage.onevent (node_modules/ee-first/index.js:93:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  ✘ POST /api/v1/pricing/calculate returns 200 with totalPrice : Expected values to be strictly equal:
+
+    415 !== 200
+    ".
+
+    [0m [90m 136 |[39m     } [36mcatch[39m (error) {
+     [90m 137 |[39m       failed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 138 |[39m       console[33m.[39mlog([32m'  ✘'[39m[33m,[39m name[33m,[39m [32m':'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 139 |[39m     }
+     [90m 140 |[39m   }
+     [90m 141 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:138:15)
+      at run (15-pricing-engine/tests/integration/PricingIntegration.test.js:156:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[PricingEngine] Error 415: unsupported charset "UTF-8"".
+
+    [0m [90m 42 |[39m   [36mconst[39m statusCode [33m=[39m err[33m.[39mstatusCode [33m||[39m [35m500[39m[33m;[39m
+     [90m 43 |[39m   [36mconst[39m message [33m=[39m err[33m.[39mmessage [33m||[39m [32m'Internal server error'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 44 |[39m   console[33m.[39merror([32m'[PricingEngine] Error'[39m[33m,[39m statusCode [33m+[39m [32m':'[39m[33m,[39m message)[33m;[39m
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 45 |[39m   res[33m.[39mstatus(statusCode)[33m.[39mjson({
+     [90m 46 |[39m     success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 47 |[39m     status_code[33m:[39m statusCode[33m,[39m[0m
+
+      at console.error (node_modules/@jest/console/build/BufferedConsole.js:127:10)
+      at error (15-pricing-engine/run-server.js:44:11)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at onfinished (node_modules/body-parser/lib/read.js:102:9)
+      at listener (node_modules/on-finished/index.js:170:15)
+      at onFinish (node_modules/on-finished/index.js:101:5)
+      at callback (node_modules/ee-first/index.js:55:10)
+      at IncomingMessage.onevent (node_modules/ee-first/index.js:93:5)
+
+PASS 16-ride-engine/tests/ride-integration.test.js (27.437 s)
+  ● Console
+
+    console.log
+      ◇ injected env (31) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+    console.warn
+      [ride-integration] PostgreSQL unavailable - skipping DB-backed tests: Connection terminated due to connection timeout
+
+    [0m [90m 64 |[39m       client[33m.[39mrelease()[33m;[39m
+     [90m 65 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 66 |[39m       console[33m.[39mwarn([32m'[ride-integration] PostgreSQL unavailable - skipping DB-backed tests:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 67 |[39m       dbAvailable [33m=[39m [36mfalse[39m[33m;[39m
+     [90m 68 |[39m     }
+     [90m 69 |[39m[0m
+
+      at Object.warn (16-ride-engine/tests/ride-integration.test.js:66:15)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:134:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:189:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:223:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:260:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:303:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:350:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:413:22)
+
+    console.log
+        * skipped (db unavailable)
+
+      at Object.log (16-ride-engine/tests/ride-integration.test.js:449:22)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  ✘ POST /api/v1/pricing/calculate with demandFactor returns higher price : Expected values to be strictly equal:
+
+    415 !== 200
+    ".
+
+    [0m [90m 136 |[39m     } [36mcatch[39m (error) {
+     [90m 137 |[39m       failed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 138 |[39m       console[33m.[39mlog([32m'  ✘'[39m[33m,[39m name[33m,[39m [32m':'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 139 |[39m     }
+     [90m 140 |[39m   }
+     [90m 141 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:138:15)
+      at run (15-pricing-engine/tests/integration/PricingIntegration.test.js:174:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  ✘ POST /api/v1/pricing/calculate returns 400 for missing params : read ECONNRESET".
+
+    [0m [90m 136 |[39m     } [36mcatch[39m (error) {
+     [90m 137 |[39m       failed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 138 |[39m       console[33m.[39mlog([32m'  ✘'[39m[33m,[39m name[33m,[39m [32m':'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 139 |[39m     }
+     [90m 140 |[39m   }
+     [90m 141 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:138:15)
+      at run (15-pricing-engine/tests/integration/PricingIntegration.test.js:188:3)
+
+PASS 16-ride-engine/tests/unit/Ride.test.js (6.07 s)
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[PricingEngine] Error 415: unsupported charset "UTF-8"".
+
+    [0m [90m 42 |[39m   [36mconst[39m statusCode [33m=[39m err[33m.[39mstatusCode [33m||[39m [35m500[39m[33m;[39m
+     [90m 43 |[39m   [36mconst[39m message [33m=[39m err[33m.[39mmessage [33m||[39m [32m'Internal server error'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 44 |[39m   console[33m.[39merror([32m'[PricingEngine] Error'[39m[33m,[39m statusCode [33m+[39m [32m':'[39m[33m,[39m message)[33m;[39m
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 45 |[39m   res[33m.[39mstatus(statusCode)[33m.[39mjson({
+     [90m 46 |[39m     success[33m:[39m [36mfalse[39m[33m,[39m
+     [90m 47 |[39m     status_code[33m:[39m statusCode[33m,[39m[0m
+
+      at console.error (node_modules/@jest/console/build/BufferedConsole.js:127:10)
+      at error (15-pricing-engine/run-server.js:44:11)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:67:12)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at router.process_params (node_modules/express/lib/router/index.js:346:12)
+      at next (node_modules/express/lib/router/index.js:280:10)
+      at onfinished (node_modules/body-parser/lib/read.js:102:9)
+      at listener (node_modules/on-finished/index.js:170:15)
+      at onFinish (node_modules/on-finished/index.js:101:5)
+      at callback (node_modules/ee-first/index.js:55:10)
+      at IncomingMessage.onevent (node_modules/ee-first/index.js:93:5)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  ✘ POST /api/v1/pricing/calculate returns correct calculated amount : Expected values to be strictly equal:
+
+    415 !== 200
+    ".
+
+    [0m [90m 136 |[39m     } [36mcatch[39m (error) {
+     [90m 137 |[39m       failed[33m++[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 138 |[39m       console[33m.[39mlog([32m'  ✘'[39m[33m,[39m name[33m,[39m [32m':'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 139 |[39m     }
+     [90m 140 |[39m   }
+     [90m 141 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:138:15)
+      at run (15-pricing-engine/tests/integration/PricingIntegration.test.js:196:3)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "[TestServer] Closed".
+
+    [0m [90m 36 |[39m     [36mif[39m (server) {
+     [90m 37 |[39m       server[33m.[39mclose(() [33m=>[39m {
+    [31m[1m>[22m[39m[90m 38 |[39m         console[33m.[39mlog([32m'[TestServer] Closed'[39m)[33m;[39m
+     [90m    |[39m                 [31m[1m^[22m[39m
+     [90m 39 |[39m         resolve()[33m;[39m
+     [90m 40 |[39m       })[33m;[39m
+     [90m 41 |[39m     } [36melse[39m {[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at Server.log (15-pricing-engine/tests/integration/PricingIntegration.test.js:38:17)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "
+    ========================================".
+
+    [0m [90m 211 |[39m   [90m// ── Report ─────────────────────────────────────────────────────[39m
+     [90m 212 |[39m   [36mconst[39m total [33m=[39m passed [33m+[39m failed[33m;[39m
+    [31m[1m>[22m[39m[90m 213 |[39m   console[33m.[39mlog([32m`\n========================================`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 214 |[39m   console[33m.[39mlog([32m`  PRICING INTEGRATION TEST RESULTS: ${passed}/${total} passed`[39m)[33m;[39m
+     [90m 215 |[39m   console[33m.[39mlog([32m`  Failed: ${failed}`[39m)[33m;[39m
+     [90m 216 |[39m   console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:213:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  PRICING INTEGRATION TEST RESULTS: 1/5 passed".
+
+    [0m [90m 212 |[39m   [36mconst[39m total [33m=[39m passed [33m+[39m failed[33m;[39m
+     [90m 213 |[39m   console[33m.[39mlog([32m`\n========================================`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 214 |[39m   console[33m.[39mlog([32m`  PRICING INTEGRATION TEST RESULTS: ${passed}/${total} passed`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 215 |[39m   console[33m.[39mlog([32m`  Failed: ${failed}`[39m)[33m;[39m
+     [90m 216 |[39m   console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m
+     [90m 217 |[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:214:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "  Failed: 4".
+
+    [0m [90m 213 |[39m   console[33m.[39mlog([32m`\n========================================`[39m)[33m;[39m
+     [90m 214 |[39m   console[33m.[39mlog([32m`  PRICING INTEGRATION TEST RESULTS: ${passed}/${total} passed`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 215 |[39m   console[33m.[39mlog([32m`  Failed: ${failed}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 216 |[39m   console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m
+     [90m 217 |[39m
+     [90m 218 |[39m   process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:215:11)
+
+
+  ●  Cannot log after tests are done. Did you forget to wait for something async in your test?
+    Attempted to log "========================================
+    ".
+
+    [0m [90m 214 |[39m   console[33m.[39mlog([32m`  PRICING INTEGRATION TEST RESULTS: ${passed}/${total} passed`[39m)[33m;[39m
+     [90m 215 |[39m   console[33m.[39mlog([32m`  Failed: ${failed}`[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 216 |[39m   console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 217 |[39m
+     [90m 218 |[39m   process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m
+     [90m 219 |[39m }[0m
+
+      at console.log (node_modules/@jest/console/build/BufferedConsole.js:156:10)
+      at log (15-pricing-engine/tests/integration/PricingIntegration.test.js:216:11)
+
+  ●  process.exit called with "1"
+
+    [0m [90m 216 |[39m   console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m
+     [90m 217 |[39m
+    [31m[1m>[22m[39m[90m 218 |[39m   process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 219 |[39m }
+     [90m 220 |[39m
+     [90m 221 |[39m run()[33m.[39m[36mcatch[39m((error) [33m=>[39m {[0m
+
+      at exit (15-pricing-engine/tests/integration/PricingIntegration.test.js:218:11)

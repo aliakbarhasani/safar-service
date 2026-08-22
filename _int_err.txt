@@ -1,0 +1,16 @@
+PASS 16-ride-engine/tests/ride-integration.test.js (117.86 s)
+  Ride Engine - Integration (create ride with consumed quote)
+    √ creates a real quote, consumes it, and persists the ride + status log (2050 ms)
+    √ rolls back everything when the quote is already consumed (4819 ms)
+    √ API: create ride via POST /api/v1/rides (2284 ms)
+    √ API: successful accept by driver A (200 ACCEPTED) (472 ms)
+    √ API: second driver B gets 409 (concurrency / already accepted) (2009 ms)
+    √ API: full lifecycle CREATE -> ACCEPT -> ARRIVED -> START -> COMPLETE (1383 ms)
+    √ API: cancel ride from REQUESTED (CANCELLED) (581 ms)
+    √ API: complete from REQUESTED returns 400 (invalid state) (919 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        121.122 s
+Ran all test suites matching /16-ride-engine\\tests\\ride-integration.test.js/i.

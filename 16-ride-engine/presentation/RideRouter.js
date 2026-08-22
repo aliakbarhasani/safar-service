@@ -13,6 +13,18 @@ function createRideRouter(rideController) {
     // پذیرش سفر توسط راننده (با کنترل همزمانی)
     router.post('/:rideId/accept', rideController.acceptRide.bind(rideController));
 
+    // راننده در محل سفر رسید
+    router.post('/:rideId/arrived', rideController.driverArrived.bind(rideController));
+
+    // شروع سفر
+    router.post('/:rideId/start', rideController.startTrip.bind(rideController));
+
+    // تکمیل سفر
+    router.post('/:rideId/complete', rideController.completeRide.bind(rideController));
+
+    // لغو سفر
+    router.post('/:rideId/cancel', rideController.cancelRide.bind(rideController));
+
     return router;
 }
 

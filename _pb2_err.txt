@@ -1,0 +1,26 @@
+FAIL ./_probe.test.js
+  probe
+    × ctrl has resolveRule (197 ms)
+
+  ● probe › ctrl has resolveRule
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "function"
+    Received: "object"
+
+    [0m [90m 15 |[39m     console[33m.[39mlog([32m"ctrl.resolveRule ==="[39m[33m,[39m ctrl[33m.[39mresolveRule)[33m;[39m
+     [90m 16 |[39m     console[33m.[39mlog([32m"typeof ctrl.resolveRule"[39m[33m,[39m [36mtypeof[39m ctrl[33m.[39mresolveRule)[33m;[39m
+    [31m[1m>[22m[39m[90m 17 |[39m     expect([36mtypeof[39m ctrl[33m.[39mresolveRule)[33m.[39mtoBe([32m"function"[39m)[33m;[39m
+     [90m    |[39m                                     [31m[1m^[22m[39m
+     [90m 18 |[39m   })[33m;[39m
+     [90m 19 |[39m })[33m;[39m
+     [90m 20 |[39m[0m
+
+      at Object.toBe (_probe.test.js:17:37)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        4.282 s
+Ran all test suites matching /_probe.test.js/i.
