@@ -8,6 +8,8 @@
  * Status: LOCKED
  */
 
+const Decimal = require('decimal.js');
+
 class PricingRule {
   /**
    * @param {Object} params
@@ -73,13 +75,21 @@ class PricingRule {
   }
 
   /**
-   * Calculate the base price for a trip
+   * Calculate the base price for a trip using exact decimal arithmetic.
+   *
+   * Returns the base fare as a primitive number ONLY at this estimate boundary
+   * (preserves the numeric contract expected by the legacy `GeneratePriceQuote`
+   * pipeline). All per-step arithmetic is performed with `decimal.js`, never with
+   * raw JS floating-point operators.
    * @param {number} distanceKm
    * @param {number} durationMin
    * @returns {number}
    */
   calculateBasePrice(distanceKm, durationMin) {
-    return this.baseFare + (this.perKmRate * distanceKm) + (this.perMinuteRate * durationMin);
+    return new Decimal(this.baseFare)
+      .plus(new Decimal(this.perKmRate).times(distanceKm))
+      .plus(new Decimal(this.perMinuteRate).times(durationMin))
+      .toNumber();
   }
 
   /**
