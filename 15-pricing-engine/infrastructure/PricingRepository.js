@@ -1,3 +1,4 @@
+const { Decimal } = require('decimal.js');
 const { Pool } = require('pg');
 const {
     QuoteNotFoundError,
@@ -30,14 +31,15 @@ class PricingRepository {
         //  - price_per_min       -> price_per_minute
         //  - min_fare            -> minimum_fare
         //  - commission_rate is stored as a PERCENT (e.g. 10 => 10%);
-        //    convert to a decimal factor (0.1) expected by PricingCalculator.
+        //    convert to a decimal factor (0.1) expected by PricingCalculator,
+        //    using exact decimal division (never raw float `x / 100`).
         return {
             id: row.id,
             base_fare: row.base_fare,
             price_per_km: row.price_per_km,
             price_per_minute: row.price_per_minute,
             minimum_fare: row.minimum_fare,
-            commission_rate: row.commission_rate / 100,
+            commission_rate: new Decimal(row.commission_rate).dividedBy(100),
         };
     }
 
