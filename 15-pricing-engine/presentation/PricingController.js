@@ -3,6 +3,8 @@ const {
     QuoteAlreadyConsumedError,
     QuoteExpiredError,
 } = require('../domain/errors/PricingErrors');
+const CustomerQuoteResponseDTO = require('./dtos/CustomerQuoteResponseDTO');
+const ProviderQuoteResponseDTO = require('./dtos/ProviderQuoteResponseDTO');
 
 class PricingController {
     constructor({ generateQuoteUseCase, getQuoteUseCase, consumeQuoteUseCase } = {}) {
@@ -34,10 +36,17 @@ class PricingController {
             // فراخوانی Use Case
             const result = await this.generateQuoteUseCase.execute(inputData);
 
+            // DTO separation at the API boundary: role-based visibility.
+            // Default = customer (maximum data-hiding; no tax/commission exposed).
+            const role = this._callerRole(req);
+            const out = role === 'provider'
+                ? ProviderQuoteResponseDTO.fromQuote(result)
+                : CustomerQuoteResponseDTO.fromQuote(result);
+
             return res.status(201).json({
                 success: true,
                 message: 'پیش‌فاکتور با موفقیت ایجاد شد.',
-                data: result
+                data: out
             });
 
         } catch (error) {
@@ -68,9 +77,15 @@ class PricingController {
 
             const result = await this.getQuoteUseCase.execute(quoteId);
 
+            // DTO separation at the API boundary: role-based visibility.
+            const role = this._callerRole(req);
+            const out = role === 'provider'
+                ? ProviderQuoteResponseDTO.fromQuote(result)
+                : CustomerQuoteResponseDTO.fromQuote(result);
+
             return res.status(200).json({
                 success: true,
-                data: result
+                data: out
             });
         } catch (error) {
             console.error('[PricingController] Error getting quote:', error);
@@ -129,6 +144,30 @@ class PricingController {
                 error: 'خطای داخلی سرور در مصرف پیش‌فاکتور.'
             });
         }
+    }
+
+    /**
+     * Resolve the requesting caller's role at the API boundary.
+     * Role is read (highest precedence first) from:
+     *   1. HTTP header  X-Caller-Role
+     *   2. query param  role
+     *   3. body field   role
+     * If no role is provided (or it is not 'provider'), the caller is treated
+     * as a CUSTOMER — the safest, maximum-data-hiding default.
+     * @param {Object} req - Express request
+     * @returns {'provider'|'customer'}
+     */
+    _callerRole(req) {
+        const headers = (req && req.headers) || {};
+        const query = (req && req.query) || {};
+        const body = (req && req.body) || {};
+        const raw =
+            headers['x-caller-role'] ||
+            headers['x-role'] ||
+            query.role ||
+            body.role ||
+            'customer';
+        return String(raw).toLowerCase() === 'provider' ? 'provider' : 'customer';
     }
 }
 

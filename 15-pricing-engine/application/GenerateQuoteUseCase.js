@@ -31,12 +31,21 @@ class GenerateQuoteUseCase {
         const quoteId = await this.pricingRepository.saveQuoteAndAudit(quote);
 
         // ۵. بازگرداندن خروجی برای Controller
+        // Internal superset: the presentation layer (DTO) decides which subset
+        // is visible based on caller role (customer vs provider). The controller
+        // strips tax/commission/provider from customer-facing responses.
         return {
             quoteId: quoteId,
             status: quote.status,
             customerFinalAmount: quote.amounts.customerFinal.toDatabaseFormat(),
             currency: quote.currencyCode,
-            expiresAt: quote.expiresAt
+            expiresAt: quote.expiresAt,
+            grossAmount: quote.amounts.gross.toDatabaseFormat(),
+            commissionAmount: quote.amounts.commission.toDatabaseFormat(),
+            providerAmount: quote.amounts.provider.toDatabaseFormat(),
+            taxAmount: quote.amounts.tax.toDatabaseFormat(),
+            distanceKm: inputData.distanceKm,
+            durationMin: inputData.durationMin
         };
     }
 }
