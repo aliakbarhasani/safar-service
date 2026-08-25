@@ -134,9 +134,15 @@ test('1) returns 400 when required params are missing', async () => {
     expect(res.body.success).toBe(true);
 
     const data = res.body.data;
-    expect(data.quoteId).toBeTruthy();
+    expect(data.quote_id).toBeTruthy();
     expect(data.status).toBe('CREATED');
     expect(data.currency).toBe('IRT');
+
+    // Security: the customer-facing DTO must never expose the fee breakdown.
+    expect(data.commission_amount).toBeUndefined();
+    expect(data.tax_amount).toBeUndefined();
+    expect(data.gross_amount).toBeUndefined();
+    expect(data.provider_amount).toBeUndefined();
 
     // Exact decimal verification
     // urban_taxi seed: base_fare=15000, price_per_km=5000, price_per_minute=2000,
@@ -148,11 +154,11 @@ test('1) returns 400 when required params are missing', async () => {
     const commission = gross.times(new Decimal('0.10')); // 9500
     const provider = gross.minus(commission);            // 85500
 
-    expect(new Decimal(data.customerFinalAmount).toFixed(4)).toBe(gross.toFixed(4));
-    global.__createdQuoteId = data.quoteId;
+    expect(new Decimal(data.final_amount).toFixed(4)).toBe(gross.toFixed(4));
+    global.__createdQuoteId = data.quote_id;
 
     // Persistence verification in `quotes`
-    const quoteRow = await pool.query('SELECT * FROM quotes WHERE id = $1', [data.quoteId]);
+    const quoteRow = await pool.query('SELECT * FROM quotes WHERE id = $1', [data.quote_id]);
     expect(quoteRow.rows.length).toBe(1);
     expect(quoteRow.rows[0].service_type).toBe('urban_taxi');
     expect(quoteRow.rows[0].status).toBe('CREATED');
@@ -163,7 +169,7 @@ test('1) returns 400 when required params are missing', async () => {
     // Persistence verification in `pricing_audit_logs`
     const auditRow = await pool.query(
       'SELECT * FROM pricing_audit_logs WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [data.quoteId],
+      [data.quote_id],
     );
     expect(auditRow.rows.length).toBe(1);
     expect(auditRow.rows[0].action_type).toBe('QUOTE_GENERATED');
@@ -188,7 +194,7 @@ test('1) returns 400 when required params are missing', async () => {
       });
 
     expect(created.status).toBe(201);
-    const quoteId = created.body.data.quoteId;
+    const quoteId = created.body.data.quote_id;
     global.__createdQuoteId = quoteId; // mark for afterEach cleanup
 
     // Now fetch it back
@@ -199,13 +205,19 @@ test('1) returns 400 when required params are missing', async () => {
     expect(res.body.success).toBe(true);
 
     const data = res.body.data;
-    expect(data.quoteId).toBe(quoteId);
-    expect(data.serviceType).toBe('urban_taxi');
+    expect(data.quote_id).toBe(quoteId);
+    expect(data.currency).toBe('IRT');
     expect(data.status).toBe('CREATED');
     expect(data.isExpired).toBe(false); // freshly created quote is still valid
-    expect(data.customerFinalAmount).toBeDefined();
-    expect(data.expiresAt).toBeDefined();
+    expect(data.final_amount).toBeDefined();
+    expect(data.expires_at).toBeDefined();
     expect(typeof data.isExpired).toBe('boolean');
+
+    // Security: the customer-facing DTO must never expose the fee breakdown.
+    expect(data.commission_amount).toBeUndefined();
+    expect(data.tax_amount).toBeUndefined();
+    expect(data.gross_amount).toBeUndefined();
+    expect(data.provider_amount).toBeUndefined();
   });
 
   test('5) GET /quotes/:unknownId returns 404', async () => {
@@ -236,7 +248,7 @@ test('1) returns 400 when required params are missing', async () => {
       });
 
     expect(created.status).toBe(201);
-    const quoteId = created.body.data.quoteId;
+    const quoteId = created.body.data.quote_id;
     global.__createdQuoteId = quoteId; // mark for afterEach cleanup
 
     // First consumption should succeed -> 200
