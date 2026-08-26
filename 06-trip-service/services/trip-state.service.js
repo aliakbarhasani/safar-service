@@ -15,27 +15,16 @@
  */
 
 const eventBus = require('../../01-core-system/EventBus');
+const { ServiceTypes, ALL_SERVICE_TYPES, isValidServiceType } = require('../../01-core-system/constants/ServiceTypes');
 
 // ============================================================================
-// ۶ نوع سرویس پشتیبانی شده
+// Service types - SINGLE SOURCE OF TRUTH (unified dictionary)
+// Delegated to 01-core-system/constants/ServiceTypes.js so that no local
+// hardcoded list exists here anymore.
 // ============================================================================
-const ServiceType = {
-  TAXI: 'taxi',
-  INTERCITY: 'intercity',
-  BORDER_TRANSPORT: 'border_transport',
-  FREIGHT: 'freight',
-  DELIVERY: 'delivery',
-  TOURISM: 'tourism',
-};
 
-const ALL_SERVICE_TYPES = Object.values(ServiceType);
-
-/**
- * بررسی معتبر بودن نوع سرویس
- */
-function isValidServiceType(type) {
-  return ALL_SERVICE_TYPES.includes(type);
-}
+/** @type {Object<string,string>} */
+const ServiceType = ServiceTypes;
 
 // ============================================================================
 // ۹ وضعیت استاندارد سفر
