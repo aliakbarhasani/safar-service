@@ -88,16 +88,16 @@ const pricingController = new PricingController({
 const pricingRouter = createPricingRouter(pricingController);
 router.use('/api/v1/pricing', pricingRouter);
 
-// ===== مسیرهای موتور سفر (16-ride-engine) =====
-const RideRepository = require('../16-ride-engine/infrastructure/RideRepository');
-const CreateRideUseCase = require('../16-ride-engine/application/CreateRideUseCase');
-const AcceptRideUseCase = require('../16-ride-engine/application/AcceptRideUseCase');
-const DriverArrivedUseCase = require('../16-ride-engine/application/DriverArrivedUseCase');
-const StartTripUseCase = require('../16-ride-engine/application/StartTripUseCase');
-const CompleteRideUseCase = require('../16-ride-engine/application/CompleteRideUseCase');
-const CancelRideUseCase = require('../16-ride-engine/application/CancelRideUseCase');
-const RideController = require('../16-ride-engine/presentation/RideController');
-const createRideRouter = require('../16-ride-engine/presentation/RideRouter');
+// ===== مسیرهای موتور حمل‌ونقل یکپارچه (16-mobility-engine) =====
+const RideRepository = require('../16-mobility-engine/infrastructure/RideRepository');
+const CreateRideUseCase = require('../16-mobility-engine/application/CreateRideUseCase');
+const AcceptRideUseCase = require('../16-mobility-engine/application/AcceptRideUseCase');
+const DriverArrivedUseCase = require('../16-mobility-engine/application/DriverArrivedUseCase');
+const StartTripUseCase = require('../16-mobility-engine/application/StartTripUseCase');
+const CompleteRideUseCase = require('../16-mobility-engine/application/CompleteRideUseCase');
+const CancelRideUseCase = require('../16-mobility-engine/application/CancelRideUseCase');
+const RideController = require('../16-mobility-engine/presentation/RideController');
+const createRideRouter = require('../16-mobility-engine/presentation/RideRouter');
 
 const ridePool = getPool();
 const rideRepository = new RideRepository(ridePool);
