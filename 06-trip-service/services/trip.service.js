@@ -43,7 +43,7 @@ async function createTripRequest(data) {
   const {
     passengerId, originAddress, originLatitude, originLongitude,
     destinationAddress, destinationLatitude, destinationLongitude,
-    paymentMethod = 'wallet', serviceType = 'taxi',
+    paymentMethod = 'wallet', serviceType,
     currencyId = null, countryId = null,
     distanceKm, durationMin,
   } = data;
@@ -51,8 +51,12 @@ async function createTripRequest(data) {
   validateRequired(passengerId, 'passengerId');
   validateRequired(originAddress, 'originAddress');
   validateRequired(destinationAddress, 'destinationAddress');
-
-  const finalServiceType = stateMachine.isValidServiceType(serviceType) ? serviceType : 'taxi';
+  // خدمت باید الزاماً از درخواست بیاید (بدون پیش‌فرض هاردکد تاکسی)
+  validateRequired(serviceType, 'serviceType');
+  if (!stateMachine.isValidServiceType(serviceType)) {
+    throw new Error(`Unsupported service type: '${serviceType}'. Allowed: [${stateMachine.ALL_SERVICE_TYPES.join(', ')}]`);
+  }
+  const finalServiceType = serviceType;
 
   // دریافت قیمت از Pricing Gateway (Decoupled)
   const pricing = await pricingGateway.getQuote({

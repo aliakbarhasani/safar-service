@@ -7,9 +7,8 @@
  *   - موقعیت لحظه‌ای راننده (driver_location) در طول سفر
  *   - نقاط تحویل (delivery_stop) برای سرویس‌های freight/delivery
  *   - Timestamp هر نقطه برای محاسبه مسافت و زمان
- * 
- * پشتیبانی از ۶ نوع سرویس:
- *   taxi, intercity, border_transport, freight, delivery, tourism
+ *
+ * سرویس‌ها از لغت‌نامه یکپارچه 01-core-system/constants/ServiceTypes.js مشتق می‌شوند.
  */
 
 const pg = require('../db/pg');

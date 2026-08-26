@@ -4,7 +4,7 @@
  * منطبق بر جدول `trips` در PostgreSQL (Migration 001):
  *   - UUID Primary Key
  *   - 9-state status machine (ماشین وضعیت ۹ حالته)
- *   - پشتیبانی از ۶ نوع سرویس: taxi, intercity, border_transport, freight, delivery, tourism
+ *   - Service types sourced from 01-core-system/constants/ServiceTypes.js (unified dictionary)
  *   - Multi-currency support
  *   - Soft Delete
  *   - Geo-coordinates for origin/destination
@@ -79,7 +79,7 @@ async function create(data, client = null) {
     destinationAddress, destinationLatitude, destinationLongitude,
     paymentMethod = 'wallet', estimatedCost = 0, finalCost = 0,
     baseFare = 0, commissionRate = 0, commissionAmount = 0, driverEarning = 0, currencyId,
-    serviceType = 'urban_taxi', countryId
+    serviceType, countryId
   } = data;
 
   const q = `

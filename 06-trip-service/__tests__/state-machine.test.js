@@ -77,11 +77,11 @@ async function runAllTests() {
   });
 
   // ====================================================================
-  // ۲. پشتیبانی از ۶ نوع سرویس
+  // ۲. پشتیبانی از لغت‌نامه یکپارچه سرویس‌ها (Single Source of Truth)
   // ====================================================================
-  console.log(`\n${colors.bright}${colors.blue}6 Service Types Support${colors.reset}`);
+  console.log(`\n${colors.bright}${colors.blue}Unified Service Types Support${colors.reset}`);
 
-  const expectedServices = ['taxi', 'intercity', 'border_transport', 'freight', 'delivery', 'tourism'];
+  const expectedServices = ['urban_taxi', 'intercity_taxi', 'freight', 'delivery', 'courier', 'tourism', 'cross_border'];
 
   for (const svc of expectedServices) {
     await test(`isValidServiceType('${svc}') returns true`, () => {
@@ -91,20 +91,26 @@ async function runAllTests() {
 
   await test('isValidServiceType rejects invalid service type', () => {
     assert(stateMachine.isValidServiceType('invalid_type') === false, 'should be false');
-    assert(stateMachine.isValidServiceType('urban_taxi') === false, 'old urban_taxi should be false');
+    // Legacy taxi-only names are NOT in the unified dictionary.
+    assert(stateMachine.isValidServiceType('taxi') === false, 'legacy taxi should be false');
+    assert(stateMachine.isValidServiceType('intercity') === false, 'legacy intercity should be false');
+    assert(stateMachine.isValidServiceType('border_transport') === false, 'legacy border_transport should be false');
     assert(stateMachine.isValidServiceType(null) === false, 'null should be false');
   });
 
-  await test('ServiceType enum has exactly 6 values', () => {
+  await test('ServiceType enum has exactly 7 values (unified dictionary)', () => {
     const values = Object.values(stateMachine.ServiceType);
-    assert(values.length === 6, `Expected 6 services, got ${values.length}`);
+    assert(values.length === 7, `Expected 7 services, got ${values.length}`);
     for (const v of values) {
       assert(expectedServices.includes(v), `${v} should be in expected list`);
     }
   });
 
-  await test('ALL_SERVICE_TYPES contains all 6 types', () => {
-    assert(stateMachine.ALL_SERVICE_TYPES.length === 6, 'Should have 6 types');
+  await test('ALL_SERVICE_TYPES contains all 7 unified types', () => {
+    assert(stateMachine.ALL_SERVICE_TYPES.length === 7, 'Should have 7 types');
+    for (const v of expectedServices) {
+      assert(stateMachine.ALL_SERVICE_TYPES.includes(v), `${v} should be included`);
+    }
   });
 
   // ====================================================================
