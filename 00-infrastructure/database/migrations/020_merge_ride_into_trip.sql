@@ -19,6 +19,13 @@
 -- ----------------------------------------------------------------------------
 DO $$
 BEGIN
+    -- Exact domain lifecycle state (UPPERCASE, e.g. CANCELLED_BY_DRIVER).
+    -- The mobility engine writes BOTH this column (source of truth) and the
+    -- mirrored lowercase enum in `status`/`trip_phase`.
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trips' AND column_name='lifecycle_status') THEN
+        ALTER TABLE trips ADD COLUMN lifecycle_status VARCHAR(30);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trips' AND column_name='quote_id') THEN
         ALTER TABLE trips ADD COLUMN quote_id UUID REFERENCES quotes(id) ON DELETE RESTRICT;
     END IF;

@@ -65,4 +65,9 @@ Thumbs.db
 # temporary files
 *.tmp
 
+# Local verification artifacts
+_schema_check.js
+_ph3_err.txt
+_ph3_out.txt
+
 node_modules/

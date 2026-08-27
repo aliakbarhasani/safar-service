@@ -19,10 +19,6 @@ router.get('/', index);
 const userRoutes = require('../03-user-service/routes/user.route');
 router.use('/api/users', userRoutes);
 
-// ===== مسیرهای ماژول سفر (06-trip-service) =====
-const tripRoutes = require('../06-trip-service/routes/trip.route');
-router.use('/api/v1/trips', tripRoutes);
-router.use('/api/trips', tripRoutes);
 
 // ===== مسیرهای احراز هویت و ثبت‌نام (13-auth-management) =====
 const authRoutes = require('../13-auth-management/presentation/routes/AuthRouter');
@@ -89,34 +85,34 @@ const pricingRouter = createPricingRouter(pricingController);
 router.use('/api/v1/pricing', pricingRouter);
 
 // ===== مسیرهای موتور حمل‌ونقل یکپارچه (16-mobility-engine) =====
-const RideRepository = require('../16-mobility-engine/infrastructure/RideRepository');
-const CreateRideUseCase = require('../16-mobility-engine/application/CreateRideUseCase');
-const AcceptRideUseCase = require('../16-mobility-engine/application/AcceptRideUseCase');
+const TripRepository = require('../16-mobility-engine/infrastructure/TripRepository');
+const CreateTripUseCase = require('../16-mobility-engine/application/CreateTripUseCase');
+const AcceptTripUseCase = require('../16-mobility-engine/application/AcceptTripUseCase');
 const DriverArrivedUseCase = require('../16-mobility-engine/application/DriverArrivedUseCase');
 const StartTripUseCase = require('../16-mobility-engine/application/StartTripUseCase');
-const CompleteRideUseCase = require('../16-mobility-engine/application/CompleteRideUseCase');
-const CancelRideUseCase = require('../16-mobility-engine/application/CancelRideUseCase');
-const RideController = require('../16-mobility-engine/presentation/RideController');
-const createRideRouter = require('../16-mobility-engine/presentation/RideRouter');
+const CompleteTripUseCase = require('../16-mobility-engine/application/CompleteTripUseCase');
+const CancelTripUseCase = require('../16-mobility-engine/application/CancelTripUseCase');
+const TripController = require('../16-mobility-engine/presentation/TripController');
+const createTripRouter = require('../16-mobility-engine/presentation/TripRouter');
 
-const ridePool = getPool();
-const rideRepository = new RideRepository(ridePool);
-const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
-const driverArrivedUseCase = new DriverArrivedUseCase({ rideRepository });
-const startTripUseCase = new StartTripUseCase({ rideRepository });
-const completeRideUseCase = new CompleteRideUseCase({ rideRepository });
-const cancelRideUseCase = new CancelRideUseCase({ rideRepository });
-const rideController = new RideController({
-    createRideUseCase,
-    acceptRideUseCase,
+const tripPool = getPool();
+const tripRepository = new TripRepository(tripPool);
+const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+const acceptTripUseCase = new AcceptTripUseCase({ tripRepository });
+const driverArrivedUseCase = new DriverArrivedUseCase({ tripRepository });
+const startTripUseCase = new StartTripUseCase({ tripRepository });
+const completeTripUseCase = new CompleteTripUseCase({ tripRepository });
+const cancelTripUseCase = new CancelTripUseCase({ tripRepository });
+const tripController = new TripController({
+    createTripUseCase,
+    acceptTripUseCase,
     driverArrivedUseCase,
     startTripUseCase,
-    completeRideUseCase,
-    cancelRideUseCase,
+    completeTripUseCase,
+    cancelTripUseCase,
 });
-const rideRouter = createRideRouter(rideController);
-router.use('/api/v1/rides', rideRouter);
+const tripRouter = createTripRouter(tripController);
+router.use('/api/v1/trips', tripRouter);
 
 // ===== مسیرهای سلامت =====
 const healthRoute = require('./routes/health.route');
