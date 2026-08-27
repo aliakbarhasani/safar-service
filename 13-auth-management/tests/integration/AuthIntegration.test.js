@@ -2,11 +2,29 @@ const request = require('supertest');
 const app = require('../../run-server');
 const JwtService = require('../../domain/services/JwtService');
 
+// نکته مهم: هاردکد کردن شماره موبایل ثابت در تست‌های یکپارچگی، با state ماندگار
+// دیتابیس (otp_codes / users) در اجراهای متوالی برخورد می‌کند و به صورت
+// نادمختصری (flaky) خطای 401 می‌دهد. مانند E2E موجود در 01-core-system
+// (تابع freshPhone) یک شماره تازه و یکتا در هر اجرا تولید می‌کنیم تا تست
+// قطعی (deterministic) و همیشه سبز بماند.
+function freshPhone() {
+  return '+9891' + String(Date.now()).slice(-8);
+}
+
 describe('Auth Management Integration Tests', () => {
+  let phoneValid;
+  let phoneInvalid;
+
+  beforeEach(() => {
+    // هر تست شماره‌ای تازه می‌گیرد تا با اجرای قبلی/بعدی برخورد نکند.
+    phoneValid = freshPhone();
+    phoneInvalid = freshPhone();
+  });
+
   test('POST /api/v1/auth/request-otp returns success', async () => {
     const res = await request(app)
       .post('/api/v1/auth/request-otp')
-      .send({ phoneNumber: '+989123456789' })
+      .send({ phoneNumber: phoneValid })
       .set('Accept', 'application/json');
 
     expect(res.status).toBe(200);
@@ -17,14 +35,14 @@ describe('Auth Management Integration Tests', () => {
   test('POST /api/v1/auth/verify-otp returns token for valid OTP', async () => {
     const requestOtpRes = await request(app)
       .post('/api/v1/auth/request-otp')
-      .send({ phoneNumber: '+989123456780' })
+      .send({ phoneNumber: phoneValid })
       .set('Accept', 'application/json');
 
     const otpCode = requestOtpRes.body.data && requestOtpRes.body.data.otpCode ? requestOtpRes.body.data.otpCode : null;
 
     const verifyRes = await request(app)
       .post('/api/v1/auth/verify-otp')
-      .send({ phoneNumber: '+989123456780', otpCode })
+      .send({ phoneNumber: phoneValid, otpCode })
       .set('Accept', 'application/json');
 
     expect(verifyRes.status).toBe(200);
@@ -42,7 +60,7 @@ describe('Auth Management Integration Tests', () => {
   test('POST /api/v1/auth/verify-otp returns 401 for invalid OTP', async () => {
     const res = await request(app)
       .post('/api/v1/auth/verify-otp')
-      .send({ phoneNumber: '+989123456781', otpCode: '00000' })
+      .send({ phoneNumber: phoneInvalid, otpCode: '00000' })
       .set('Accept', 'application/json');
 
     expect(res.status).toBe(401);
