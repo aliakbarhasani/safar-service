@@ -4,37 +4,31 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import config from "@/config/app-config.json";
+import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/Button";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { token, user, logout } = useAuth();
   const [username, setUsername] = useState("");
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
     if (!token) {
       router.replace("/auth/login");
       return;
     }
 
-    // Read user info from localStorage for greeting (no business logic here)
-    try {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setUsername(user?.firstName || user?.name || "");
-      }
-    } catch {
-      // ignore parse errors
+    // Greeting from context-backed user object (no business logic here)
+    if (user) {
+      setUsername(user?.firstName || user?.name || "");
     }
 
     setIsChecking(false);
-  }, [router]);
+  }, [token, user, router]);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
+    logout();
     router.replace("/auth/login");
   };
 

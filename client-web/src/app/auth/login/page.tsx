@@ -48,12 +48,12 @@ export default function LoginPage() {
       localStorage.setItem("login_phone", normalizedPhone);
       router.push("/auth/otp");
     } catch (err: any) {
-      const status = err.response?.status;
+      const status = err?.status ?? err?.response?.status;
       if (status === 429) {
         setServerError(config.texts.auth.errors.rateLimited);
       } else {
         setServerError(
-          err.response?.data?.message || config.texts.auth.errors.serverError
+          err?.message || err?.response?.data?.message || config.texts.auth.errors.serverError
         );
       }
     } finally {

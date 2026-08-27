@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import config from "@/config/app-config.json";
 import { verifyOtp } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 
 export default function OtpPage() {
   const router = useRouter();
+  const { setAuth } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -54,27 +56,19 @@ export default function OtpPage() {
     setIsLoading(true);
     try {
       const result = await verifyOtp(phoneNumber, normalizedOtp);
-      // Store auth tokens
-      if (result?.data?.accessToken) {
-        localStorage.setItem("access_token", result.data.accessToken);
-      } else if (result?.accessToken) {
-        localStorage.setItem("access_token", result.accessToken);
-      }
-      if (result?.data?.user) {
-        localStorage.setItem("user", JSON.stringify(result.data.user));
-      } else if (result?.user) {
-        localStorage.setItem("user", JSON.stringify(result.user));
+      // Backend returns `{ data: { token, user } }` — read the `token` key only.
+      const payload = result?.data || result || {};
+      const token = payload?.token;
+      if (token) {
+        setAuth(token, payload?.user || null);
       }
       localStorage.removeItem("login_phone");
       router.replace("/dashboard");
     } catch (err: any) {
-      const status = err.response?.status;
-      if (status === 429) {
+      if (err?.status === 429) {
         setServerError(config.texts.auth.errors.rateLimited);
       } else {
-        setServerError(
-          err.response?.data?.message || config.texts.auth.errors.serverError
-        );
+        setServerError(err?.message || config.texts.auth.errors.serverError);
       }
     } finally {
       setIsLoading(false);
