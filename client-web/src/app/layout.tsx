@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import config from "@/config/app-config.json";
 import ModuleNav from '@/components/ModuleNav';
+import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
   title: config.app.name,
@@ -27,8 +28,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-[#f8fafc] text-[#1e293b]">
-            <ModuleNav />
-            <main className="flex-1 flex flex-col">{children}</main>
+        <AuthProvider>
+          <ModuleNav />
+          <main className="flex-1 flex flex-col">{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );

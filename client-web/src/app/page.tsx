@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import config from "@/config/app-config.json";
+import { getAuthToken } from "@/lib/auth";
 
 export default function SplashPage() {
   const router = useRouter();
@@ -11,8 +12,8 @@ export default function SplashPage() {
   useEffect(() => {
     setShow(true);
     const timer = setTimeout(() => {
-      // Check if user is already logged in
-      const token = localStorage.getItem("access_token");
+      // Check if user is already logged in (cookie-first)
+      const token = getAuthToken();
       if (token) {
         router.replace("/dashboard");
       } else {

@@ -1,5 +1,6 @@
 // API service layer - تمام ارتباطات با بک‌اند در اینجا انجام می‌شود
 import config from "@/config/app-config.json";
+import { getAuthToken } from "@/lib/auth";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || config.api?.baseUrl || "http://localhost:8000";
@@ -10,17 +11,48 @@ interface ApiResponse<T> {
   success: boolean;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
+// ==== قوانین مالی (فاز ۲) ====
+// نمای مشتری (Passenger) هرگز نباید فیلد کمیسیون/مالیات/سهم سرویس‌دهنده را دریافت
+// یا نمایش دهد. این DTOها فقط فیلدهای مشتری‌محور را تعریف می‌کنند و عمداً هیچ
+// فیلدی به نام commission / tax / driverShare / platformFee ندارند.
+export interface CustomerProductDto {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  quantity: number;
+  imageUrl?: string;
+  rating?: number;
+}
+
+export interface CampaignDto {
+  id: string;
+  name: string;
+  description?: string;
+  budget: number;
+  spent: number;
+  status: string;
+  impressions?: number;
+  clicks?: number;
+  conversions?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const token = getAuthToken();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -31,15 +63,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("ارتباط با سرور برقرار نشد", 0, "NETWORK_ERROR");
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `خطا در ارتباط با سرور (${response.status})`);
+    const body = await response.json().catch(() => ({}));
+    const msg =
+      (body as ApiResponse<unknown>)?.message ||
+      (body as { error?: string })?.error ||
+      `خطا در ارتباط با سرور (${response.status})`;
+    throw new ApiError(msg, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -80,6 +121,23 @@ export async function registerUser(payload: {
 
 export async function getProfile() {
   return api.get<any>(config.api.endpoints.profile);
+}
+
+export async function getMarketplaceProducts() {
+  return api.get<ApiResponse<{ products: CustomerProductDto[] }>>(
+    config.api.endpoints.marketplaceProducts
+  );
+}
+
+export async function getCampaigns() {
+  return api.get<ApiResponse<CampaignDto[]>>(config.api.endpoints.campaignsList);
+}
+
+/** Helper: uniform error message for ApiError-capable callers. */
+export function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
 
 export default api;

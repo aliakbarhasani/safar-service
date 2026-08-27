@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import config from "@/config/app-config.json";
 import { getProfile } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/Button";
 
 interface ProfileData {
@@ -17,12 +18,12 @@ interface ProfileData {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { token, logout } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
     if (!token) {
       router.replace("/auth/login");
       return;
@@ -41,7 +42,7 @@ export default function ProfilePage() {
         });
       } catch (err: any) {
         setError(
-          err.response?.data?.message || config.texts.auth.errors.serverError
+          err?.message || err?.response?.data?.message || config.texts.auth.errors.serverError
         );
       } finally {
         setIsLoading(false);
@@ -49,11 +50,10 @@ export default function ProfilePage() {
     };
 
     loadProfile();
-  }, [router]);
+  }, [token, router]);
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
+    logout();
     router.replace("/auth/login");
   };
 

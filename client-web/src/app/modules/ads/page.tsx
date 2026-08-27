@@ -1,79 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import config from '@/config/app-config.json';
-
-interface Campaign {
-  id: string;
-  name: string;
-  description?: string;
-  budget: number;
-  spent: number;
-  status: string;
-  impressions?: number;
-  clicks?: number;
-  conversions?: number;
-  startDate?: string;
-  endDate?: string;
-}
+import { getCampaigns } from '@/services/api';
+import type { CampaignDto } from '@/services/api';
 
 export default function AdsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Get token from localStorage
-    if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem('authToken');
-      setToken(storedToken);
-    }
-  }, []);
 
   useEffect(() => {
     const loadCampaigns = async () => {
       try {
-        if (!token) {
-          setError('لطفاً ابتدا وارد شوید');
-          setLoading(false);
-          return;
-        }
-
         setLoading(true);
-        const endpoint = config.api.endpoints.campaignsList;
-        const response = await fetch(`${config.api.baseUrl}${endpoint}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.status === 401) {
+        const result = await getCampaigns();
+        setCampaigns(result?.data || []);
+        setError(null);
+      } catch (err: any) {
+        if (err?.status === 401) {
           setError('توکن شما منقضی شده است');
-          setCampaigns([]);
-        } else if (!response.ok) {
-          throw new Error(`Failed to load campaigns: ${response.status}`);
         } else {
-          const data = await response.json();
-          setCampaigns(data.data || []);
-          setError(null);
+          console.error('Error loading campaigns:', err);
+          setError(
+            err?.message || 'خطا در بارگذاری کمپین‌ها'
+          );
         }
-      } catch (err) {
-        console.error('Error loading campaigns:', err);
-        setError(err instanceof Error ? err.message : 'خطا در بارگذاری کمپین‌ها');
         setCampaigns([]);
       } finally {
         setLoading(false);
       }
     };
 
-    if (token) {
-      loadCampaigns();
-    }
-  }, [token]);
+    loadCampaigns();
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4" dir="rtl">
@@ -190,21 +150,6 @@ export default function AdsPage() {
           <button className="inline-block py-2 px-6 bg-[#1e40af] text-white rounded-lg hover:bg-[#1e3a8a]">
             {config.texts?.ads?.createCampaign || '+ ایجاد کمپین جدید'}
           </button>
-        </div>
-      )}
-
-      {/* Unauthenticated State */}
-      {!loading && !token && (
-        <div className="text-center py-12">
-          <p className="text-[#64748b] mb-4">
-            لطفاً ابتدا وارد شوید تا کمپین‌های خود را مشاهده کنید
-          </p>
-          <Link
-            href="/auth/login"
-            className="inline-block py-2 px-6 bg-[#1e40af] text-white rounded-lg hover:bg-[#1e3a8a]"
-          >
-            ورود
-          </Link>
         </div>
       )}
     </div>

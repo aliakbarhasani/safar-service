@@ -3,21 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import config from '@/config/app-config.json';
-
-interface Product {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  currency: string;
-  quantity: number;
-  imageUrl?: string;
-  rating?: number;
-  sellerId?: string;
-}
+import { getMarketplaceProducts } from '@/services/api';
+import type { CustomerProductDto } from '@/services/api';
 
 export default function MarketplacePage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<CustomerProductDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,23 +15,12 @@ export default function MarketplacePage() {
     const loadProducts = async () => {
       try {
         setLoading(true);
-        const endpoint = config.api.endpoints.marketplaceProducts;
-        const response = await fetch(`${config.api.baseUrl}${endpoint}`, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load products: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setProducts(data.data?.products || []);
+        const result = await getMarketplaceProducts();
+        setProducts(result?.data?.products || []);
         setError(null);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading products:', err);
-        setError(err instanceof Error ? err.message : 'خطا در بارگذاری محصولات');
+        setError(err?.message || 'خطا در بارگذاری محصولات');
         setProducts([]);
       } finally {
         setLoading(false);
