@@ -10,6 +10,9 @@
 
 const config = {
   testMatch: ['**/?(*.)+(spec|test).[jt]s?(x)'],
+  // Archived modules are retained for reference only and are not compatible
+  // with the active application module paths.
+  testPathIgnorePatterns: ['/_legacy_archive/'],
 };
 
 module.exports = config;
