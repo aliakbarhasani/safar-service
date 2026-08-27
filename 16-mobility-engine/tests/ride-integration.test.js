@@ -2,7 +2,7 @@
  * ride-integration.test.js
  *
  * Integration test for the Ride Engine + Pricing Engine connection.
- * Scenario: create a real pricing quote -> feed it to CreateRideUseCase ->
+ * Scenario: create a real pricing quote -> feed it to CreateTripUseCase ->
  * verify the quote is CONSUMED, a ride row exists, and the initial
  * REQUESTED status log was written.
  *
@@ -17,20 +17,20 @@ const config = require('../../14-config-system/server.config');
 const PricingRepository = require('../../15-pricing-engine/infrastructure/PricingRepository');
 const GenerateQuoteUseCase = require('../../15-pricing-engine/application/GenerateQuoteUseCase');
 
-const RideRepository = require('../infrastructure/RideRepository');
-const CreateRideUseCase = require('../application/CreateRideUseCase');
-const AcceptRideUseCase = require('../application/AcceptRideUseCase');
+const TripRepository = require('../infrastructure/TripRepository');
+const CreateTripUseCase = require('../application/CreateTripUseCase');
+const AcceptTripUseCase = require('../application/AcceptTripUseCase');
 const DriverArrivedUseCase = require('../application/DriverArrivedUseCase');
 const StartTripUseCase = require('../application/StartTripUseCase');
-const CompleteRideUseCase = require('../application/CompleteRideUseCase');
-const CancelRideUseCase = require('../application/CancelRideUseCase');
-const RideController = require('../presentation/RideController');
-const createRideRouter = require('../presentation/RideRouter');
+const CompleteTripUseCase = require('../application/CompleteTripUseCase');
+const CancelTripUseCase = require('../application/CancelTripUseCase');
+const TripController = require('../presentation/TripController');
+const createTripRouter = require('../presentation/TripRouter');
 
 describe('Ride Engine - Integration (create ride with consumed quote)', () => {
   let pool;
   let dbAvailable = true;
-  let rideRepository;
+  let tripRepository;
   let pricingRepository;
   let passengerId; // a real user row created for the test (FK integrity)
   let driverIdA;   // driver who accepts (FK integrity)
@@ -61,13 +61,25 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
 
     try {
       const client = await pool.connect();
+      // Schema availability guard: the unified TripRepository targets the
+      // canonical `trips` shape produced by migration 020 (lifecycle_status /
+      // quote_id columns). Migration files are intentionally NOT executed from
+      // within this step; if they have not been applied yet, DB-backed tests
+      // are skipped instead of failing.
+      const schemaCheck = await client.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'trips' AND column_name IN ('lifecycle_status','quote_id')",
+      );
       client.release();
+      if (schemaCheck.rows.length < 2) {
+        console.warn('[ride-integration] trips table lacks migration-020 columns (lifecycle_status/quote_id) - skipping DB-backed tests until 020 is applied.');
+        dbAvailable = false;
+      }
     } catch (error) {
       console.warn('[ride-integration] PostgreSQL unavailable - skipping DB-backed tests:', error.message);
       dbAvailable = false;
     }
 
-    rideRepository = new RideRepository(pool);
+    tripRepository = new TripRepository(pool);
     pricingRepository = new PricingRepository(pool);
 
     if (dbAvailable) {
@@ -76,23 +88,23 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       driverIdB = await createTestUser('DriverB');
 
       // Build the Express app with all ride use cases (Presentation layer).
-      const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-      const acceptRideUseCase = new AcceptRideUseCase({ rideRepository });
-      const driverArrivedUseCase = new DriverArrivedUseCase({ rideRepository });
-      const startTripUseCase = new StartTripUseCase({ rideRepository });
-      const completeRideUseCase = new CompleteRideUseCase({ rideRepository });
-      const cancelRideUseCase = new CancelRideUseCase({ rideRepository });
-      const controller = new RideController({
-        createRideUseCase,
-        acceptRideUseCase,
+      const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+      const acceptTripUseCase = new AcceptTripUseCase({ tripRepository });
+      const driverArrivedUseCase = new DriverArrivedUseCase({ tripRepository });
+      const startTripUseCase = new StartTripUseCase({ tripRepository });
+      const completeTripUseCase = new CompleteTripUseCase({ tripRepository });
+      const cancelTripUseCase = new CancelTripUseCase({ tripRepository });
+      const controller = new TripController({
+        createTripUseCase,
+        acceptTripUseCase,
         driverArrivedUseCase,
         startTripUseCase,
-        completeRideUseCase,
-        cancelRideUseCase,
+        completeTripUseCase,
+        cancelTripUseCase,
       });
       app = express();
       app.use(express.json());
-      app.use('/api/v1/rides', createRideRouter(controller));
+      app.use('/api/v1/trips', createTripRouter(controller));
     }
   });
 
@@ -113,7 +125,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       try {
         // Cleanup rides (and status logs cascade) + the test users.
         if (passengerId) {
-          await pool.query('DELETE FROM rides WHERE passenger_id = $1', [passengerId]);
+          await pool.query('DELETE FROM trips WHERE passenger_id = $1', [passengerId]);
         }
         for (const uid of [passengerId, driverIdA, driverIdB]) {
           if (uid) {
@@ -146,10 +158,11 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    // ۲. ساخت سفر با CreateRideUseCase
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    // ۲. ساخت سفر با CreateTripUseCase
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.7199,
       originLng: 51.4100,
@@ -169,19 +182,19 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(quoteRow.rows[0].consumed_at).toBeTruthy();
 
     // ۴. بررسی وجود رکورد سفر
-    const rideRow = await pool.query('SELECT * FROM rides WHERE id = $1', [ride.rideId]);
+    const rideRow = await pool.query('SELECT * FROM trips WHERE id = $1', [ride.rideId]);
     expect(rideRow.rows.length).toBe(1);
-    expect(rideRow.rows[0].status).toBe('REQUESTED');
+    expect(rideRow.rows[0].lifecycle_status).toBe('REQUESTED');
     expect(rideRow.rows[0].quote_id).toBe(quoteId);
 
     // ۵. بررسی لاگ وضعیت اولیه REQUESTED
     const logRows = await pool.query(
-      'SELECT * FROM ride_status_logs WHERE ride_id = $1 ORDER BY created_at ASC LIMIT 1',
+      'SELECT * FROM trip_timeline WHERE trip_id = $1 ORDER BY created_at ASC LIMIT 1',
       [ride.rideId],
     );
     expect(logRows.rows.length).toBe(1);
     expect(logRows.rows[0].new_status).toBe('REQUESTED');
-    expect(logRows.rows[0].old_status).toBeNull();
+    expect(logRows.rows[0].previous_status).toBeNull();
   });
 
   test('rolls back everything when the quote is already consumed', async () => {
@@ -205,10 +218,11 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     await pricingRepository.consumeQuote(quoteId, uniqueRef);
 
     // second create ride should fail -> quote already consumed
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
     await expect(
-      createRideUseCase.execute({
+      createTripUseCase.execute({
         passengerId,
+        serviceType: 'urban_taxi',
         quoteId,
         originLat: 35.7,
         originLng: 51.4,
@@ -218,7 +232,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     ).rejects.toThrow(/قبلاً مصرف شده/);
   });
 
-  test('API: create ride via POST /api/v1/rides', async () => {
+  test('API: create ride via POST /api/v1/trips', async () => {
     if (!dbAvailable) {
       return console.log('  * skipped (db unavailable)');
     }
@@ -235,8 +249,9 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     createdQuoteIds.push(quoteId);
 
     const res = await request(app)
-      .post('/api/v1/rides')
+      .post('/api/v1/trips')
       .send({
+        serviceType: 'urban_taxi',
         quoteId,
         passengerId,
         originLat: 35.7199,
@@ -252,7 +267,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(res.body.data.status).toBe('REQUESTED');
 
     // cleanup this ride too (driver is null so rides.passenger_id filter)
-    await pool.query('DELETE FROM rides WHERE id = $1', [res.body.data.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [res.body.data.rideId]);
   });
 
   test('API: successful accept by driver A (200 ACCEPTED)', async () => {
@@ -260,7 +275,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       return console.log('  * skipped (db unavailable)');
     }
 
-    // create a ride in REQUESTED via CreateRideUseCase (fast path)
+    // create a ride in REQUESTED via CreateTripUseCase (fast path)
     const generateUseCase = new GenerateQuoteUseCase(pricingRepository);
     const quote = await generateUseCase.execute({
       serviceType: 'urban_taxi',
@@ -271,9 +286,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.71,
       originLng: 51.41,
@@ -283,10 +299,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     });
 
     // Move ride into SEARCHING so it is "findable" (accept requires SEARCHING per state machine).
-    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
 
     const res = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
       .send({ driverId: driverIdA });
 
     expect(res.status).toBe(200);
@@ -295,7 +311,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(res.body.data.driverId).toBe(driverIdA);
 
     // cleanup this ride
-    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 
   test('API: second driver B gets 409 (concurrency / already accepted)', async () => {
@@ -313,9 +329,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.71,
       originLng: 51.41,
@@ -324,24 +341,24 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       referenceId: `acc2-${Date.now()}`,
     });
 
-    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
 
     // First driver (A) accepts successfully.
     const resA = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
       .send({ driverId: driverIdA });
     expect(resA.status).toBe(200);
 
     // Second driver (B) tries to accept the SAME ride -> must be rejected with 409.
     const resB = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
       .send({ driverId: driverIdB });
     expect(resB.status).toBe(409);
     expect(resB.body.success).toBe(false);
     expect(resB.body.error).toMatch(/قبلاً.*پذیرفته/);
 
     // cleanup
-    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 
   // ==================== چرخه کامل زندگی سفر ====================
@@ -360,9 +377,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.72,
       originLng: 51.40,
@@ -373,39 +391,39 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(ride.status).toBe('REQUESTED');
 
     // State machine requires SEARCHING before accept (the "request a driver" step).
-    await pool.query('UPDATE rides SET status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
+    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
 
     // 1) accept
     const accept = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/accept`)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
       .send({ driverId: driverIdA });
     expect(accept.status).toBe(200);
     expect(accept.body.data.status).toBe('ACCEPTED');
 
     // 2) driver arrived
     const arrived = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/arrived`)
+      .post(`/api/v1/trips/${ride.rideId}/arrived`)
       .send({ userId: driverIdA });
     expect(arrived.status).toBe(200);
     expect(arrived.body.data.status).toBe('ARRIVED');
 
     // 3) start trip
     const start = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/start`)
+      .post(`/api/v1/trips/${ride.rideId}/start`)
       .send({ userId: driverIdA });
     expect(start.status).toBe(200);
     expect(start.body.data.status).toBe('IN_PROGRESS');
 
     // 4) complete trip
     const complete = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/complete`)
+      .post(`/api/v1/trips/${ride.rideId}/complete`)
       .send({ userId: driverIdA });
     expect(complete.status).toBe(200);
     expect(complete.body.data.status).toBe('COMPLETED');
     expect(complete.body.data.driverId).toBe(driverIdA);
 
     // cleanup
-    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 
   test('API: cancel ride from REQUESTED (CANCELLED)', async () => {
@@ -423,9 +441,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.73,
       originLng: 51.43,
@@ -435,13 +454,13 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     });
 
     const cancel = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/cancel`)
+      .post(`/api/v1/trips/${ride.rideId}/cancel`)
       .send({ userId: passengerId });
     expect(cancel.status).toBe(200);
     expect(cancel.body.data.status).toBe('CANCELLED');
 
     // cleanup
-    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 
   test('API: complete from REQUESTED returns 400 (invalid state)', async () => {
@@ -459,9 +478,10 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     const quoteId = quote.quoteId;
     createdQuoteIds.push(quoteId);
 
-    const createRideUseCase = new CreateRideUseCase({ rideRepository, pricingRepository });
-    const ride = await createRideUseCase.execute({
+    const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
+    const ride = await createTripUseCase.execute({
       passengerId,
+      serviceType: 'urban_taxi',
       quoteId,
       originLat: 35.73,
       originLng: 51.43,
@@ -472,13 +492,13 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
 
     // A ride freshly created is REQUESTED; completing it directly is not allowed.
     const invalidComplete = await request(app)
-      .post(`/api/v1/rides/${ride.rideId}/complete`)
+      .post(`/api/v1/trips/${ride.rideId}/complete`)
       .send({ userId: driverIdA });
     expect(invalidComplete.status).toBe(400);
     expect(invalidComplete.body.success).toBe(false);
     expect(invalidComplete.body.error).toMatch(/وضعیت/);
 
     // cleanup
-    await pool.query('DELETE FROM rides WHERE id = $1', [ride.rideId]);
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 });

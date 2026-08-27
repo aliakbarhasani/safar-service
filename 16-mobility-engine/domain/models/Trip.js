@@ -37,6 +37,8 @@ class Trip {
         commissionAmount = null,
         driverEarning = null,
         countryId = null,
+        cancelReason = null,
+        cancelledBy = null,
         startedAt = null,
         finishedAt = null,
         version = 1,
@@ -62,6 +64,8 @@ class Trip {
         this.commissionAmount = commissionAmount;
         this.driverEarning = driverEarning;
         this.countryId = countryId;
+        this.cancelReason = cancelReason;
+        this.cancelledBy = cancelledBy;
         this.startedAt = startedAt;
         this.finishedAt = finishedAt;
         this.version = version;
@@ -138,6 +142,32 @@ class Trip {
     }
 
     /**
+     * Role-aware cancellation (logic transferred from 06-trip-service).
+     * Accepts cancellation from REQUESTED/SEARCHING/ACCEPTED/ARRIVED.
+     * The acting role determines the terminal state:
+     *   - passenger (or admin/system on behalf of passenger) -> CANCELLED_BY_PASSENGER
+     *   - driver                                             -> CANCELLED_BY_DRIVER
+     * @param {string} role - 'passenger' | 'driver' | 'admin' | 'system'
+     * @param {string|null} [reason]
+     */
+    cancelByRole(role, reason = null) {
+        const cancellable = [
+            TripStatus.REQUESTED,
+            TripStatus.SEARCHING,
+            TripStatus.ACCEPTED,
+            TripStatus.ARRIVED,
+        ];
+        if (!cancellable.includes(this.status)) {
+            throw new InvalidRideStateTransitionError(this.status, 'cancelByRole');
+        }
+        this.cancelReason = reason || null;
+        const target =
+            role === 'driver' ? TripStatus.CANCELLED_BY_DRIVER : TripStatus.CANCELLED_BY_PASSENGER;
+        this._transitionTo(target, 'cancelByRole');
+        return this;
+    }
+
+    /**
      * Snapshot for persistence covering both the unified `trips` schema and the
      * legacy `rides` column expectations. Phase-2 repository maps to `trips`.
      * @returns {Object}
@@ -165,6 +195,8 @@ class Trip {
             commission_amount: this.commissionAmount,
             driver_earning: this.driverEarning,
             country_id: this.countryId,
+            cancel_reason: this.cancelReason,
+            cancelled_by: this.cancelledBy,
             started_at: this.startedAt,
             finished_at: this.finishedAt,
             version: this.version,

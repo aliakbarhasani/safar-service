@@ -1,80 +1,75 @@
 /**
- * DriverArrivedUseCase - Application Layer (Ride Engine)
+ * DriverArrivedUseCase - Application Layer (Mobility Engine)
  *
  * A driver confirms arrival at the pickup point (ACCEPTED -> ARRIVED).
  * Runs inside a single DB transaction with row-level locking
- * (SELECT ... FOR UPDATE) so the transition is concurrency-safe.
- * The domain Ride state machine enforces the transition; any invalid
- * transition is mapped to an InvalidRideStateError (HTTP 400).
+ * (SELECT ... FOR UPDATE). The domain Trip state machine enforces the
+ * transition; the DRIVER_ARRIVED domain event is emitted after commit.
  */
 
-const Ride = require('../domain/models/Ride');
-const RideStatus = require('../domain/enums/RideStatus');
-const {
-    RideNotFoundError,
-    InvalidRideStateError,
-    InvalidRideStateTransitionError,
-} = require('../domain/errors/RideErrors');
+const Trip = require('../domain/models/Trip');
+const { TripNotFoundError } = require('../domain/errors/RideErrors');
+const { TripDomainEvents } = require('../domain/events/TripDomainEvents');
 
 class DriverArrivedUseCase {
-    constructor({ rideRepository }) {
-        this.rideRepository = rideRepository;
+    /**
+     * @param {Object} deps
+     * @param {import('../infrastructure/TripRepository')} deps.tripRepository
+     * @param {Function} [deps.emitEvent]
+     */
+    constructor({ tripRepository, emitEvent = null }) {
+        this.tripRepository = tripRepository;
+        this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
-    async execute({ rideId, changedByUserId = null }) {
-        if (!rideId) {
-            const error = new Error('پارامتر rideId الزامی است.');
+    async execute({ tripId, changedByUserId = null }) {
+        if (!tripId) {
+            const error = new Error('پارامتر tripId الزامی است.');
             error.code = 'ARRIVED_VALIDATION';
             error.statusCode = 400;
             throw error;
         }
 
-        const db = this.rideRepository.db;
+        const db = this.tripRepository.db;
         const client = await db.connect();
         try {
             await client.query('BEGIN');
 
             // الف) واکشی سفر با قفل ردیف (همزمانی ایمن)
-            const row = await this.rideRepository.getRideByIdForUpdate(rideId, client);
+            const row = await this.tripRepository.getTripByIdForUpdate(tripId, client);
             if (!row) {
-                throw new RideNotFoundError(rideId);
+                throw new TripNotFoundError(tripId);
             }
 
-            // ب) ساخت انتیتی و فراخوانی State Machine (فقط ACCEPTED -> ARRIVED)
-            const ride = new Ride({
-                id: row.id,
-                passengerId: row.passenger_id,
-                driverId: row.driver_id,
-                quoteId: row.quote_id,
-                status: row.status,
-                origin: { lat: row.origin_lat, lng: row.origin_lng },
-                destination: { lat: row.dest_lat, lng: row.dest_lng },
-            });
+            // ب) گذار دامنه: ACCEPTED -> ARRIVED
+            const trip = new Trip({ id: row.id, status: row.status });
+            trip.driverArrived(); // throws InvalidRideStateTransitionError on invalid
 
-            try {
-                ride.driverArrived();
-            } catch (err) {
-                if (err instanceof InvalidRideStateTransitionError) {
-                    throw new InvalidRideStateError(ride.status, RideStatus.ACCEPTED);
-                }
-                throw err;
-            }
-
-            // ج) به‌روزرسانی وضعیت و ثبت لاگ
-            const updated = await this.rideRepository.updateRideStatus(
-                { rideId, status: ride.status, driverId: ride.driverId },
+            // ج) بهروزرسانی وضعیت و ثبت timeline
+            const updated = await this.tripRepository.updateTripStatus(
+                { tripId, status: trip.status },
                 client,
             );
             const actorId = changedByUserId || row.driver_id || row.passenger_id;
-            await this.rideRepository.logStatusChange(
-                { rideId, oldStatus: row.status, newStatus: ride.status, changedByUserId: actorId },
+            await this.tripRepository.logStatusChange(
+                {
+                    tripId,
+                    oldStatus: row.status,
+                    newStatus: trip.status,
+                    changedByUserId: actorId,
+                    changedByRole: 'driver',
+                    reason: 'driver_arrived',
+                },
                 client,
             );
 
             await client.query('COMMIT');
 
+            // د) انتشار رویداد دامنه پس از Commit
+            this.emitEvent(TripDomainEvents.DRIVER_ARRIVED, { tripId, driverId: updated.driver_id });
+
             return {
-                rideId: updated.id,
+                tripId: updated.id,
                 status: updated.status,
                 driverId: updated.driver_id,
                 passengerId: updated.passenger_id,

@@ -55,4 +55,7 @@ module.exports = {
     RideNotFoundError,
     RideAlreadyAcceptedError,
     InvalidRideStateError,
+    // Canonical mobility-engine aliases (phase 2 consolidation)
+    TripNotFoundError: RideNotFoundError,
+    TripAlreadyAcceptedError: RideAlreadyAcceptedError,
 };
