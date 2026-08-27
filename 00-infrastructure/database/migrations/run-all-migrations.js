@@ -31,6 +31,10 @@ const MIGRATION_ORDER = [
   '015_quotes_audit_final.sql',
   '016_create_rides_tables.sql',
   'V1_0__create_pricing_tables.sql',
+  '017_create_quotes_and_audit.sql',
+  '018_cleanup_legacy_pricing.sql',
+  '019_unify_roles_and_services.sql',
+  '020_merge_ride_into_trip.sql',
 ];
 
 /**

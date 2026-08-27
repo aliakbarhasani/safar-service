@@ -15,7 +15,7 @@
 const Trip = require('../domain/models/Trip');
 const { isValidRole } = require('../../01-core-system/constants/Roles');
 const { TripNotFoundError } = require('../domain/errors/RideErrors');
-const { TripDomainEvents } = require('../domain/events/TripDomainEvents');
+const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 const CANCELLATION_ROLES = ['passenger', 'driver', 'admin', 'system'];
 
@@ -67,7 +67,10 @@ class CancelTripUseCase {
                     status: trip.status,
                     driverId: null,
                     cancelReason: trip.cancelReason,
-                    cancelledBy: role,
+                    // The legacy `trips.cancelled_by` constraint uses `user`
+                    // for passenger-side cancellations; lifecycle_status keeps
+                    // the richer canonical domain value.
+                    cancelledBy: role === 'passenger' ? 'user' : role,
                 },
                 client,
             );

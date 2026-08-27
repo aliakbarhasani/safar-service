@@ -65,9 +65,10 @@ class TripController {
     async acceptTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || null;
+            const driverId = req.body.driverId || (req.user && req.user.driverId) || null;
+            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
 
-            const result = await this.acceptTripUseCase.execute({ tripId, changedByUserId });
+            const result = await this.acceptTripUseCase.execute({ tripId, driverId, changedByUserId });
             return res.status(200).json({
                 success: true,
                 message: 'سفر با موفقیت پذیرفته شد.',
@@ -91,7 +92,7 @@ class TripController {
     async driverArrived(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || null;
+            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
 
             const result = await this.driverArrivedUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -114,7 +115,7 @@ class TripController {
     async startTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || null;
+            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
 
             const result = await this.startTripUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -137,7 +138,7 @@ class TripController {
     async completeTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || null;
+            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
 
             const result = await this.completeTripUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -169,7 +170,7 @@ class TripController {
             const result = await this.cancelTripUseCase.execute({
                 tripId,
                 cancelledByRole: isDriverSide ? 'driver' : 'passenger',
-                cancelledByUserId: (req.user && req.user.userId) || null,
+                cancelledByUserId: (req.user && req.user.userId) || (req.body && req.body.userId) || null,
                 reason: cancelReason || null,
             });
 

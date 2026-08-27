@@ -10,7 +10,7 @@
 const Trip = require('../domain/models/Trip');
 const TripStatus = require('../domain/enums/TripStatus');
 const { TripNotFoundError, TripAlreadyAcceptedError } = require('../domain/errors/RideErrors');
-const { TripDomainEvents } = require('../domain/events/TripDomainEvents');
+const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 class AcceptTripUseCase {
     /**
@@ -23,7 +23,7 @@ class AcceptTripUseCase {
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
-    async execute({ tripId, driverId }) {
+    async execute({ tripId, driverId, changedByUserId = null }) {
         if (!tripId || !driverId) {
             const error = new Error('پارامترهای tripId و driverId الزامی هستند.');
             error.code = 'ACCEPT_TRIP_VALIDATION';
@@ -61,7 +61,7 @@ class AcceptTripUseCase {
                     tripId,
                     oldStatus: row.status,
                     newStatus: trip.status,
-                    changedByUserId: driverId,
+                    changedByUserId,
                     changedByRole: 'driver',
                     reason: 'driver_accepted',
                 },
