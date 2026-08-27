@@ -48,6 +48,22 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     return res.rows[0].id;
   }
 
+  async function createTestDriver(userId, name) {
+    await pool.query(
+      `INSERT INTO drivers (
+        id, user_id, first_name, last_name, phone_number, date_of_birth,
+        vehicle_type, license_plate, vehicle_identification_number,
+        license_number, identity_card_number
+      ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        userId, 'Test', name, `+989157${String(Date.now()).slice(-7)}`,
+        '1990-01-01', 'sedan', `T${String(Date.now()).slice(-6)}`,
+        `VIN-${userId}`, `LIC-${userId}`, `ID-${userId}`,
+      ],
+    );
+    return userId;
+  }
+
   beforeAll(async () => {
     pool = new Pool({
       host: config.pg.host,
@@ -84,8 +100,8 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
 
     if (dbAvailable) {
       passengerId = await createTestUser('RidePassenger');
-      driverIdA = await createTestUser('DriverA');
-      driverIdB = await createTestUser('DriverB');
+      driverIdA = await createTestDriver(await createTestUser('DriverA'), 'DriverA');
+      driverIdB = await createTestDriver(await createTestUser('DriverB'), 'DriverB');
 
       // Build the Express app with all ride use cases (Presentation layer).
       const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
@@ -126,6 +142,11 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
         // Cleanup rides (and status logs cascade) + the test users.
         if (passengerId) {
           await pool.query('DELETE FROM trips WHERE passenger_id = $1', [passengerId]);
+        }
+        for (const driverId of [driverIdA, driverIdB]) {
+          if (driverId) {
+            await pool.query('DELETE FROM drivers WHERE id = $1', [driverId]);
+          }
         }
         for (const uid of [passengerId, driverIdA, driverIdB]) {
           if (uid) {
@@ -457,7 +478,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       .post(`/api/v1/trips/${ride.rideId}/cancel`)
       .send({ userId: passengerId });
     expect(cancel.status).toBe(200);
-    expect(cancel.body.data.status).toBe('CANCELLED');
+    expect(cancel.body.data.status).toBe('CANCELLED_BY_PASSENGER');
 
     // cleanup
     await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);

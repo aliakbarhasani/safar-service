@@ -13,7 +13,7 @@
 const Trip = require('../domain/models/Trip');
 const TripStatus = require('../domain/enums/TripStatus');
 const { ALL_SERVICE_TYPES, isValidServiceType } = require('../../01-core-system/constants/ServiceTypes');
-const { TripDomainEvents } = require('../domain/events/TripDomainEvents');
+const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 class CreateTripUseCase {
     /**
@@ -121,6 +121,9 @@ class CreateTripUseCase {
 
             return {
                 tripId: savedTrip.id,
+                // Temporary compatibility alias for callers that still consume
+                // the pre-consolidation response contract.
+                rideId: savedTrip.id,
                 status: savedTrip.status,
                 quoteId: savedTrip.quote_id,
                 quoteStatus: consumed.status,

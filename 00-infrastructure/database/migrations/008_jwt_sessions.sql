@@ -1,0 +1,9 @@
+-- ============================================================================
+-- SAFAR SERVICE - JWT SESSION MIGRATION COMPATIBILITY MARKER (Migration 008)
+-- ============================================================================
+-- Historical note:
+-- `user_sessions` was introduced by migration 007_auth_otp_tables.sql.
+-- This file intentionally occupies the original 008 position so the ordered
+-- migration runner has a complete, stable sequence for existing deployments.
+-- It is a no-op and is safe to run repeatedly.
+-- ============================================================================

@@ -10,117 +10,36 @@
  */
 
 const assert = require('assert');
-const http = require('http');
+const request = require('supertest');
 
-const PORT = 3099; // Dedicated test port to avoid conflicts
-let server;
+let app;
 
 /**
  * Start the server on a test port before running tests
  */
 async function startServer() {
-  const app = require('../../run-server');
-  return new Promise((resolve) => {
-    server = app.listen(PORT, () => {
-      console.log(`[TestServer] Listening on http://localhost:${PORT}`);
-      resolve();
-    });
-  });
+  app = require('../../run-server');
 }
 
 /**
  * Stop the server after tests complete
  */
 async function stopServer() {
-  return new Promise((resolve) => {
-    if (server) {
-      // Force-close any lingering keep-alive sockets so the TCP handle is
-      // released and Jest exits naturally (Node >= 18.2 supports this).
-      if (typeof server.closeAllConnections === 'function') {
-        server.closeAllConnections();
-      }
-      if (typeof server.unref === 'function') {
-        server.unref();
-      }
-      server.close(() => {
-        console.log('[TestServer] Closed');
-        server = null;
-        resolve();
-      });
-    } else {
-      resolve();
-    }
-  });
+  app = null;
 }
 
 /**
  * Make an HTTP POST request to the calculate endpoint
  */
 function postCalculate(payload) {
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(payload);
-    const options = {
-      hostname: 'localhost',
-      port: PORT,
-      path: '/api/v1/pricing/calculate',
-      method: 'POST',
-      agent: false, // do not keep-alive: release the socket so Jest can exit
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-      },
-    };
-
-    const req = http.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => {
-        try {
-          resolve({
-            statusCode: res.statusCode,
-            headers: res.headers,
-            body: JSON.parse(body),
-          });
-        } catch {
-          resolve({ statusCode: res.statusCode, headers: res.headers, body });
-        }
-      });
-    });
-
-    req.on('error', (err) => reject(err));
-    req.write(data);
-    req.end();
-  });
+  return request(app).post('/api/v1/pricing/calculate').send(payload);
 }
 
 /**
  * Make an HTTP GET request to the health endpoint
  */
 function getHealth() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      port: PORT,
-      path: '/health',
-      method: 'GET',
-      agent: false, // do not keep-alive: release the socket so Jest can exit
-    };
-
-    const req = http.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => {
-        try {
-          resolve({ statusCode: res.statusCode, body: JSON.parse(body) });
-        } catch {
-          resolve({ statusCode: res.statusCode, body });
-        }
-      });
-    });
-
-    req.on('error', (err) => reject(err));
-    req.end();
-  });
+  return request(app).get('/health');
 }
 
 describe('Pricing Engine - REST API integration', () => {

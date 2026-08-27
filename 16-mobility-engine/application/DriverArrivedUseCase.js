@@ -9,7 +9,7 @@
 
 const Trip = require('../domain/models/Trip');
 const { TripNotFoundError } = require('../domain/errors/RideErrors');
-const { TripDomainEvents } = require('../domain/events/TripDomainEvents');
+const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 class DriverArrivedUseCase {
     /**
@@ -66,7 +66,7 @@ class DriverArrivedUseCase {
             await client.query('COMMIT');
 
             // د) انتشار رویداد دامنه پس از Commit
-            this.emitEvent(TripDomainEvents.DRIVER_ARRIVED, { tripId, driverId: updated.driver_id });
+            this.emitEvent(TripDomainEvents.DriverArrived, { tripId, driverId: updated.driver_id });
 
             return {
                 tripId: updated.id,
