@@ -33,6 +33,8 @@ class JwtService {
     return jwt.sign(payload, this.privateKey, {
       algorithm: 'RS256',
       expiresIn: '15m',
+      // jti یکتا برای ابطال نشست (Logout) از طریق user_sessions.token
+      jwtid: `access-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     });
   }
 

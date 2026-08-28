@@ -76,6 +76,17 @@ class SessionManager {
     await this.sessionRepository.revokeSession(sessionId);
   }
 
+  /**
+   * ابطال نشست بر اساس Access Token (jti آن در ستون token ذخیره می‌شود).
+   * شناسه نشست ابطال‌شده را برمی‌گرداند یا null.
+   */
+  async revokeByAccessToken(accessToken) {
+    const decoded = require('jsonwebtoken').decode(accessToken, { complete: true });
+    const jti = decoded && decoded.payload ? decoded.payload.jti : null;
+    if (!jti) return null;
+    return this.sessionRepository.revokeByAccessTokenJti(jti);
+  }
+
   async revokeAllUserSessions(userId) {
     await this.sessionRepository.revokeAllUserSessions(userId);
   }

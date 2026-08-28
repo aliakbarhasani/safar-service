@@ -1,7 +1,9 @@
+const { extractAccessToken } = require('../middleware/auth.middleware');
 const RequestOtpUseCase = require('../../application/use-cases/RequestOtpUseCase');
 const VerifyOtpUseCase = require('../../application/use-cases/VerifyOtpUseCase');
 const RecordLoginHistoryUseCase = require('../../application/use-cases/RecordLoginHistoryUseCase');
 const RecordAuditLogUseCase = require('../../application/use-cases/RecordAuditLogUseCase');
+const LogoutUseCase = require('../../application/use-cases/LogoutUseCase');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const LoginHistoryRepository = require('../../infrastructure/repositories/LoginHistoryRepository');
 const AuditLogRepository = require('../../infrastructure/repositories/AuditLogRepository');
@@ -26,11 +28,62 @@ class AuthController {
     verifyOtpUseCase = null,
     loginHistoryUseCase = null,
     auditLogUseCase = null,
+    logoutUseCase = null,
   } = {}) {
     this.requestOtpUseCase = requestOtpUseCase || new RequestOtpUseCase({ otpRepository: sharedOtpRepository });
     this.verifyOtpUseCase = verifyOtpUseCase || new VerifyOtpUseCase({ otpRepository: sharedOtpRepository });
     this.loginHistoryUseCase = loginHistoryUseCase || new RecordLoginHistoryUseCase({ loginHistoryRepository: sharedLoginHistoryRepository });
     this.auditLogUseCase = auditLogUseCase || new RecordAuditLogUseCase({ auditLogRepository: sharedAuditLogRepository });
+    this.logoutUseCase = logoutUseCase || new LogoutUseCase();
+  }
+
+  /**
+   * POST /api/v1/auth/logout
+   * - Access Token از هدر Bearer یا کوکی HttpOnly خوانده می‌شود.
+   * - نشست متناظر در user_sessions غیرفعال (is_active=false) می‌شود.
+   * - کوکی access_token پاک‌سازی می‌شود.
+   * - پاسخ JSON برای کلاینت‌های موبایل.
+   */
+  async logout(req, res) {
+    const token = extractAccessToken(req);
+
+    try {
+      const result = await this.logoutUseCase.execute(token);
+      const meta = getRequestMeta(req);
+
+      await this.auditLogUseCase.execute({
+        userId: req.user?.userId || null,
+        action: 'LOGOUT',
+        moduleName: 'auth',
+        entityType: 'user',
+        entityId: req.user?.userId || 'unknown',
+        newValues: { sessionId: result.sessionId },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+
+      // پاک‌سازی کوکی وب (با همان path تنظیم‌شده هنگام صدور)
+      res.clearCookie('access_token', { path: '/' });
+
+      return res.status(200).json({
+        success: true,
+        status_code: 200,
+        message: 'Logged out successfully',
+        data: {
+          sessionRevoked: result.revoked,
+          sessionId: result.sessionId,
+        },
+      });
+    } catch (error) {
+      // حتی در خطا، کوکی سمت کلاینت پاک شود
+      res.clearCookie('access_token', { path: '/' });
+      return res.status(200).json({
+        success: true,
+        status_code: 200,
+        message: 'Logged out successfully',
+        data: { sessionRevoked: false, sessionId: null },
+      });
+    }
   }
 
   async requestOtp(req, res) {
