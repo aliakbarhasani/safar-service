@@ -11,12 +11,30 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const { getPool } = require('../01-core-system/database/db');
 const router = express.Router();
 
+// ===== RBAC: میان‌افزار امنیتی و کنترل دسترسی مرکزی (17-rbac-service) =====
+// authenticate: توکن RS256 (Bearer یا کوکی HttpOnly) → req.user
+// authorize:   بررسی مجوز granular (مثل 'users.read') یا نقش (مثل 'admin')
+const { authenticate, authorize } = require('../17-rbac-service/presentation/middleware/rbac.middleware');
+const { RbacModule } = require('../17-rbac-service/index');
+
+// Seed مجوزهای پایه (idempotent — در صورت وجود، خطا نمی‌دهد)
+const rbacModule = new RbacModule({ pool: getPool() });
+rbacModule.seed().catch((e) => console.warn('[RBAC] seed skipped:', e.message));
+
+// ===== مسیر مدیریت نقش‌ها و مجوزها (فقط admin) =====
+router.use('/api/v1/rbac', rbacModule.router());
+
 // ===== مسیرهای عمومی =====
 const { index } = require('../03-user-service/controllers/home.controller');
 router.get('/', index);
 
 // ===== مسیرهای ماژول کاربران (03-user-service) =====
+// محافظت‌شده: مشاهده کاربران نیازمند مجوز users.read، ایجاد کاربر نیازمند users.create
 const userRoutes = require('../03-user-service/routes/user.route');
+router.use('/api/users', authenticate);
+router.get('/api/users', authorize('users.read', 'admin', 'super_admin'));
+router.get('/api/users/:id', authorize('users.read', 'admin', 'super_admin'));
+router.post('/api/users', authorize('users.create', 'admin', 'super_admin'));
 router.use('/api/users', userRoutes);
 
 
@@ -33,6 +51,9 @@ router.use('/api/wallets', walletRoutes);
 
 // ===== مسیرهای رانندگان (07-driver-service) =====
 const driverRoutes = require('../07-driver-service/routes/driver.route');
+// محافظت‌شده در سطح Gateway (قبل از mount): تغییر وضعیت حساب راننده و لیست رانندگان فقط برای مدیران
+router.patch('/api/drivers/:id/account-status', authorize('drivers.update_status', 'admin', 'super_admin'));
+router.get('/api/drivers', authorize('drivers.read', 'admin', 'super_admin'));
 router.use('/api/drivers', driverRoutes);
 
 // ===== مسیرهای بازارچه (09-marketplace) =====
@@ -112,7 +133,8 @@ const tripController = new TripController({
     cancelTripUseCase,
 });
 const tripRouter = createTripRouter(tripController);
-router.use('/api/v1/trips', tripRouter);
+// محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
+router.use('/api/v1/trips', authenticate, tripRouter);
 
 // ===== مسیرهای سلامت =====
 const healthRoute = require('./routes/health.route');
