@@ -46,6 +46,22 @@ function extractAccessToken(req) {
   return null;
 }
 
+// بررسی فعال بودن نشست در user_sessions برای jti توکن.
+// خروجی: true (فعال) / false (ابطال شده) / null (دیتابیس در دسترس نیست → fail-open)
+let _sessionRepo = null;
+async function checkSessionActive(jti) {
+  try {
+    if (!_sessionRepo) {
+      const SessionRepository = require('../../infrastructure/repositories/SessionRepository');
+      _sessionRepo = new SessionRepository();
+    }
+    const sessionId = await _sessionRepo.findActiveByAccessTokenJti(jti);
+    return sessionId ? true : false;
+  } catch {
+    return null; // fail-open
+  }
+}
+
 function authenticate(req, res, next) {
   const token = extractAccessToken(req);
 
@@ -64,6 +80,28 @@ function authenticate(req, res, next) {
     if (jwtService) {
       try {
         const decoded = jwtService.verifyAccessToken(token);
+
+        // بررسی ابطال نشست (Logout) در user_sessions — fail-open در نبود دیتابیس
+        if (decoded.jti) {
+          checkSessionActive(decoded.jti)
+            .then((active) => {
+              if (active === false) {
+                return res.status(401).json({
+                  success: false,
+                  status_code: 401,
+                  message: 'Session has been revoked. Please authenticate again.',
+                });
+              }
+              req.user = decoded;
+              return next();
+            })
+            .catch(() => {
+              req.user = decoded;
+              return next();
+            });
+          return;
+        }
+
         req.user = decoded;
         return next();
       } catch (rsErr) {
@@ -107,4 +145,4 @@ function authorize(...allowedRoles) {
   };
 }
 
-module.exports = { authenticate, authorize };
+module.exports = { authenticate, authorize, extractAccessToken };

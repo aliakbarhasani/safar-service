@@ -97,6 +97,34 @@ class SessionRepository {
     );
   }
 
+  async revokeByAccessTokenJti(jti) {
+    const dbReady = await this._isDBReady();
+    if (!dbReady) throw new Error('Database not available');
+
+    const result = await this.pool.query(
+      'UPDATE user_sessions SET is_active = FALSE, updated_at = NOW() WHERE token = $1 AND is_active = TRUE RETURNING id',
+      [jti]
+    );
+
+    return result.rows.length > 0 ? result.rows[0].id : null;
+  }
+
+  /**
+   * بررسی فعال بودن نشست بر اساس jti توکن دسترسی.
+   * در نبود دیتابیس null برمی‌گرداند (تماس‌دهنده باید fail-open باشد).
+   */
+  async findActiveByAccessTokenJti(jti) {
+    const dbReady = await this._isDBReady();
+    if (!dbReady) return null;
+
+    const result = await this.pool.query(
+      'SELECT id FROM user_sessions WHERE token = $1 AND is_active = TRUE AND expires_at > NOW() LIMIT 1',
+      [jti]
+    );
+
+    return result.rows.length > 0 ? result.rows[0].id : null;
+  }
+
   async rotateRefreshToken(sessionId, newRefreshToken, newAccessTokenJti) {
     const dbReady = await this._isDBReady();
     if (!dbReady) throw new Error('Database not available');
