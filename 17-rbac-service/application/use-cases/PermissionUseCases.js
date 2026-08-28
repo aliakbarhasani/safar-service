@@ -82,6 +82,56 @@ class PermissionUseCases {
     return this.authorizationService.listRoles();
   }
 
+  // ── انتساب نقش به کاربر (user_roles) ─────────────────────────────
+
+  /** نقش‌های یک کاربر */
+  async getUserRoles(userId) {
+    if (!userId || typeof userId !== 'string') {
+      const err = new Error('userId is required');
+      err.status = 400;
+      throw err;
+    }
+    return this.permissionRepository.getRolesForUser(userId);
+  }
+
+  /** انتساب نقش به کاربر (فقط نقش‌های معتبر؛ idempotent) */
+  async assignRoleToUser({ userId, roleName, assignedBy = null }) {
+    if (!userId || typeof userId !== 'string') {
+      const err = new Error('userId is required');
+      err.status = 400;
+      throw err;
+    }
+    if (!this.authorizationService.isValidRole(roleName)) {
+      const err = new Error(`Unknown role: ${roleName}`);
+      err.status = 400;
+      throw err;
+    }
+    // جلوگیری از خود‌ارتقایی: ادمین نمی‌تواند به خودش نقش بدهد
+    if (assignedBy && assignedBy === userId) {
+      const err = new Error('Self role-assignment is not allowed.');
+      err.status = 403;
+      throw err;
+    }
+    const assigned = await this.permissionRepository.assignRoleToUser({ userId, roleName, assignedBy });
+    return { userId, roleName, assigned };
+  }
+
+  /** سلب نقش از کاربر */
+  async revokeRoleFromUser({ userId, roleName }) {
+    if (!userId || typeof userId !== 'string') {
+      const err = new Error('userId is required');
+      err.status = 400;
+      throw err;
+    }
+    if (!this.authorizationService.isValidRole(roleName)) {
+      const err = new Error(`Unknown role: ${roleName}`);
+      err.status = 400;
+      throw err;
+    }
+    const revoked = await this.permissionRepository.revokeRoleFromUser({ userId, roleName });
+    return { userId, roleName, revoked };
+  }
+
   /**
    * تصمیم مجوز: نقش کاربر + مجوز خواسته‌شده
    * نقش از توکن (req.user.role) می‌آید؛ در نبود آن از DB fallback می‌شود.

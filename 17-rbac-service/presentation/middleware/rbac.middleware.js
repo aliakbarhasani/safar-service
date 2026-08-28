@@ -79,17 +79,23 @@ function authorize(...requirements) {
       return res.status(401).json({ success: false, status_code: 401, message: 'Authentication required.' });
     }
     try {
-      const role = req.user.role;
+      // نقش مؤثر = نقش داخل توکن + نقش‌های داینامیک منتسب در user_roles
+      const userId = req.user.userId || req.user.id || req.user.sub || null;
+      let effectiveRoles = req.user.role ? [req.user.role] : [];
+      if (userId) {
+        try {
+          const dynamicRoles = await useCases.permissionRepository.getRolesForUser(userId);
+          effectiveRoles = [...new Set([...effectiveRoles, ...dynamicRoles])];
+        } catch { /* نبود DB → فقط نقش توکن */ }
+      }
       const map = await useCases.getRolePermissionsMap();
-      const rolePerms = map[role] || [];
 
       for (const req_ of requirements) {
         const isPermission = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(req_);
         if (isPermission) {
-          if (await useCases.hasPermission({ userId: req.user.userId || req.user.id, role, permission: req_ })) {
-            return next();
-          }
-        } else if (useCases.authorizationService.isAdminRole(role) || role === req_) {
+          const allowed = effectiveRoles.some((role) => (map[role] || []).includes(req_));
+          if (allowed) return next();
+        } else if (effectiveRoles.some((role) => useCases.authorizationService.isAdminRole(role) || role === req_)) {
           return next();
         }
       }

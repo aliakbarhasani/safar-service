@@ -1,4 +1,4 @@
-const { AuthServiceClient, TripServiceClient } = require('../infrastructure');
+const { AuthServiceClient, TripServiceClient, RbacServiceClient } = require('../infrastructure');
 
 /**
  * Admin use-cases — orchestrates business logic for the admin panel.
@@ -9,6 +9,7 @@ class AdminUseCases {
   constructor() {
     this.authClient = new AuthServiceClient();
     this.tripClient = new TripServiceClient();
+    this.rbacClient = new RbacServiceClient();
   }
 
   // ── Dashboard / Health ──────────────────────────────────────────
@@ -63,6 +64,37 @@ class AdminUseCases {
   async cancelTrip(tripId, reason) {
     const result = await this.tripClient.cancelTrip(tripId, reason);
     return result.data;
+  }
+
+  // ── RBAC Management (via API Gateway) ───────────────────────────
+  _rbacToken(req) {
+    const h = req.headers.authorization;
+    return h && h.startsWith('Bearer ') ? h.slice(7) : null;
+  }
+
+  async listRbacPermissions(req) {
+    const result = await this.rbacClient.withToken(this._rbacToken(req)).listPermissions();
+    return result.data;
+  }
+
+  async listRbacRoles(req) {
+    const result = await this.rbacClient.withToken(this._rbacToken(req)).listRoles();
+    return result.data;
+  }
+
+  async getUserRoles(req, userId) {
+    const result = await this.rbacClient.withToken(this._rbacToken(req)).getUserRoles(userId);
+    return result.data;
+  }
+
+  async assignUserRole(req, userId, roleName) {
+    const result = await this.rbacClient.withToken(this._rbacToken(req)).assignUserRole(userId, roleName);
+    return { status: result.status, data: result.data };
+  }
+
+  async revokeUserRole(req, userId, roleName) {
+    const result = await this.rbacClient.withToken(this._rbacToken(req)).revokeUserRole(userId, roleName);
+    return { status: result.status, data: result.data };
   }
 }
 

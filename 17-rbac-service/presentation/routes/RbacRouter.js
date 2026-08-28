@@ -30,6 +30,11 @@ function createRbacRouter({ useCases }) {
   router.put('/roles/:role/permissions', validateBody(slugRule), controller.assignPermission.bind(controller));
   router.delete('/roles/:role/permissions/:slug', controller.revokePermission.bind(controller));
 
+  // انتساب نقش به کاربر (user_roles)
+  router.get('/users/:userId/roles', controller.getUserRoles.bind(controller));
+  router.put('/users/:userId/roles', validateBody({ roleName: { required: true, type: 'string' } }), controller.assignUserRole.bind(controller));
+  router.delete('/users/:userId/roles/:roleName', controller.revokeUserRole.bind(controller));
+
   return router;
 }
 
