@@ -27,10 +27,17 @@ try {
 } catch { /* fallback به HS256 در پایین */ }
 
 // --- نمونه‌های اشتراکی (Dependency Injection - DIP) ---
-const pool = new Pool();
+// Pool با پیکربندی صریح از env (سازگار با هر دو قالب PG_* و DB_*)
+const rbacPool = new Pool({
+  host: process.env.PG_HOST || process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.PG_PORT || process.env.DB_PORT || 5432),
+  database: process.env.PG_DATABASE || process.env.DB_NAME || 'safar_service',
+  user: process.env.PG_USER || process.env.DB_USER || 'postgres',
+  password: process.env.PG_PASSWORD || process.env.DB_PASSWORD,
+});
 const useCases = new PermissionUseCases({
-  permissionRepository: new PermissionRepository(pool),
-  userRepository: new UserRepository(pool),
+  permissionRepository: new PermissionRepository(rbacPool),
+  userRepository: new UserRepository(rbacPool),
   authorizationService: new AuthorizationService(),
 });
 
@@ -93,6 +100,7 @@ function authorize(...requirements) {
         required: requirements,
       });
     } catch (e) {
+      console.error('[RBAC] authorization check failed:', e.message);
       return res.status(500).json({ success: false, status_code: 500, message: 'Authorization check failed.' });
     }
   };
