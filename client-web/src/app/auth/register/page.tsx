@@ -57,11 +57,18 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
+      // قرارداد بک‌اند پسورد را الزامی می‌داند؛ ورود واقعی از مسیر OTP است،
+      // پس یک رمز تصادفی تولید می‌کنیم (فقط hash آن در DB ذخیره می‌شود).
+      const generatedPassword =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `pw-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       await registerUser({
         phoneNumber: toEnglishDigits(phoneNumber).trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim() || undefined,
+        password: generatedPassword,
       });
       localStorage.setItem("login_phone", toEnglishDigits(phoneNumber).trim());
       router.push("/auth/otp");

@@ -102,12 +102,34 @@ export const api = {
 };
 
 // Convenience API functions used by pages (keep business logic in src/services)
-export async function requestOtp(phoneNumber: string) {
-  return api.post<any>(config.api.endpoints.requestOtp, { phoneNumber });
+// قرارداد واحد بک‌اند: { success, status_code, message, data: { token, user } }
+export interface AuthDataDto {
+  token: string;
+  user: {
+    id: string;
+    phoneNumber: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    role: string;
+    status: string;
+  };
 }
 
-export async function verifyOtp(phoneNumber: string, code: string) {
-  return api.post<any>(config.api.endpoints.verifyOtp, { phoneNumber, code });
+export interface AuthResponseDto extends ApiResponse<AuthDataDto> {}
+
+export async function requestOtp(
+  phoneNumber: string
+): Promise<ApiResponse<{ phoneNumber: string; otpCode?: string; expiresAt: string }>> {
+  return api.post(config.api.endpoints.requestOtp, { phoneNumber });
+}
+
+export async function verifyOtp(phoneNumber: string, code: string): Promise<AuthResponseDto> {
+  // قرارداد بک‌اند: فیلد کد باید `otpCode` باشد (نه `code`).
+  return api.post<AuthResponseDto>(config.api.endpoints.verifyOtp, {
+    phoneNumber,
+    otpCode: code,
+  });
 }
 
 export async function registerUser(payload: {
@@ -115,8 +137,14 @@ export async function registerUser(payload: {
   firstName: string;
   lastName: string;
   email?: string;
-}) {
-  return api.post<any>(config.api.endpoints.register, payload);
+  /**
+   * قرارداد بک‌اند پسورد را الزامی می‌داند؛ اما ورود واقعی کاربر از مسیر OTP
+   * انجام می‌شود. صفحه ثبت‌نام یک رمز تصادفی تولید می‌کند تا قرارداد حفظ شود؛
+   * فقط hash آن در دیتابیس ذخیره می‌شود و هرگز استفاده نمایشی ندارد.
+   */
+  password: string;
+}): Promise<ApiResponse<Record<string, unknown>>> {
+  return api.post(config.api.endpoints.register, payload);
 }
 
 export async function getProfile() {
