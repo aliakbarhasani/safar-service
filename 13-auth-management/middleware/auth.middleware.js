@@ -1,4 +1,22 @@
 const JwtService = require('../domain/services/JwtService');
+const { parseCookies } = require('../infrastructure/helpers/cookieHelper');
+
+/**
+ * استخراج Hybrid توکن:
+ *  ۱) ابتدا هدر Authorization: Bearer <token> (کلاینت موبایل/سرویس‌ها)
+ *  ۲) در نبود آن، کوکی access_token (کلاینت وب - HttpOnly)
+ */
+function extractAccessToken(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  const cookies = parseCookies(req.headers.cookie);
+  if (cookies.access_token) {
+    return cookies.access_token;
+  }
+  return null;
+}
 
 class AuthMiddleware {
   constructor({ jwtService = null } = {}) {
@@ -8,12 +26,11 @@ class AuthMiddleware {
   middleware() {
     return async (req, res, next) => {
       try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        const token = extractAccessToken(req);
+        if (!token) {
           return res.status(401).json({ error: 'Missing or invalid authorization header' });
         }
 
-        const token = authHeader.split(' ')[1];
         const decoded = this.jwtService.verifyAccessToken(token);
 
         req.user = {

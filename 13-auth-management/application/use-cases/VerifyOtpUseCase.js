@@ -3,16 +3,19 @@ const User = require('../../domain/entities/User');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const JwtService = require('../../domain/services/JwtService');
+const SessionManager = require('../../domain/services/SessionManager');
 
 class VerifyOtpUseCase {
-  constructor({ otpRepository = null, userRepository = null, jwtService = null } = {}) {
+  constructor({ otpRepository = null, userRepository = null, jwtService = null, sessionManager = null } = {}) {
     this.otpRepository = otpRepository || new OtpRepository();
     this.userRepository = userRepository || new UserRepository();
     // از JwtService (RS256) استفاده می‌شود تا الگوریتم توکن با بقیه سیستم یکی باشد
     this.jwtService = jwtService || new JwtService();
+    // SessionManager: ثبت نشست کاربر در user_sessions (refresh token, role, ...)
+    this.sessionManager = sessionManager || new SessionManager();
   }
 
-  async execute(phoneNumber, otpCode, type = 'login') {
+  async execute(phoneNumber, otpCode, type = 'login', deviceInfo = {}) {
     if (!phoneNumber || !otpCode) {
       throw new Error('phoneNumber and otpCode are required');
     }
@@ -60,17 +63,46 @@ class VerifyOtpUseCase {
       });
     }
 
-    // توکن دسترسی با RS256 از طریق JwtService (سازگار با همه‌ی سرویس‌ها)
-    const token = this.jwtService.generateAccessToken({
-      id: user.id,
-      phoneNumber: user.phone_number,
-      role: user.role,
-    });
+    // صدور Access Token و ثبت نشست کاربر در دیتابیس (user_sessions).
+    // در صورت در دسترس نبودن دیتابیس، به‌صورت امن روی یک access token ساده
+    // (بدون session) fallback می‌شویم تا قرارداد پاسخ موبایل هرگز نشکند.
+    let accessToken = null;
+    let refreshToken = null;
+    let sessionId = null;
+
+    try {
+      const session = await this.sessionManager.createSession(
+        {
+          id: user.id,
+          phoneNumber: user.phone_number,
+          role: user.role,
+        },
+        {
+          userAgent: deviceInfo.userAgent,
+          ipAddress: deviceInfo.ipAddress,
+        }
+      );
+      accessToken = session.accessToken;
+      refreshToken = session.refreshToken;
+      sessionId = session.sessionId;
+    } catch (sessionErr) {
+      console.warn(
+        '[VerifyOtpUseCase] Session creation failed; falling back to bare access token:',
+        sessionErr.message
+      );
+      accessToken = this.jwtService.generateAccessToken({
+        id: user.id,
+        phoneNumber: user.phone_number,
+        role: user.role,
+      });
+    }
 
     return {
       success: true,
       message: 'OTP verified successfully',
-      token,
+      token: accessToken,
+      refreshToken: refreshToken || undefined,
+      sessionId: sessionId || undefined,
       user: {
         id: user.id,
         phoneNumber: user.phone_number,
