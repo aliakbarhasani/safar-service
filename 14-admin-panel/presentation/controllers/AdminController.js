@@ -138,6 +138,53 @@ class AdminController {
       next(err);
     }
   }
+
+  // ── RBAC Management (admin roles & user role assignment) ────────
+  async listRbacPermissions(req, res, next) {
+    try {
+      const data = await this.useCases.listRbacPermissions(req);
+      return res.status(200).json({ success: true, status_code: 200, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listRbacRoles(req, res, next) {
+    try {
+      const data = await this.useCases.listRbacRoles(req);
+      return res.status(200).json({ success: true, status_code: 200, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getUserRoles(req, res, next) {
+    try {
+      const data = await this.useCases.getUserRoles(req, req.params.id);
+      return res.status(200).json({ success: true, status_code: 200, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async assignUserRole(req, res, next) {
+    try {
+      const { roleName } = req.body || {};
+      const { status, data } = await this.useCases.assignUserRole(req, req.params.id, roleName);
+      return res.status(status).json({ success: true, status_code: status, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async revokeUserRole(req, res, next) {
+    try {
+      const { status, data } = await this.useCases.revokeUserRole(req, req.params.id, req.params.roleName);
+      return res.status(status).json({ success: true, status_code: status, data });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = AdminController;

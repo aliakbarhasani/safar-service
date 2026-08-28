@@ -118,6 +118,57 @@ class PermissionRepository {
     );
     return rowCount > 0;
   }
+
+  // ── انتساب نقش به کاربر (user_roles) ─────────────────────────────
+
+  /**
+   * نقش‌های یک کاربر (لیست نام نقش) — از user_roles + roles
+   * @param {string} userId UUID
+   */
+  async getRolesForUser(userId) {
+    const { rows } = await this.pool.query(
+      `SELECT r.name FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1`,
+      [userId],
+    );
+    return rows.map((r) => r.name);
+  }
+
+  /**
+   * انتساب نقش به کاربر (idempotent).
+   * @param {{userId: string, roleName: string, assignedBy?: string|null}} params
+   * @returns {Promise<boolean>} true اگر انتساب جدید انجام شد
+   */
+  async assignRoleToUser({ userId, roleName, assignedBy = null }) {
+    const roleId = await this.getRoleIdByName(roleName);
+    if (!roleId) {
+      const err = new Error(`Unknown role: ${roleName}`);
+      err.status = 400;
+      throw err;
+    }
+    const { rowCount } = await this.pool.query(
+      `INSERT INTO user_roles (user_id, role_id, assigned_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id) DO NOTHING`,
+      [userId, roleId, assignedBy],
+    );
+    return rowCount > 0;
+  }
+
+  /**
+   * سلب نقش از کاربر.
+   * @returns {Promise<boolean>} true اگر نقشی حذف شد
+   */
+  async revokeRoleFromUser({ userId, roleName }) {
+    const roleId = await this.getRoleIdByName(roleName);
+    if (!roleId) return false;
+    const { rowCount } = await this.pool.query(
+      'DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2',
+      [userId, roleId],
+    );
+    return rowCount > 0;
+  }
 }
 
 module.exports = PermissionRepository;

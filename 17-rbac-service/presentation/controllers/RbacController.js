@@ -77,6 +77,52 @@ class RbacController {
       return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
     }
   }
+
+  // ── انتساب نقش به کاربر (user_roles) ─────────────────────────────
+
+  /** GET /api/v1/rbac/users/:userId/roles */
+  async getUserRoles(req, res) {
+    try {
+      const roles = await this.useCases.getUserRoles(req.params.userId);
+      return res.status(200).json({ success: true, status_code: 200, data: { userId: req.params.userId, roles } });
+    } catch (e) {
+      return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
+    }
+  }
+
+  /** PUT /api/v1/rbac/users/:userId/roles  { roleName } */
+  async assignUserRole(req, res) {
+    try {
+      const { userId } = req.params;
+      const { roleName } = req.body || {};
+      const assignedBy = (req.user && req.user.userId) || req.user?.sub || null;
+      const result = await this.useCases.assignRoleToUser({ userId, roleName, assignedBy });
+      return res.status(result.assigned ? 201 : 200).json({
+        success: true,
+        status_code: result.assigned ? 201 : 200,
+        message: result.assigned
+          ? `Role '${roleName}' assigned to user.`
+          : `User already has role '${roleName}'.`,
+        data: result,
+      });
+    } catch (e) {
+      return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
+    }
+  }
+
+  /** DELETE /api/v1/rbac/users/:userId/roles/:roleName */
+  async revokeUserRole(req, res) {
+    try {
+      const { userId, roleName } = req.params;
+      const result = await this.useCases.revokeRoleFromUser({ userId, roleName });
+      if (!result.revoked) {
+        return res.status(404).json({ success: false, status_code: 404, message: 'User does not have this role.' });
+      }
+      return res.status(200).json({ success: true, status_code: 200, message: `Role '${roleName}' revoked from user.`, data: result });
+    } catch (e) {
+      return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
+    }
+  }
 }
 
 module.exports = RbacController;
