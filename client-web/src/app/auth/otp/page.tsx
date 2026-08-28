@@ -60,7 +60,17 @@ export default function OtpPage() {
       const payload = result?.data || result || {};
       const token = payload?.token;
       if (token) {
-        setAuth(token, payload?.user || null);
+        const u = payload?.user;
+        // Backend sends nullable fields (first/last name, email) via JSON null;
+        // map null → undefined to satisfy the client AuthUser contract.
+        setAuth(token, u ? {
+          id: u.id,
+          phoneNumber: u.phoneNumber,
+          firstName: u.firstName ?? undefined,
+          lastName: u.lastName ?? undefined,
+          email: u.email ?? undefined,
+          role: u.role,
+        } : null);
       }
       localStorage.removeItem("login_phone");
       router.replace("/dashboard");
