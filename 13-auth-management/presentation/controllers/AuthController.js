@@ -94,7 +94,10 @@ class AuthController {
     const meta = getRequestMeta(req);
 
     try {
-      const result = await this.verifyOtpUseCase.execute(phoneNumber, otpCode);
+      const result = await this.verifyOtpUseCase.execute(phoneNumber, otpCode, 'login', {
+        userAgent: meta.userAgent,
+        ipAddress: meta.ipAddress,
+      });
 
       // Record successful login
       await this.loginHistoryUseCase.execute({
@@ -116,6 +119,16 @@ class AuthController {
         newValues: { phoneNumber, role: result.user?.role },
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
+      });
+
+      // کوکی HttpOnly برای کلاینت وب (همراه با بدنه JSON برای کلاینت‌های موبایل).
+      // res.cookie از خود Express است — هیچ پکیج اضافه‌ای لازم نیست.
+      res.cookie('access_token', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 15 * 60 * 1000, // ۱۵ دقیقه — هم‌تراز با عمر Access Token
       });
 
       return res.status(200).json({

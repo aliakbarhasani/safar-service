@@ -8,6 +8,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../../../14-config-system/server.config');
 const JwtService = require('../../domain/services/JwtService');
+const { parseCookies } = require('../../infrastructure/helpers/cookieHelper');
 
 // یک نمونه مشترک؛ بدون کلید RSA در محیط‌های بدون keys بی‌اثر می‌ماند (lazy)
 let _jwtService = null;
@@ -26,18 +27,35 @@ function getJwtService() {
 // دو الگوریتم پشتیبانی می‌شود:
 //   1) RS256 (کانونی - JwtService) - سازگار با توکن‌های صادرشده از verify-otp/پروفایل
 //   2) HS256 (backward-compat) - با config.jwt.secret
-function authenticate(req, res, next) {
+//
+// استخراج توکن (Hybrid):
+//   a) هدر `Authorization: Bearer <token>` (کلاینت موبایل/سرویس‌ها) — در اولویت
+//   b) کوکی `access_token` در `req.headers.cookie` (کلاینت وب / HttpOnly cookie)
+function extractAccessToken(req) {
   const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Web client: HttpOnly cookie delivery — no Authorization header present.
+  const cookies = parseCookies(req.headers.cookie);
+  if (cookies.access_token) {
+    return cookies.access_token;
+  }
+
+  return null;
+}
+
+function authenticate(req, res, next) {
+  const token = extractAccessToken(req);
+
+  if (!token) {
     return res.status(401).json({
       success: false,
       status_code: 401,
       message: 'No token provided. Please authenticate.',
     });
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const jwtService = getJwtService();

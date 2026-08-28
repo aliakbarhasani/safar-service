@@ -16,7 +16,27 @@ dotenv.config();
 registerUserRegisteredHandler();
 
 const app = express();
-app.use(cors());
+
+// CORS: no wildcard. Origins come from ALLOWED_ORIGINS (comma-separated) with a
+// safe local-development default. `credentials: true` permits the browser to send
+// cookies (needed for the future HttpOnly-cookie session flow).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow same-origin / non-browser requests (no Origin header) to keep
+      // server-to-server and tooling (supertest, curl) working.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Global rate limit: 100 requests / minute / IP (applied to all routes)
