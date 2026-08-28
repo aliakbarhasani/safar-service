@@ -1,0 +1,13 @@
+{
+  "name": "safar-mobility-engine",
+  "version": "1.0.0",
+  "description": "Safar Service Mobility Engine - Clean Architecture Module (successor of archived 12-trip-management)",
+  "main": "presentation/TripRouter.js",
+  "private": true,
+  "scripts": {
+    "test": "jest tests/unit"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1"
+  }
+}
