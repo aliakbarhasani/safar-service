@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import config from '@/config/app-config.json';
-import { getCampaigns } from '@/services/api';
+import { getCampaigns, ApiError } from '@/services/api';
 import type { CampaignDto } from '@/services/api';
 
 export default function AdsPage() {
@@ -17,14 +17,14 @@ export default function AdsPage() {
         const result = await getCampaigns();
         setCampaigns(result?.data || []);
         setError(null);
-      } catch (err: any) {
-        if (err?.status === 401) {
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
           setError('توکن شما منقضی شده است');
         } else {
+          const msg =
+            err instanceof Error ? err.message : 'خطا در بارگذاری کمپین‌ها';
           console.error('Error loading campaigns:', err);
-          setError(
-            err?.message || 'خطا در بارگذاری کمپین‌ها'
-          );
+          setError(msg);
         }
         setCampaigns([]);
       } finally {

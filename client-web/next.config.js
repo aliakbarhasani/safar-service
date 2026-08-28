@@ -8,6 +8,10 @@ const withPWA = require('next-pwa')({
 
 module.exports = withPWA({
   reactStrictMode: true,
-  // Provide a minimal turbopack config to avoid Turbopack/webpack conflict
-  turbopack: {},
+  // Provide a minimal turbopack config to avoid Turbopack/webpack conflict,
+  // and pin the workspace root to this front-end so Next builds don't try to
+  // resolve the monorepo root (multiple package-lock.json files coexist).
+  turbopack: {
+    root: __dirname,
+  },
 });

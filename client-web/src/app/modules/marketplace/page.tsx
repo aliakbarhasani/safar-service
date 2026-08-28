@@ -18,9 +18,11 @@ export default function MarketplacePage() {
         const result = await getMarketplaceProducts();
         setProducts(result?.data?.products || []);
         setError(null);
-      } catch (err: any) {
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : 'خطا در بارگذاری محصولات';
         console.error('Error loading products:', err);
-        setError(err?.message || 'خطا در بارگذاری محصولات');
+        setError(msg);
         setProducts([]);
       } finally {
         setLoading(false);
