@@ -43,16 +43,22 @@ export default function Button({
 
   return (
     <button
+      type={props.type ?? "button"}
       className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${widthClass} ${className}`}
       disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
       {...props}
     >
+      {isLoading && (
+        <span aria-hidden="true" className="sr-only">…</span>
+      )}
       {isLoading && (
         <svg
           className="animate-spin h-5 w-5"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"

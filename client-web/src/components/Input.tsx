@@ -17,6 +17,7 @@ export default function Input({
   ...props
 }: InputProps) {
   const inputId = id || label?.replace(/\s+/g, "-").toLowerCase();
+  const errorId = error ? `${inputId}-error` : undefined;
 
   return (
     <div className={`${fullWidth ? "w-full" : ""} ${className}`}>
@@ -30,6 +31,8 @@ export default function Input({
       )}
       <input
         id={inputId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={errorId}
         className={`w-full px-4 py-2.5 rounded-lg border text-[#1e293b] placeholder-[#94a3b8] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent ${
           error
             ? "border-[#dc2626] focus:ring-[#dc2626]"
@@ -38,7 +41,9 @@ export default function Input({
         {...props}
       />
       {error && (
-        <p className="mt-1 text-sm text-[#dc2626]">{error}</p>
+        <p id={errorId} role="alert" className="mt-1 text-sm text-[#dc2626]">
+          {error}
+        </p>
       )}
     </div>
   );
