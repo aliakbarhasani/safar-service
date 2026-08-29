@@ -8,6 +8,10 @@
  *   GET    /api/v1/rbac/roles                  (نقش‌ها + مجوزهای هر نقش)
  *   PUT    /api/v1/rbac/roles/:role/permissions   { slug }
  *   DELETE /api/v1/rbac/roles/:role/permissions/:slug
+ *   GET    /api/v1/rbac/users/:userId/roles
+ *   PUT    /api/v1/rbac/users/:userId/roles       { roleName }
+ *   DELETE /api/v1/rbac/users/:userId/roles/:roleName
+ *   GET    /api/v1/rbac/audit?eventType=rbac.*    (رویدادهای حسابرسی)
  */
 const express = require('express');
 const RbacController = require('../controllers/RbacController');
@@ -34,6 +38,9 @@ function createRbacRouter({ useCases }) {
   router.get('/users/:userId/roles', controller.getUserRoles.bind(controller));
   router.put('/users/:userId/roles', validateBody({ roleName: { required: true, type: 'string' } }), controller.assignUserRole.bind(controller));
   router.delete('/users/:userId/roles/:roleName', controller.revokeUserRole.bind(controller));
+
+  // رویدادهای حسابرسی امنیتی (audit_logs)
+  router.get('/audit', controller.listAuditEvents.bind(controller));
 
   return router;
 }

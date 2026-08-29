@@ -8,6 +8,11 @@ class RbacController {
     this.useCases = useCases;
   }
 
+  /** استخراج شناسه مجری از توکن احراز‌شده */
+  _actorId(req) {
+    return (req.user && (req.user.userId || req.user.id || req.user.sub)) || null;
+  }
+
   /** GET /api/v1/rbac/permissions */
   async listPermissions(req, res) {
     try {
@@ -22,7 +27,8 @@ class RbacController {
   async createPermission(req, res) {
     try {
       const { slug, description, moduleName } = req.body;
-      const created = await this.useCases.createPermission({ slug, description, moduleName });
+      const actorId = this._actorId(req);
+      const created = await this.useCases.createPermission({ slug, description, moduleName, actorId });
       return res.status(201).json({ success: true, status_code: 201, data: { permission: created.toJSON() } });
     } catch (e) {
       return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
@@ -32,7 +38,8 @@ class RbacController {
   /** DELETE /api/v1/rbac/permissions/:slug */
   async deletePermission(req, res) {
     try {
-      const removed = await this.useCases.deletePermission(req.params.slug);
+      const actorId = this._actorId(req);
+      const removed = await this.useCases.deletePermission(req.params.slug, actorId);
       if (!removed) return res.status(404).json({ success: false, status_code: 404, message: 'Permission not found.' });
       return res.status(200).json({ success: true, status_code: 200, message: 'Permission deleted.' });
     } catch (e) {
@@ -59,7 +66,8 @@ class RbacController {
     try {
       const { role } = req.params;
       const { slug } = req.body;
-      await this.useCases.assignPermission({ roleName: role, slug });
+      const actorId = this._actorId(req);
+      await this.useCases.assignPermission({ roleName: role, slug, actorId });
       return res.status(200).json({ success: true, status_code: 200, message: `Permission '${slug}' assigned to '${role}'.` });
     } catch (e) {
       return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
@@ -70,7 +78,8 @@ class RbacController {
   async revokePermission(req, res) {
     try {
       const { role, slug } = req.params;
-      const revoked = await this.useCases.revokePermission({ roleName: role, slug });
+      const actorId = this._actorId(req);
+      const revoked = await this.useCases.revokePermission({ roleName: role, slug, actorId });
       if (!revoked) return res.status(404).json({ success: false, status_code: 404, message: 'Mapping not found.' });
       return res.status(200).json({ success: true, status_code: 200, message: `Permission '${slug}' revoked from '${role}'.` });
     } catch (e) {
@@ -95,7 +104,7 @@ class RbacController {
     try {
       const { userId } = req.params;
       const { roleName } = req.body || {};
-      const assignedBy = (req.user && req.user.userId) || req.user?.sub || null;
+      const assignedBy = this._actorId(req);
       const result = await this.useCases.assignRoleToUser({ userId, roleName, assignedBy });
       return res.status(result.assigned ? 201 : 200).json({
         success: true,
@@ -114,13 +123,28 @@ class RbacController {
   async revokeUserRole(req, res) {
     try {
       const { userId, roleName } = req.params;
-      const result = await this.useCases.revokeRoleFromUser({ userId, roleName });
+      const actorId = this._actorId(req);
+      const result = await this.useCases.revokeRoleFromUser({ userId, roleName, actorId });
       if (!result.revoked) {
         return res.status(404).json({ success: false, status_code: 404, message: 'User does not have this role.' });
       }
       return res.status(200).json({ success: true, status_code: 200, message: `Role '${roleName}' revoked from user.`, data: result });
     } catch (e) {
       return res.status(e.status || 500).json({ success: false, status_code: e.status || 500, message: e.message });
+    }
+  }
+
+  /** GET /api/v1/rbac/audit?eventType=rbac.user_role.assigned */
+  async listAuditEvents(req, res) {
+    try {
+      const { eventType, limit } = req.query;
+      if (!eventType || !/^rbac\./.test(String(eventType))) {
+        return res.status(400).json({ success: false, status_code: 400, message: 'eventType query param (rbac.*) is required.' });
+      }
+      const events = await this.useCases.auditRepository.listByEventType(String(eventType), Math.min(Number(limit) || 50, 200));
+      return res.status(200).json({ success: true, status_code: 200, data: { events } });
+    } catch (e) {
+      return res.status(500).json({ success: false, status_code: 500, message: 'Failed to list audit events.' });
     }
   }
 }
