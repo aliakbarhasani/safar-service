@@ -12,6 +12,7 @@
 const { Pool } = require('pg');
 const PermissionRepository = require('./infrastructure/repositories/PermissionRepository');
 const UserRepository = require('./infrastructure/repositories/UserRepository');
+const AuditRepository = require('./infrastructure/repositories/AuditRepository');
 const AuthorizationService = require('./domain/services/AuthorizationService');
 const PermissionUseCases = require('./application/use-cases/PermissionUseCases');
 const createRbacRouter = require('./presentation/routes/RbacRouter');
@@ -34,10 +35,12 @@ class RbacModule {
     this.authorizationService = new AuthorizationService();
     this.permissionRepository = new PermissionRepository(this.pool);
     this.userRepository = new UserRepository(this.pool);
+    this.auditRepository = new AuditRepository(this.pool);
     this.useCases = new PermissionUseCases({
       permissionRepository: this.permissionRepository,
       userRepository: this.userRepository,
       authorizationService: this.authorizationService,
+      auditRepository: this.auditRepository,
     });
   }
 
@@ -64,4 +67,5 @@ module.exports = {
   PermissionUseCases,
   AuthorizationService,
   PermissionRepository,
+  AuditRepository,
 };

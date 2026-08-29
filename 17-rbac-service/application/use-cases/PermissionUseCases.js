@@ -11,9 +11,10 @@
 const Permission = require('../../domain/entities/Permission');
 
 class PermissionUseCases {
-  constructor({ permissionRepository, authorizationService, cache = { map: null, fetchedAt: 0 }, cacheTtlMs = 30000 }) {
+  constructor({ permissionRepository, authorizationService, auditRepository = null, cache = { map: null, fetchedAt: 0 }, cacheTtlMs = 30000 }) {
     this.permissionRepository = permissionRepository;
     this.authorizationService = authorizationService;
+    this.auditRepository = auditRepository;
     this._cache = cache;               // کش در حافظه با TTL برای عملکرد middleware
     this._cacheTtlMs = cacheTtlMs;
   }
@@ -25,6 +26,17 @@ class PermissionUseCases {
   _invalidateCache() {
     this._cache.map = null;
     this._cache.fetchedAt = 0;
+  }
+
+  /** ابطال آنی کش (قابل فراخوانی از بیرون — پس از هر تغییر نقش/مجوز) */
+  invalidateCache() {
+    this._invalidateCache();
+  }
+
+  /** ثبت رویداد امنیتی در audit_logs (fail-open) */
+  async _audit({ eventType, entityType, entityId, actorId, metadata }) {
+    if (!this.auditRepository) return false;
+    return this.auditRepository.record({ eventType, entityType, entityId, actorId, metadata });
   }
 
   async getRolePermissionsMap() {
@@ -39,7 +51,7 @@ class PermissionUseCases {
     return this.permissionRepository.findAll();
   }
 
-  async createPermission({ slug, description, moduleName }) {
+  async createPermission({ slug, description, moduleName, actorId = null }) {
     if (!Permission.isValidSlug(slug)) {
       const err = new Error('Invalid permission slug. Expected format: module.action (e.g. users.read)');
       err.status = 400;
@@ -52,16 +64,32 @@ class PermissionUseCases {
     }
     const created = await this.permissionRepository.create({ slug, description, moduleName });
     this._invalidateCache();
+    await this._audit({
+      eventType: 'rbac.permission.created',
+      entityType: 'permission',
+      entityId: created.id,
+      actorId,
+      metadata: { slug, moduleName },
+    });
     return created;
   }
 
-  async deletePermission(slug) {
+  async deletePermission(slug, actorId = null) {
     const removed = await this.permissionRepository.remove(slug);
     this._invalidateCache();
+    if (removed) {
+      await this._audit({
+        eventType: 'rbac.permission.deleted',
+        entityType: 'permission',
+        entityId: null,
+        actorId,
+        metadata: { slug },
+      });
+    }
     return removed;
   }
 
-  async assignPermission({ roleName, slug }) {
+  async assignPermission({ roleName, slug, actorId = null }) {
     if (!this.authorizationService.isValidRole(roleName)) {
       const err = new Error(`Unknown role: ${roleName}`);
       err.status = 400;
@@ -69,12 +97,28 @@ class PermissionUseCases {
     }
     const result = await this.permissionRepository.assignPermissionToRole(roleName, slug);
     this._invalidateCache();
+    await this._audit({
+      eventType: 'rbac.permission.assigned',
+      entityType: 'role',
+      entityId: null,
+      actorId,
+      metadata: { roleName, slug },
+    });
     return result;
   }
 
-  async revokePermission({ roleName, slug }) {
+  async revokePermission({ roleName, slug, actorId = null }) {
     const result = await this.permissionRepository.revokePermissionFromRole(roleName, slug);
     this._invalidateCache();
+    if (result) {
+      await this._audit({
+        eventType: 'rbac.permission.revoked',
+        entityType: 'role',
+        entityId: null,
+        actorId,
+        metadata: { roleName, slug },
+      });
+    }
     return result;
   }
 
@@ -113,11 +157,19 @@ class PermissionUseCases {
       throw err;
     }
     const assigned = await this.permissionRepository.assignRoleToUser({ userId, roleName, assignedBy });
+    this.invalidateCache();
+    await this._audit({
+      eventType: 'rbac.user_role.assigned',
+      entityType: 'user',
+      entityId: userId,
+      actorId: assignedBy,
+      metadata: { roleName, assigned },
+    });
     return { userId, roleName, assigned };
   }
 
   /** سلب نقش از کاربر */
-  async revokeRoleFromUser({ userId, roleName }) {
+  async revokeRoleFromUser({ userId, roleName, actorId = null }) {
     if (!userId || typeof userId !== 'string') {
       const err = new Error('userId is required');
       err.status = 400;
@@ -129,6 +181,16 @@ class PermissionUseCases {
       throw err;
     }
     const revoked = await this.permissionRepository.revokeRoleFromUser({ userId, roleName });
+    this.invalidateCache();
+    if (revoked) {
+      await this._audit({
+        eventType: 'rbac.user_role.revoked',
+        entityType: 'user',
+        entityId: userId,
+        actorId,
+        metadata: { roleName, revoked },
+      });
+    }
     return { userId, roleName, revoked };
   }
 
