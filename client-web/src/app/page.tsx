@@ -1,68 +1,60 @@
-"use client";
+import { appModules } from "@/config/modules.config";
+import { Car, Truck, ShoppingBag, Map, Wallet, LayoutGrid } from "lucide-react";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import config from "@/config/app-config.json";
-import { getAuthToken } from "@/lib/auth";
+const IconMap: Record<string, any> | any = {
+  Car,
+  Truck,
+  ShoppingBag,
+  Map,
+  Wallet,
+};
 
-export default function SplashPage() {
-  const router = useRouter();
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    setShow(true);
-    const timer = setTimeout(() => {
-      // Check if user is already logged in (cookie-first)
-      const token = getAuthToken();
-      if (token) {
-        router.replace("/dashboard");
-      } else {
-        router.replace("/auth/login");
-      }
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, [router]);
-
+export default function SuperAppMain() {
   return (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-[#1e40af] via-[#1e3a8a] to-[#0f172a]">
-      <div
-        className={`text-center transition-all duration-700 ${
-          show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-        }`}
-      >
-        {/* App Icon */}
-        <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-xl">
-          <svg
-            className="w-14 h-14 text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"
-            />
-          </svg>
+    <main className="min-h-screen bg-gray-50 p-4 pb-24" dir="rtl">
+      
+      <header className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm mb-6 border border-gray-100">
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-black text-gray-800 tracking-tight">سفر سرویس</h1>
+          <p className="text-xs font-medium text-gray-500 mt-1">همه‌چیز برای یک سفر هوشمند</p>
         </div>
-
-        {/* App Name */}
-        <h1 className="text-3xl font-bold text-white mb-2">
-          {config.app.name}
-        </h1>
-        <p className="text-lg text-white/70 mb-8">
-          {config.texts.splash.subtitle}
-        </p>
-
-        {/* Loading Indicator */}
-        <div className="flex justify-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-white/60 animate-bounce [animation-delay:0ms]" />
-          <div className="w-2 h-2 rounded-full bg-white/60 animate-bounce [animation-delay:150ms]" />
-          <div className="w-2 h-2 rounded-full bg-white/60 animate-bounce [animation-delay:300ms]" />
+        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center border border-blue-100">
+          <span className="text-blue-600 font-bold text-lg">U</span>
         </div>
-      </div>
-    </div>
+      </header>
+
+      <section className="grid grid-cols-2 gap-4">
+        {appModules.map((mod) => {
+          const IconComponent = IconMap[mod.icon] || LayoutGrid;
+          
+          return (
+            <Link
+              key={mod.id}
+              href={mod.active ? mod.path : "#"}
+              className={`relative overflow-hidden p-6 rounded-3xl flex flex-col items-center justify-center gap-4 transition-all duration-300 ${
+                mod.active
+                  ? "bg-white shadow-sm hover:shadow-md border border-gray-100"
+                  : "bg-gray-100/80 cursor-not-allowed border border-dashed border-gray-200"
+              }`}
+            >
+              {!mod.active && (
+                <span className="absolute top-3 right-3 bg-gray-200/80 text-gray-600 text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                  به‌زودی
+                </span>
+              )}
+              
+              <div className={`p-4 rounded-2xl text-white shadow-inner ${mod.active ? mod.color : "bg-gray-300"} transition-transform hover:scale-105`}>
+                <IconComponent size={32} strokeWidth={2} />
+              </div>
+              
+              <h2 className={`text-sm font-bold ${mod.active ? "text-gray-800" : "text-gray-400"}`}>
+                {mod.name}
+              </h2>
+            </Link>
+          );
+        })}
+      </section>
+    </main>
   );
 }
