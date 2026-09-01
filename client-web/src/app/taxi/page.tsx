@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowRight, MapPin, Navigation, CheckCircle2 } from "lucide-react";
+import { ArrowRight, MapPin, Navigation, CheckCircle2, Loader2 } from "lucide-react";
+import { requestTaxiRide } from "@/services/taxiService";
 
 // Dynamic import for Leaflet map to avoid SSR issues
 const InteractiveMap = dynamic(
@@ -23,9 +24,57 @@ export default function TaxiPage() {
   const [dropoff, setDropoff] = useState("");
   const [selectedCoords, setSelectedCoords] = useState(null);
 
+  // States for API integration
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
+
   const handleLocationSelect = (lat, lng) => {
     setSelectedCoords({ lat, lng });
     setPickup(`موقعیت انتخابی (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+    // Clear error messages if the user starts interacting again
+    if (statusMessage?.type === "error") setStatusMessage(null);
+  };
+
+  const handleSearchRide = async () => {
+    // 1. Validation
+    if (!selectedCoords) {
+      setStatusMessage({ type: "error", text: "لطفاً مبدأ خود را از روی نقشه انتخاب کنید." });
+      return;
+    }
+    if (!dropoff.trim()) {
+      setStatusMessage({ type: "error", text: "لطفاً مقصد خود را وارد کنید." });
+      return;
+    }
+
+    // 2. Set Loading State
+    setIsLoading(true);
+    setStatusMessage(null);
+
+    // 3. API Call
+    try {
+      const response = await requestTaxiRide({
+        pickup: pickup,
+        pickupCoords: selectedCoords,
+        dropoff: dropoff,
+      });
+
+      if (response.success) {
+        setStatusMessage({
+          type: "success",
+          text: `${response.message} (کد پیگیری: ${response.rideId})`,
+        });
+        // Optional: clear form after success
+        // setDropoff("");
+      }
+    } catch (error) {
+      setStatusMessage({
+        type: "error",
+        text: "خطا در ثبت درخواست. لطفاً اتصال خود را بررسی کنید.",
+      });
+    } finally {
+      // 4. Reset Loading State
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,16 +114,45 @@ export default function TaxiPage() {
               <input
                 type="text"
                 value={dropoff}
-                onChange={(e) => setDropoff(e.target.value)}
+                onChange={(e) => {
+                  setDropoff(e.target.value);
+                  if (statusMessage?.type === "error") setStatusMessage(null);
+                }}
                 placeholder="مقصد خود را وارد کنید..."
                 className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-5 h-5" />
-            جستجوی خودرو و راننده
+          {/* Status Message Display */}
+          {statusMessage && (
+            <div
+              className={`p-4 rounded-xl text-sm font-medium transition-all ${
+                statusMessage.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}
+            >
+              {statusMessage.text}
+            </div>
+          )}
+
+          <button
+            onClick={handleSearchRide}
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                در حال پردازش...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                جستجوی خودرو و راننده
+              </>
+            )}
           </button>
         </div>
       </div>
