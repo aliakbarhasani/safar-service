@@ -26,7 +26,7 @@ class RegisterUserUseCase {
     }
 
     const normalizedRole = String(role || 'passenger').trim().toLowerCase();
-    const allowedRoles = ['passenger', 'driver', 'provider', 'seller', 'advertiser', 'admin', 'super_admin'];
+    const allowedRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser', 'admin', 'super_admin'];
 
     if (!allowedRoles.includes(normalizedRole)) {
       throw new Error(`Invalid role. Must be one of: ${allowedRoles.join(', ')}`);

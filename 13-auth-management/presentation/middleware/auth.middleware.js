@@ -5,8 +5,6 @@
  * and attaches decoded user info to req.user.
  */
 
-const jwt = require('jsonwebtoken');
-const config = require('../../../14-config-system/server.config');
 const JwtService = require('../../domain/services/JwtService');
 const { parseCookies } = require('../../infrastructure/helpers/cookieHelper');
 
@@ -76,40 +74,39 @@ function authenticate(req, res, next) {
   try {
     const jwtService = getJwtService();
 
-    // ابتدا تلاش برای اعتبارسنجی RS256 (JwtService)
-    if (jwtService) {
-      try {
-        const decoded = jwtService.verifyAccessToken(token);
-
-        // بررسی ابطال نشست (Logout) در user_sessions — fail-open در نبود دیتابیس
-        if (decoded.jti) {
-          checkSessionActive(decoded.jti)
-            .then((active) => {
-              if (active === false) {
-                return res.status(401).json({
-                  success: false,
-                  status_code: 401,
-                  message: 'Session has been revoked. Please authenticate again.',
-                });
-              }
-              req.user = decoded;
-              return next();
-            })
-            .catch(() => {
-              req.user = decoded;
-              return next();
-            });
-          return;
-        }
-
-        req.user = decoded;
-        return next();
-      } catch (rsErr) {
-        // اگر RS256 نبود، به نسخه HS256 قدیمی fallback می‌کنیم
-      }
+    // تنها الگوریتم پشتیبانی‌شده: RS256 (JwtService).
+    // (Backward-compat با HS256 به دلیل سیاست امنیتی پروژه حذف شده است.)
+    if (!jwtService) {
+      return res.status(401).json({
+        success: false,
+        status_code: 401,
+        message: 'JWT service unavailable.',
+      });
     }
 
-    const decoded = jwt.verify(token, config.jwt.secret);
+    const decoded = jwtService.verifyAccessToken(token);
+
+    // بررسی ابطال نشست (Logout) در user_sessions — fail-open در نبود دیتابیس
+    if (decoded.jti) {
+      checkSessionActive(decoded.jti)
+        .then((active) => {
+          if (active === false) {
+            return res.status(401).json({
+              success: false,
+              status_code: 401,
+              message: 'Session has been revoked. Please authenticate again.',
+            });
+          }
+          req.user = decoded;
+          return next();
+        })
+        .catch(() => {
+          req.user = decoded;
+          return next();
+        });
+      return;
+    }
+
     req.user = decoded;
     return next();
   } catch (error) {
