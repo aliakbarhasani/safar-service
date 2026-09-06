@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS quotes (
     CONSTRAINT chk_quotes_expires_at CHECK (expires_at > created_at)
 );
 
-CREATE UNIQUE INDEX idx_quotes_reference ON quotes(reference_id) WHERE reference_id IS NOT NULL;
-CREATE INDEX idx_quotes_status ON quotes(status);
-CREATE INDEX idx_quotes_expires ON quotes(expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quotes_reference ON quotes(reference_id) WHERE reference_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quotes_expires ON quotes(expires_at);
 
 CREATE TABLE IF NOT EXISTS pricing_audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -38,4 +38,4 @@ CREATE TABLE IF NOT EXISTS pricing_audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_pricing_audit_quote ON pricing_audit_logs(quote_id);
+CREATE INDEX IF NOT EXISTS idx_pricing_audit_quote ON pricing_audit_logs(quote_id);
