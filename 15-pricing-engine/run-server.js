@@ -12,7 +12,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
-const PricingRouter = require('./presentation/routes/PricingRouter');
+const PricingRouter = require('./_legacy_archive/presentation/routes/PricingRouter');
 
 dotenv.config();
 
