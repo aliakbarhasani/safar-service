@@ -14,8 +14,8 @@
 --
 -- ============================================================================
 
-DROP TABLE IF EXISTS price_quotes;
-DROP TABLE IF EXISTS pricing_rules;
+DROP TABLE IF EXISTS price_quotes CASCADE;
+DROP TABLE IF EXISTS pricing_rules CASCADE;
 
 -- ============================================================================
 -- END OF MIGRATION 018
