@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Integration & API Tests - Infrastructure and Presentation layers
  *
  * Tests the PostgreSQL Repository (with memory fallback) and
@@ -62,14 +62,14 @@ test('Repository: findQuoteById from memory', async () => {
 console.log('\n=== PRICING CONTROLLER TESTS ===\n');
 
 test('Controller: constructor throws without deps', () => {
-  const Ctrl = require('../presentation/controllers/PricingController');
+  const Ctrl = require('../_legacy_archive/presentation/controllers/PricingController');
   assert.throws(() => new Ctrl(), /requires generateQuote/);
 });
 
 test('Controller: createQuote returns 201 with valid input', async () => {
   const { IRuleResolver, IPricingEventPublisher, ICacheProvider, PricingRule } = require('../domain');
   const GeneratePriceQuote = require('../application/useCases/GeneratePriceQuote');
-  const Ctrl = require('../presentation/controllers/PricingController');
+  const Ctrl = require('../_legacy_archive/presentation/controllers/PricingController');
 
   const mr = new IRuleResolver();
   mr.resolve = async () => new PricingRule({
@@ -97,7 +97,7 @@ test('Controller: createQuote returns 201 with valid input', async () => {
 test('Controller: createQuote returns 400 when tripId missing', async () => {
   const { IRuleResolver, IPricingEventPublisher, ICacheProvider } = require('../domain');
   const GeneratePriceQuote = require('../application/useCases/GeneratePriceQuote');
-  const Ctrl = require('../presentation/controllers/PricingController');
+  const Ctrl = require('../_legacy_archive/presentation/controllers/PricingController');
 
   const mr = new IRuleResolver(); mr.resolve = async () => null;
   const mp = new IPricingEventPublisher(); mp.publishQuoteGenerated = async () => {};
@@ -116,7 +116,7 @@ test('Controller: recalculateQuote returns 400 without originalQuoteId', async (
   const { IRuleResolver, IPricingEventPublisher, ICacheProvider, PricingRule } = require('../domain');
   const GeneratePriceQuote = require('../application/useCases/GeneratePriceQuote');
   const RecalculatePrice = require('../application/useCases/RecalculatePrice');
-  const Ctrl = require('../presentation/controllers/PricingController');
+  const Ctrl = require('../_legacy_archive/presentation/controllers/PricingController');
 
   const mr = new IRuleResolver(); mr.resolve = async () => new PricingRule({
     priority: 50, scopeType: 'City', scopeId: 'd',
