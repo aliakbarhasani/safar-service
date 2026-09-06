@@ -31,13 +31,6 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE otp_type AS ENUM (
-    'login',
-    'password_reset',
-    'phone_verification',
-    'email_verification'
-);
-
 CREATE TYPE earning_type AS ENUM (
     'trip_fare',
     'bonus',
@@ -135,66 +128,6 @@ CREATE TABLE user_devices (
 CREATE INDEX idx_user_devices_user ON user_devices(user_id);
 CREATE INDEX idx_user_devices_device ON user_devices(device_id);
 CREATE INDEX idx_user_devices_primary ON user_devices(user_id, device_id) WHERE is_primary = TRUE;
-
--- --------------------------------------------------------------------------
--- TABLE: sessions
--- Manages active user sessions with refresh token rotation for security.
--- Supports session revocation and expiry-based cleanup.
--- --------------------------------------------------------------------------
-CREATE TABLE sessions (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    device_id           UUID REFERENCES devices(id) ON DELETE SET NULL,
-    refresh_token       VARCHAR(512) NOT NULL UNIQUE,         -- Hashed refresh token
-    access_token_jti    VARCHAR(128) NOT NULL,                -- JWT ID for the current access token
-    ip_address          VARCHAR(45),                          -- Client IP (supports IPv6)
-    user_agent          TEXT,                                 -- User-Agent header from the client
-    location            VARCHAR(256),                         -- Approximate location from IP geolocation
-    is_revoked          BOOLEAN NOT NULL DEFAULT FALSE,       -- Whether the session has been revoked
-    is_active           BOOLEAN NOT NULL DEFAULT TRUE,        -- Whether the session is currently active
-    started_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),   -- Session start time
-    last_activity_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),   -- Last request time
-    expires_at          TIMESTAMPTZ NOT NULL,                 -- Session expiration time
-    revoked_at          TIMESTAMPTZ,                          -- When the session was revoked
-    revoked_by          UUID REFERENCES users(id),            -- Who revoked (user or admin)
-    revoke_reason       VARCHAR(128),                         -- e.g. 'logout', 'admin_revoke', 'security_breach'
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at          TIMESTAMPTZ                           -- Soft Delete
-);
-
-CREATE INDEX idx_sessions_user ON sessions(user_id);
-CREATE INDEX idx_sessions_device ON sessions(device_id);
-CREATE INDEX idx_sessions_refresh_token ON sessions(refresh_token);
-CREATE INDEX idx_sessions_active ON sessions(user_id) WHERE is_active = TRUE AND is_revoked = FALSE;
-CREATE INDEX idx_sessions_expires ON sessions(expires_at) WHERE is_revoked = FALSE;
-CREATE INDEX idx_sessions_deleted_at ON sessions(deleted_at) WHERE deleted_at IS NOT NULL;
-
--- --------------------------------------------------------------------------
--- TABLE: otp_codes
--- One-Time Password management for authentication flows. Supports various
--- OTP use cases with expiration and single-use enforcement.
--- --------------------------------------------------------------------------
-CREATE TABLE otp_codes (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    phone_number        VARCHAR(20) NOT NULL,                 -- Target phone number
-    email               VARCHAR(255),                         -- Target email (for email OTPs)
-    code_hash           VARCHAR(255) NOT NULL,                -- Hashed OTP code (never store plain text)
-    type                otp_type NOT NULL,                    -- Purpose of the OTP
-    attempts            SMALLINT NOT NULL DEFAULT 0,          -- Number of verification attempts
-    max_attempts        SMALLINT NOT NULL DEFAULT 5,          -- Maximum allowed attempts before invalidation
-    is_used             BOOLEAN NOT NULL DEFAULT FALSE,       -- Whether the OTP has been consumed
-    sent_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),    -- When the OTP was sent
-    verified_at         TIMESTAMPTZ,                          -- When the OTP was successfully verified
-    expires_at          TIMESTAMPTZ NOT NULL,                 -- OTP expiration time
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_otp_codes_phone ON otp_codes(phone_number);
-CREATE INDEX idx_otp_codes_type ON otp_codes(phone_number, type);
-CREATE INDEX idx_otp_codes_unused ON otp_codes(phone_number, type) WHERE is_used = FALSE;
-CREATE INDEX idx_otp_codes_expires ON otp_codes(expires_at) WHERE is_used = FALSE;
 
 -- ============================================================================
 -- PART 2: FLEET FINANCE (Multi-Currency)
