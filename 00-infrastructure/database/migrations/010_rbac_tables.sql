@@ -91,4 +91,3 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 
 CREATE INDEX IF NOT EXISTS idx_role_permissions_permission ON role_permissions(permission_id);
 CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id);
-</arg_value></tool_call>
