@@ -21,10 +21,13 @@ const AuthorizationService = require('../../domain/services/AuthorizationService
 const PermissionUseCases = require('../../application/use-cases/PermissionUseCases');
 
 // --- بارگذاری یک‌باره کلید عمومی RS256 (منبع: 00-infrastructure/keys) ---
+// SECURITY: No fallback to HS256 or default secret. RS256 with valid public key is mandatory.
 let PUBLIC_KEY = null;
 try {
   PUBLIC_KEY = fs.readFileSync(path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_public.pem'), 'utf8');
-} catch { /* fallback به HS256 در پایین */ }
+} catch {
+  console.error('[RBAC] FATAL: Could not load RSA public key (jwt_public.pem). Authentication will fail.');
+}
 
 // --- نمونه‌های اشتراکی (Dependency Injection - DIP) ---
 // Pool با پیکربندی صریح از env (سازگار با هر دو قالب PG_* و DB_*)
@@ -54,14 +57,14 @@ function authenticate(req, res, next) {
   if (!token) {
     return res.status(401).json({ success: false, status_code: 401, message: 'No token provided.' });
   }
+  // SECURITY: Only RS256 with a valid public key is accepted.
+  // No fallback to HS256, no default secret. If the public key is missing or
+  // the token is not a valid RS256 token, the request is rejected immediately.
+  if (!PUBLIC_KEY) {
+    return res.status(500).json({ success: false, status_code: 500, message: 'Authentication service unavailable: public key not loaded.' });
+  }
   try {
-    if (PUBLIC_KEY) {
-      try {
-        req.user = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
-        return next();
-      } catch { /* fallback */ }
-    }
-    req.user = jwt.verify(token, process.env.JWT_SECRET || 'safar_dev_secret');
+    req.user = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
     return next();
   } catch {
     return res.status(401).json({ success: false, status_code: 401, message: 'Invalid or expired token.' });

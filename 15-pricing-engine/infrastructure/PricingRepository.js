@@ -118,10 +118,17 @@ class PricingRepository {
                 JSON.stringify({ consumedAt: consumedQuote.consumed_at }),
             ]);
 
-            await client.query('COMMIT');
+            // SECURITY/CORRECTNESS: commit only if this repository owns the transaction.
+            // If the client was injected from outside (e.g. Mobility trip creation),
+            // COMMIT/ROLLBACK belong to the outer owner — never touch them here.
+            if (ownsClient) {
+                await client.query('COMMIT');
+            }
             return consumedQuote;
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (ownsClient) {
+                await client.query('ROLLBACK');
+            }
             throw error;
         } finally {
             if (ownsClient) {
