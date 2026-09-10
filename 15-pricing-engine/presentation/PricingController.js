@@ -148,26 +148,17 @@ class PricingController {
 
     /**
      * Resolve the requesting caller's role at the API boundary.
-     * Role is read (highest precedence first) from:
-     *   1. HTTP header  X-Caller-Role
-     *   2. query param  role
-     *   3. body field   role
-     * If no role is provided (or it is not 'provider'), the caller is treated
-     * as a CUSTOMER — the safest, maximum-data-hiding default.
+     * SECURITY: Role MUST come exclusively from the authenticated JWT payload
+     * (req.user). Reading role from headers (X-Caller-Role, X-Role), query params
+     * (query.role) or body (body.role) is a Role Spoofing vulnerability and is
+     * therefore forbidden. If no authenticated role exists, default to 'customer'
+     * (maximum data-hiding).
      * @param {Object} req - Express request
      * @returns {'provider'|'customer'}
      */
     _callerRole(req) {
-        const headers = (req && req.headers) || {};
-        const query = (req && req.query) || {};
-        const body = (req && req.body) || {};
-        const raw =
-            headers['x-caller-role'] ||
-            headers['x-role'] ||
-            query.role ||
-            body.role ||
-            'customer';
-        return String(raw).toLowerCase() === 'provider' ? 'provider' : 'customer';
+        const role = req.user && req.user.role ? String(req.user.role).toLowerCase() : 'customer';
+        return role === 'provider' ? 'provider' : 'customer';
     }
 }
 
