@@ -3,7 +3,7 @@ const cors = require('cors');
 const adsRoutes = require('./routes/ads.route');
 
 const app = express();
-const port = Number(process.env.ADS_PORT || 3003);
+const port = Number(process.env.ADS_PORT || 3013);
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));

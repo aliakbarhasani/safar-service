@@ -58,8 +58,9 @@ router.get('/api/drivers', authenticate, authorize('drivers.read', 'admin', 'sup
 router.use('/api/drivers', driverRoutes);
 
 // ===== مسیرهای بازارچه (09-marketplace) =====
+// بازارچه روی 3012 — جلوگیری از تداخل با سرویس‌های دیگر (AdminPanel روی 3002)
 const marketplaceProxy = createProxyMiddleware({
-  target: 'http://localhost:3002',
+  target: process.env.MARKETPLACE_URL || 'http://localhost:3012',
   changeOrigin: true,
   logLevel: 'warn',
   pathRewrite: (path) => {
@@ -71,8 +72,9 @@ const marketplaceProxy = createProxyMiddleware({
 router.use('/api/v1/marketplace', marketplaceProxy);
 
 // ===== مسیرهای تبلیغات (10-ads-service) =====
+// تبلیغات روی 3013 — جدا از سایر سرویس‌ها
 const adsProxy = createProxyMiddleware({
-  target: 'http://localhost:3003',
+  target: process.env.ADS_URL || 'http://localhost:3013',
   changeOrigin: true,
   logLevel: 'warn',
   pathRewrite: (path) => {
