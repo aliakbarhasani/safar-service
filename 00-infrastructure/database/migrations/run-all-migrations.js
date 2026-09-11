@@ -35,6 +35,7 @@ const MIGRATION_ORDER = [
   '018_cleanup_legacy_pricing.sql',
   '019_unify_roles_and_services.sql',
   '020_merge_ride_into_trip.sql',
+  '022_create_driver_tables.sql',
 ];
 
 /**
