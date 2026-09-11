@@ -17,7 +17,7 @@
  *   - withdrawFunds(userId, amount, currencyId, referenceId, description)
  *   - transferFunds(senderId, receiverId, amount, currencyId, description)
  *   - freezeFunds(userId, amount, currencyId, description) [جدید]
- *   - releaseEscrow(escrowWalletId, recipientId, platformCommission, currencyId) [جدید]
+ *   - releaseEscrow(escrowWalletId, recipientId, currencyId, description, serviceType) [جدید - کمیسیون سمت سرور]
  *   - refundFunds(transactionId, reason) [جدید]
  */
 
@@ -140,9 +140,9 @@ async function getWalletBalance(userId, currencyId = 'IRT') {
   return {
     walletId: wallet.id,
     userId: wallet.user_id,
-    balance: parseInt(wallet.balance, 10),
-    availableBalance: parseInt(wallet.available_balance, 10),
-    frozenBalance: parseInt(wallet.frozen_balance, 10),
+    balance: parseFloat(wallet.balance),
+    availableBalance: parseFloat(wallet.available_balance),
+    frozenBalance: parseFloat(wallet.frozen_balance),
     walletType: wallet.wallet_type,
     currencyId: wallet.currency_id,
     status: wallet.status
@@ -178,9 +178,9 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
     const wallet = await getOrCreateWallet(client, userId, currencyId);
 
     // 3. ذخیره وضعیت قبل از تغییر برای ledger
-    const balanceBefore = parseInt(wallet.balance, 10);
-    const availableBefore = parseInt(wallet.available_balance, 10);
-    const frozenBefore = parseInt(wallet.frozen_balance, 10);
+    const balanceBefore = parseFloat(wallet.balance);
+    const availableBefore = parseFloat(wallet.available_balance);
+    const frozenBefore = parseFloat(wallet.frozen_balance);
 
     // 4. افزایش موجودی
     const updatedWallet = await Wallet.creditAvailableBalance(wallet.id, amount, client);
@@ -188,9 +188,9 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
       throw new Error('Failed to credit wallet balance');
     }
 
-    const balanceAfter = parseInt(updatedWallet.balance, 10);
-    const availableAfter = parseInt(updatedWallet.available_balance, 10);
-    const frozenAfter = parseInt(updatedWallet.frozen_balance, 10);
+    const balanceAfter = parseFloat(updatedWallet.balance);
+    const availableAfter = parseFloat(updatedWallet.available_balance);
+    const frozenAfter = parseFloat(updatedWallet.frozen_balance);
 
     // 5. ثبت تراکنش
     const tx = await Transaction.create({
@@ -276,7 +276,7 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
     }
 
     // 3. بررسی کافی بودن موجودی قابل استفاده
-    const availableBalance = parseInt(wallet.available_balance, 10);
+    const availableBalance = parseFloat(wallet.available_balance);
     if (availableBalance < amount) {
       throw new Error(
         `Insufficient available balance. Required: ${amount} ${currencyId}, Available: ${availableBalance} ${currencyId}`
@@ -284,9 +284,9 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
     }
 
     // 4. ذخیره وضعیت قبل
-    const balanceBefore = parseInt(wallet.balance, 10);
+    const balanceBefore = parseFloat(wallet.balance);
     const availableBefore = availableBalance;
-    const frozenBefore = parseInt(wallet.frozen_balance, 10);
+    const frozenBefore = parseFloat(wallet.frozen_balance);
 
     // 5. کاهش موجودی
     const updatedWallet = await Wallet.debitAvailableBalance(wallet.id, amount, client);
@@ -294,9 +294,9 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
       throw new Error('Failed to debit wallet balance. Possible race condition.');
     }
 
-    const balanceAfter = parseInt(updatedWallet.balance, 10);
-    const availableAfter = parseInt(updatedWallet.available_balance, 10);
-    const frozenAfter = parseInt(updatedWallet.frozen_balance, 10);
+    const balanceAfter = parseFloat(updatedWallet.balance);
+    const availableAfter = parseFloat(updatedWallet.available_balance);
+    const frozenAfter = parseFloat(updatedWallet.frozen_balance);
 
     // 6. ثبت تراکنش DEBIT
     const tx = await Transaction.create({
@@ -375,7 +375,7 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
     }
 
     // 2. بررسی موجودی
-    const senderAvailable = parseInt(senderWallet.available_balance, 10);
+    const senderAvailable = parseFloat(senderWallet.available_balance);
     if (senderAvailable < amount) {
       throw new Error(
         `Insufficient balance. Required: ${amount} ${currencyId}, Available: ${senderAvailable} ${currencyId}`
@@ -383,9 +383,9 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
     }
 
     // 3. ذخیره وضعیت قبل
-    const senderBalanceBefore = parseInt(senderWallet.balance, 10);
+    const senderBalanceBefore = parseFloat(senderWallet.balance);
     const senderAvailableBefore = senderAvailable;
-    const senderFrozenBefore = parseInt(senderWallet.frozen_balance, 10);
+    const senderFrozenBefore = parseFloat(senderWallet.frozen_balance);
 
     // 4. کاهش از فرستنده
     const updatedSender = await Wallet.debitAvailableBalance(senderWallet.id, amount, client);
@@ -393,9 +393,9 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       throw new Error('Failed to debit sender wallet. Possible race condition.');
     }
 
-    const senderBalanceAfter = parseInt(updatedSender.balance, 10);
-    const senderAvailableAfter = parseInt(updatedSender.available_balance, 10);
-    const senderFrozenAfter = parseInt(updatedSender.frozen_balance, 10);
+    const senderBalanceAfter = parseFloat(updatedSender.balance);
+    const senderAvailableAfter = parseFloat(updatedSender.available_balance);
+    const senderFrozenAfter = parseFloat(updatedSender.frozen_balance);
 
     // 5. ایجاد یا دریافت کیف پول گیرنده
     let receiverWallet = await Wallet.findByUserAndCurrency(receiverId, currencyId);
@@ -411,9 +411,9 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       });
     }
 
-    const receiverBalanceBefore = parseInt(receiverWallet.balance, 10);
-    const receiverAvailableBefore = parseInt(receiverWallet.available_balance, 10);
-    const receiverFrozenBefore = parseInt(receiverWallet.frozen_balance, 10);
+    const receiverBalanceBefore = parseFloat(receiverWallet.balance);
+    const receiverAvailableBefore = parseFloat(receiverWallet.available_balance);
+    const receiverFrozenBefore = parseFloat(receiverWallet.frozen_balance);
 
     // 6. افزایش به گیرنده
     const updatedReceiver = await Wallet.creditAvailableBalance(receiverWallet.id, amount, client);
@@ -422,9 +422,9 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       throw new Error('Failed to credit receiver wallet');
     }
 
-    const receiverBalanceAfter = parseInt(updatedReceiver.balance, 10);
-    const receiverAvailableAfter = parseInt(updatedReceiver.available_balance, 10);
-    const receiverFrozenAfter = parseInt(updatedReceiver.frozen_balance, 10);
+    const receiverBalanceAfter = parseFloat(updatedReceiver.balance);
+    const receiverAvailableAfter = parseFloat(updatedReceiver.available_balance);
+    const receiverFrozenAfter = parseFloat(updatedReceiver.frozen_balance);
 
     // 7. ثبت تراکنش DEBIT برای فرستنده
     const debitTx = await Transaction.create({
@@ -544,7 +544,7 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
     }
 
     // 2. بررسی موجودی قابل استفاده
-    const availableBalance = parseInt(wallet.available_balance, 10);
+    const availableBalance = parseFloat(wallet.available_balance);
     if (availableBalance < amount) {
       throw new Error(
         `Insufficient available balance to freeze. Required: ${amount} ${currencyId}, Available: ${availableBalance} ${currencyId}`
@@ -552,9 +552,9 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
     }
 
     // 3. ذخیره وضعیت قبل
-    const balanceBefore = parseInt(wallet.balance, 10);
+    const balanceBefore = parseFloat(wallet.balance);
     const availableBefore = availableBalance;
-    const frozenBefore = parseInt(wallet.frozen_balance, 10);
+    const frozenBefore = parseFloat(wallet.frozen_balance);
 
     // 4. انتقال از available به frozen
     const updatedWallet = await Wallet.freezeAvailable(wallet.id, amount, client);
@@ -562,9 +562,9 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
       throw new Error('Failed to freeze funds. Possible race condition.');
     }
 
-    const balanceAfter = parseInt(updatedWallet.balance, 10);
-    const availableAfter = parseInt(updatedWallet.available_balance, 10);
-    const frozenAfter = parseInt(updatedWallet.frozen_balance, 10);
+    const balanceAfter = parseFloat(updatedWallet.balance);
+    const availableAfter = parseFloat(updatedWallet.available_balance);
+    const frozenAfter = parseFloat(updatedWallet.frozen_balance);
 
     // 5. ثبت تراکنش (DEBIT symbolic با status 'pending')
     const tx = await Transaction.create({
@@ -616,14 +616,128 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
 }
 
 /**
- * آزادسازی وجه Escrow
+ * آزادسازی وجه مسدود (Release Hold)
  * 
- * این متد برای سناریوی پرداخت سفر استفاده می‌شود:
- *   1. مبلغ از frozen کیف پول Escrow کسر می‌شود
- *   2. کارمزد پلتفرم به کیف پول platform واریز می‌شود
- *   3. مبلغ خالص به کیف پول گیرنده (راننده) واریز می‌شود
+ * سناریو: لغو سفر توسط مسافر یا راننده
+ * مبلغ از frozen_balance کسر و به available_balance بازگردانده می‌شود.
+ * 
+ * نکات امنیتی:
+ *   - کل عملیات در یک تراکنش PostgreSQL
+ *   - بررسی referenceId برای Idempotency
+ *   - قفل ردیفی با SELECT ... FOR UPDATE
+ *   - بررسی کافی بودن frozen_balance
  */
-async function releaseEscrow(escrowWalletId, recipientId, platformCommission, currencyId = 'IRT', description = '') {
+async function releaseHold(userId, amount, currencyId = 'IRT', referenceId = null, description = '') {
+  validateAmount(amount);
+  validateCurrency(currencyId);
+
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  return await pg.transaction(async (client) => {
+    // 1. بررسی Idempotency
+    if (referenceId) {
+      const existingTx = await Transaction.findByReferenceId(referenceId);
+      if (existingTx) {
+        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
+      }
+    }
+
+    // 2. دریافت کیف پول با قفل ردیفی
+    const walletResult = await client.query(
+      `SELECT * FROM wallets WHERE user_id = $1 AND currency_id = $2 AND deleted_at IS NULL AND status = 'active' FOR UPDATE`,
+      [userId, currencyId]
+    );
+    const wallet = walletResult.rows[0];
+    
+    if (!wallet) {
+      throw new Error(`No active wallet found for user ${userId} in currency ${currencyId}`);
+    }
+
+    // 3. بررسی کافی بودن موجودی مسدود
+    const availableBefore = parseFloat(wallet.available_balance);
+    const frozenBefore = parseFloat(wallet.frozen_balance);
+    
+    if (frozenBefore < amount) {
+      throw new Error(
+        `Insufficient frozen balance to release. Requested: ${amount} ${currencyId}, Frozen: ${frozenBefore} ${currencyId}`
+      );
+    }
+
+    const balanceBefore = parseFloat(wallet.balance);
+
+    // 4. آزادسازی وجه (frozen → available)
+    const updatedWallet = await Wallet.unfreezeFrozen(wallet.id, amount, client);
+    if (!updatedWallet) {
+      throw new Error('Failed to release frozen funds. Possible race condition.');
+    }
+
+    const balanceAfter = parseFloat(updatedWallet.balance);
+    const availableAfter = parseFloat(updatedWallet.available_balance);
+    const frozenAfter = parseFloat(updatedWallet.frozen_balance);
+
+    // 5. ثبت تراکنش
+    const tx = await Transaction.create({
+      walletId: wallet.id,
+      userId,
+      amount,
+      currencyId,
+      type: 'CREDIT',
+      description: description || 'Hold released (trip cancelled)',
+      status: 'success',
+      referenceId
+    }, client);
+
+    // 6. ثبت در دفتر کل
+    await Transaction.createLedgerEntry({
+      walletId: wallet.id,
+      transactionId: tx.id,
+      creditAmount: 0,
+      debitAmount: 0,
+      currencyId,
+      balanceBefore,
+      balanceAfter,
+      availableBefore,
+      availableAfter,
+      frozenBefore,
+      frozenAfter,
+      operationType: 'hold_released',
+      description: description || 'Hold released (trip cancelled)',
+      referenceId
+    }, client);
+
+    // انتشار رویداد
+    publishBalanceChangedEvent(
+      wallet.id, userId, amount, 'CREDIT', currencyId,
+      availableAfter, frozenAfter, tx.id, description || 'Hold released'
+    );
+
+    return {
+      success: true,
+      message: 'Hold released successfully',
+      walletId: wallet.id,
+      userId,
+      amount,
+      currencyId,
+      balance: balanceAfter,
+      availableBalance: availableAfter,
+      frozenBalance: frozenAfter,
+      transactionId: tx.id,
+      referenceId
+    };
+  });
+}
+/**
+ * آزادسازی Escrow (legacy, مبتنی بر کیف پول)
+ *
+ * SECURITY (کمیسیون سمت سرور): کمیسیون پلتفرم هرگز از فراخوان/بادی گرفته نمی‌شود؛
+ * به‌صورت سمت سرور و بر اساس نرخ‌های تاییدشده `config.trip.commissionRates`
+ * (14-config-system) روی مبلغ Escrow محاسبه می‌شود. پارامتر `serviceType` فقط
+ * توسط فراخوان‌کننده معتبر (مثلاً Mobility پشت RBAC) برای اعمال نرخ سرویس‌خاص
+ * داده می‌شود؛ در غیر این‌صورت نرخ پیش‌فرض شهری مورد استفاده قرار می‌گیرد.
+ */
+async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', description = '', serviceType = null) {
   if (!recipientId) {
     throw new Error('Recipient ID is required');
   }
@@ -635,13 +749,16 @@ async function releaseEscrow(escrowWalletId, recipientId, platformCommission, cu
       throw new Error(`Escrow wallet not found: ${escrowWalletId}`);
     }
 
-    const escrowFrozen = parseInt(escrowWallet.frozen_balance, 10);
+    const escrowFrozen = parseFloat(escrowWallet.frozen_balance);
 
-    // 2. دریافت یا ایجاد کیف پول گیرنده
-    const recipientWallet = await getOrCreateWallet(client, recipientId, currencyId);
-
-    // 3. محاسبه مبلغ خالص
+    // 2. محاسبه کمیسیون سمت سرور (هرگز از بدی درخواست)
+    const commissionRates = (config.trip && config.trip.commissionRates) || {};
+    const rate = commissionRates[serviceType] || commissionRates.urban_taxi || 10;
+    const platformCommission = (escrowFrozen * rate) / 100;
     const netAmount = escrowFrozen - platformCommission;
+
+    // 3. دریافت یا ایجاد کیف پول گیرنده
+    const recipientWallet = await getOrCreateWallet(client, recipientId, currencyId);
 
     // 4. دریافت کیف پول پلتفرم
     const platformWallet = await Wallet.findByUserAndCurrency(
@@ -650,9 +767,9 @@ async function releaseEscrow(escrowWalletId, recipientId, platformCommission, cu
     );
 
     // 5. ذخیره وضعیت قبل برای ledger
-    const escrowBalanceBefore = parseInt(escrowWallet.balance, 10);
-    const escrowAvailableBefore = parseInt(escrowWallet.available_balance, 10);
-    const escrowFrozenBefore = parseInt(escrowWallet.frozen_balance, 10);
+    const escrowBalanceBefore = parseFloat(escrowWallet.balance);
+    const escrowAvailableBefore = parseFloat(escrowWallet.available_balance);
+    const escrowFrozenBefore = parseFloat(escrowWallet.frozen_balance);
 
     // 6. کسر از frozen escrow
     const updatedEscrow = await Wallet.deductFrozen(escrowWallet.id, escrowFrozen, client);
@@ -660,18 +777,18 @@ async function releaseEscrow(escrowWalletId, recipientId, platformCommission, cu
       throw new Error('Failed to deduct escrow frozen balance');
     }
 
-    const escrowBalanceAfter = parseInt(updatedEscrow.balance, 10);
-    const escrowFrozenAfter = parseInt(updatedEscrow.frozen_balance, 10);
+    const escrowBalanceAfter = parseFloat(updatedEscrow.balance);
+    const escrowFrozenAfter = parseFloat(updatedEscrow.frozen_balance);
 
     // 7. واریز خالص به گیرنده
-    const recipientAvailableBefore = parseInt(recipientWallet.available_balance, 10);
+    const recipientAvailableBefore = parseFloat(recipientWallet.available_balance);
     const updatedRecipient = await Wallet.creditAvailableBalance(recipientWallet.id, netAmount, client);
     if (!updatedRecipient) {
       throw new Error('Failed to credit recipient');
     }
 
-    const recipientBalanceAfter = parseInt(updatedRecipient.balance, 10);
-    const recipientAvailableAfter = parseInt(updatedRecipient.available_balance, 10);
+    const recipientBalanceAfter = parseFloat(updatedRecipient.balance);
+    const recipientAvailableAfter = parseFloat(updatedRecipient.available_balance);
 
     // 8. واریز کارمزد به پلتفرم
     if (platformWallet && platformCommission > 0) {
@@ -1192,6 +1309,7 @@ module.exports = {
   withdrawFunds,
   transferFunds,
   freezeFunds,
+  releaseHold,
   releaseEscrow,
   refundFunds,
   getTransactionHistory,

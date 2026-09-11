@@ -136,11 +136,12 @@ async function freeze(req, res) {
 /**
  * آزادسازی Escrow
  * POST /api/wallets/escrow/release
- * Body: { escrowWalletId, recipientId, platformCommission, currency?, description? }
+ * Body: { escrowWalletId, recipientId, currency?, description? }
+ * SECURITY: کمیسیون پلتفرم از بدی پذیرفته نمی‌شود؛ سمت سرور (config.trip.commissionRates) محاسبه می‌شود.
  */
 async function releaseEscrow(req, res) {
   try {
-    const { escrowWalletId, recipientId, platformCommission, currency, description } = req.body;
+    const { escrowWalletId, recipientId, currency, description } = req.body;
 
     if (!escrowWalletId) {
       return res.status(400).json({ success: false, error: 'Escrow wallet ID is required' });
@@ -148,14 +149,10 @@ async function releaseEscrow(req, res) {
     if (!recipientId) {
       return res.status(400).json({ success: false, error: 'Recipient ID is required' });
     }
-    if (platformCommission == null) {
-      return res.status(400).json({ success: false, error: 'Platform commission is required' });
-    }
 
     const result = await walletService.releaseEscrow(
       escrowWalletId,
       recipientId,
-      platformCommission,
       currency || 'IRT',
       description || ''
     );
