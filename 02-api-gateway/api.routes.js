@@ -123,12 +123,17 @@ const createTripRouter = require('../16-mobility-engine/presentation/TripRouter'
 
 const tripPool = getPool();
 const tripRepository = new TripRepository(tripPool);
-const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository });
-const acceptTripUseCase = new AcceptTripUseCase({ tripRepository });
-const driverArrivedUseCase = new DriverArrivedUseCase({ tripRepository });
-const startTripUseCase = new StartTripUseCase({ tripRepository });
-const completeTripUseCase = new CompleteTripUseCase({ tripRepository });
-const cancelTripUseCase = new CancelTripUseCase({ tripRepository });
+// P2-1 (Event-Driven): انتشار رویدادهای دامنه سفر روی EventBus مرکزی
+// (بدون وابستگی مستقیم Mobility به Wallet). امضای Envelope مرکزی:
+// { event, data, timestamp } — بنابراین adapter باید (event, data) را بگیرد.
+const mobilityEventBus = require('../16-mobility-engine/infrastructure/events/event-bus');
+const emitTripEvent = (event, data) => mobilityEventBus.publish(event, data);
+const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent });
+const acceptTripUseCase = new AcceptTripUseCase({ tripRepository, emitEvent: emitTripEvent });
+const driverArrivedUseCase = new DriverArrivedUseCase({ tripRepository, emitEvent: emitTripEvent });
+const startTripUseCase = new StartTripUseCase({ tripRepository, emitEvent: emitTripEvent });
+const completeTripUseCase = new CompleteTripUseCase({ tripRepository, emitEvent: emitTripEvent });
+const cancelTripUseCase = new CancelTripUseCase({ tripRepository, emitEvent: emitTripEvent });
 const tripController = new TripController({
     createTripUseCase,
     acceptTripUseCase,
