@@ -18,7 +18,9 @@ const registrationController = new RegistrationController();
  *   - countryId (optional)
  *   - preferredCurrencyId (optional)
  *
- * Supported roles: passenger, driver, provider, seller, advertiser, admin, super_admin
+ * SECURITY: ثبت‌نام عمومی نقش را از Body نمی‌پذیرد و همیشه با نقش پیش‌فرض passenger ساخته می‌شود.
+ * Supported self-registration roles: passenger, driver, provider, seller, advertiser
+ * (admin/super_admin هرگز از مسیر ثبت‌نام عمومی قابل اعطا نیستند.)
  */
 router.post('/register', (req, res) => registrationController.register(req, res));
 router.post('/register/seller', (req, res) => registrationController.registerSeller(req, res));

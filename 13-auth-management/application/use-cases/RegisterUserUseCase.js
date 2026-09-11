@@ -26,7 +26,13 @@ class RegisterUserUseCase {
     }
 
     const normalizedRole = String(role || 'passenger').trim().toLowerCase();
-    const allowedRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser', 'admin', 'super_admin'];
+    // SECURITY: خودثبت‌نامی هرگز نباید نقش‌های ممتاز (admin/super_admin) را بپذیرد.
+    // فقط نقش‌های عادی مجازند؛ ادمین شدن چیزی جداگانه و محافظت‌شده (Admin Usability) است.
+    const allowedRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser'];
+
+    if (normalizedRole === 'admin' || normalizedRole === 'super_admin') {
+      throw new Error('Admin roles cannot be self-assigned during registration.');
+    }
 
     if (!allowedRoles.includes(normalizedRole)) {
       throw new Error(`Invalid role. Must be one of: ${allowedRoles.join(', ')}`);
