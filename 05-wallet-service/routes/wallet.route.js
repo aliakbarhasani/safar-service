@@ -10,6 +10,7 @@
  *   POST   /withdraw             - برداشت از حساب
  *   POST   /transfer             - انتقال وجه
  *   POST   /freeze               - مسدودسازی وجه
+ *   POST   /hold/release         - آزادسازی وجه مسدود
  *   POST   /escrow/release       - آزادسازی Escrow
  *   POST   /refund               - بازگشت وجه
  *   GET    /transactions         - تاریخچه تراکنش‌ها
@@ -24,6 +25,7 @@ const {
   withdraw,
   transfer,
   freeze,
+  releaseHold,
   releaseEscrow,
   refund,
   getTransactions
@@ -92,6 +94,9 @@ router.post('/transfer', authenticate, financialLimiter, authorize('wallet.trans
 
 // POST /freeze - مسدودسازی وجه (کاربر عادی + محدودیت شدید)
 router.post('/freeze', authenticate, sensitiveLimiter, freeze);
+
+// POST /hold/release - آزادسازی وجه مسدود (فقط ادمین + محافظت‌شده)
+router.post('/hold/release', authenticate, sensitiveLimiter, authorize('admin', 'super_admin'), releaseHold);
 
 // POST /escrow/release - آزادسازی Escrow (فقط ادمین + محدودیت شدید)
 router.post('/escrow/release', authenticate, sensitiveLimiter, authorize('admin', 'super_admin'), releaseEscrow);
