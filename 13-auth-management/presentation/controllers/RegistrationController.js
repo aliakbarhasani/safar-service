@@ -45,7 +45,7 @@ class RegistrationController {
 
   async register(req, res) {
     try {
-      const { phoneNumber, firstName, lastName, email, password, role, countryId, preferredCurrencyId } = req.body || {};
+      const { phoneNumber, firstName, lastName, email, password, countryId, preferredCurrencyId } = req.body || {};
 
       if (!phoneNumber || !firstName || !lastName || !password) {
         return res.status(400).json({
@@ -61,7 +61,9 @@ class RegistrationController {
         lastName,
         email,
         password,
-        role,
+        // SECURITY: نقش از Body پذیرفته نمی‌شود. ثبت‌نام عمومی همیشه با نقش پیش‌فرض 'passenger'
+        // (Hardcode) صورت می‌گیرد؛ نقش‌های ممتاز فقط از API جداگانه و محافظت‌شده اعطا می‌شوند.
+        role: 'passenger',
         countryId,
         preferredCurrencyId,
       });

@@ -52,8 +52,9 @@ router.use('/api/wallets', walletRoutes);
 // ===== مسیرهای رانندگان (07-driver-service) =====
 const driverRoutes = require('../07-driver-service/routes/driver.route');
 // محافظت‌شده در سطح Gateway (قبل از mount): تغییر وضعیت حساب راننده و لیست رانندگان فقط برای مدیران
-router.patch('/api/drivers/:id/account-status', authorize('drivers.update_status', 'admin', 'super_admin'));
-router.get('/api/drivers', authorize('drivers.read', 'admin', 'super_admin'));
+// SECURITY: ترتیب صحیح میان‌افزارها — ابتدا authenticate (ساخت req.user) و سپس authorize
+router.patch('/api/drivers/:id/account-status', authenticate, authorize('drivers.update_status', 'admin', 'super_admin'));
+router.get('/api/drivers', authenticate, authorize('drivers.read', 'admin', 'super_admin'));
 router.use('/api/drivers', driverRoutes);
 
 // ===== مسیرهای بازارچه (09-marketplace) =====
@@ -103,7 +104,9 @@ const pricingController = new PricingController({
     consumeQuoteUseCase,
 });
 const pricingRouter = createPricingRouter(pricingController);
-router.use('/api/v1/pricing', pricingRouter);
+// SECURITY: روت‌های Pricing محافظت‌شده — احراز هویت پیش از دسترسی به محاسبه/دریافت/مصرف پیش‌فاکتور
+// (هیچ مسیر عمومی مانند لیست ارزها در PricingRouter تعریف نشده است)
+router.use('/api/v1/pricing', authenticate, pricingRouter);
 
 // ===== مسیرهای موتور حمل‌ونقل یکپارچه (16-mobility-engine) =====
 const TripRepository = require('../16-mobility-engine/infrastructure/TripRepository');
