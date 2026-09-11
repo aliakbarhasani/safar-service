@@ -216,6 +216,39 @@ class ProductService {
     }
   }
 
+  async deleteProduct(productId) {
+    const dbReady = await this._isDBReady();
+    if (!dbReady) throw new Error('Database not available');
+
+    try {
+      const result = await this.pool.query(
+        'DELETE FROM products WHERE id = $1 RETURNING *',
+        [productId]
+      );
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        return new Product({
+          id: row.id,
+          sellerId: row.seller_id,
+          name: row.name,
+          description: row.description,
+          categoryId: row.category_id,
+          price: row.price,
+          currency: row.currency,
+          quantity: row.quantity,
+          imageUrl: row.image_url,
+          status: row.status,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      }
+      return null;
+    } catch (err) {
+      console.error('[ProductService] deleteProduct error:', err.message);
+      throw err;
+    }
+  }
+
   close() {
     if (this.pool) {
       this.pool.end();

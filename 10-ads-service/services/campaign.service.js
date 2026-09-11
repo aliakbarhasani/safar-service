@@ -137,6 +137,63 @@ class CampaignService {
     }
   }
 
+  async updateCampaign(campaignId, updates) {
+    const dbReady = await this._isDBReady();
+    if (!dbReady) throw new Error('Database not available');
+
+    const allowedFields = ['name', 'description', 'budget', 'start_date', 'end_date', 'targeting_criteria', 'status'];
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+
+    for (const [key, value] of Object.entries(updates || {})) {
+      const dbKey = key === 'startDate' ? 'start_date'
+        : key === 'endDate' ? 'end_date'
+        : key === 'targetingCriteria' ? 'targeting_criteria'
+        : key;
+      if (allowedFields.includes(dbKey)) {
+        const stored = dbKey === 'targeting_criteria' && typeof value === 'object'
+          ? JSON.stringify(value)
+          : value;
+        setClauses.push(`${dbKey} = $${idx++}`);
+        values.push(stored);
+      }
+    }
+
+    if (setClauses.length === 0) throw new Error('No valid fields to update');
+
+    values.push(campaignId);
+    const query = `UPDATE campaigns SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
+
+    try {
+      const result = await this.pool.query(query, values);
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        return new Campaign({
+          id: row.id,
+          advertiserId: row.advertiser_id,
+          name: row.name,
+          description: row.description,
+          budget: row.budget,
+          spent: row.spent,
+          startDate: row.start_date,
+          endDate: row.end_date,
+          targetingCriteria: row.targeting_criteria,
+          status: row.status,
+          impressions: row.impressions,
+          clicks: row.clicks,
+          conversions: row.conversions,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      }
+      return null;
+    } catch (err) {
+      console.error('[CampaignService] updateCampaign error:', err.message);
+      throw err;
+    }
+  }
+
   close() {
     if (this.pool) {
       this.pool.end();
