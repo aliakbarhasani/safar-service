@@ -5,7 +5,7 @@
   "main": "run-server.js",
   "scripts": {
     "start": "node run-server.js",
-    "test": "node __tests__/pricing-engine.test.js && node __tests__/infrastructure-api.test.js && node __tests__/pricing-integration.test.js && node tests/integration/PricingIntegration.test.js"
+    "test": "jest --runInBand --testTimeout=30000 __tests__/pricing-engine.test.js __tests__/infrastructure-api.test.js __tests__/pricing-integration.test.js tests/integration/PricingIntegration.test.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -14,6 +14,9 @@
     "express": "^4.18.2",
     "helmet": "^8.0.0",
     "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1"
   },
   "private": true
 }

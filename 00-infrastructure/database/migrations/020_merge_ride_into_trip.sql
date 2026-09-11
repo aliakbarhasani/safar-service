@@ -11,7 +11,10 @@
 --   (backwards compatibility); this migration enriches the canonical `trips`
 --   tables so that the unified engine can persist to a single schema.
 --
--- !! NOT EXECUTED YET - created for the deployment step after a DB backup. !!
+-- STATUS: EXECUTED AUTOMATICALLY - this migration is part of the canonical
+-- `MIGRATION_ORDER` in run-all-migrations.js and runs idempotently (all
+-- alterations are guarded with IF NOT EXISTS) against the `trips` table
+-- (created in migration 001) and `trip_timeline` (created in migration 006).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
