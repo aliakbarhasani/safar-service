@@ -53,8 +53,8 @@ async function reconcileSingleWallet(walletId) {
       ledger_balance
     } = snapshot;
 
-    const walletBalance = parseInt(total_balance, 10);
-    const calculatedBalance = parseInt(ledger_balance, 10);
+    const walletBalance = parseFloat(total_balance);
+    const calculatedBalance = parseFloat(ledger_balance);
 
     if (walletBalance !== calculatedBalance) {
       const discrepancy = walletBalance - calculatedBalance;

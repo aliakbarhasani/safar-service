@@ -28,7 +28,7 @@ class TripController {
                 originAddress, destinationAddress, serviceType,
                 paymentMethod, countryId, referenceId,
             } = req.body;
-            const passengerId = (req.user && req.user.userId) || req.body.passengerId;
+            const passengerId = (req.user && (req.user.userId || req.user.id)) || null;
 
             if (!quoteId || !serviceType || originLat === undefined || destLat === undefined) {
                 return res.status(400).json({
@@ -65,8 +65,9 @@ class TripController {
     async acceptTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const driverId = req.body.driverId || (req.user && req.user.driverId) || null;
-            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
+            // SECURITY: هویت راننده منحصراً از توکن (req.user)، هرگز از بدی/هدر.
+            const driverId = (req.user && (req.user.driverId || req.user.userId || req.user.id)) || null;
+            const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
             const result = await this.acceptTripUseCase.execute({ tripId, driverId, changedByUserId });
             return res.status(200).json({
@@ -92,7 +93,7 @@ class TripController {
     async driverArrived(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
+            const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
             const result = await this.driverArrivedUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -115,7 +116,7 @@ class TripController {
     async startTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
+            const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
             const result = await this.startTripUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -138,7 +139,7 @@ class TripController {
     async completeTrip(req, res) {
         try {
             const { tripId } = req.params;
-            const changedByUserId = (req.user && req.user.userId) || req.body.userId || null;
+            const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
             const result = await this.completeTripUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
@@ -162,15 +163,15 @@ class TripController {
         try {
             const { tripId } = req.params;
             const { cancelReason } = req.body || {};
-            const roleHeader = ((req.headers['x-caller-role'] || (req.body && req.body.role)) || '')
-                .toString()
-                .toLowerCase();
-            const isDriverSide = roleHeader.includes('driver') || roleHeader.includes('courier');
+            // SECURITY: نقش و هویت فاعل منحصراً از توکن احرازشده (req.user) گرفته می‌شود؛
+            // هرگز از هدر (x-caller-role) یا بدی (role/userId) پذیرفته نمی‌شود.
+            const callerRole = String(((req.user && req.user.role) || 'passenger')).toLowerCase();
+            const isDriverSide = callerRole.includes('driver') || callerRole.includes('courier');
 
             const result = await this.cancelTripUseCase.execute({
                 tripId,
                 cancelledByRole: isDriverSide ? 'driver' : 'passenger',
-                cancelledByUserId: (req.user && req.user.userId) || (req.body && req.body.userId) || null,
+                cancelledByUserId: (req.user && (req.user.userId || req.user.id)) || null,
                 reason: cancelReason || null,
             });
 
