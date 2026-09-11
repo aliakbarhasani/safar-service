@@ -81,14 +81,14 @@ router.use(walletLimiter);
 // GET /balance - دریافت موجودی (کاربر عادی)
 router.get('/balance', authenticate, getBalance);
 
-// POST /deposit - شارژ حساب (کاربر عادی)
-router.post('/deposit', authenticate, financialLimiter, deposit);
+// POST /deposit - شارژ حساب (نیاز به مجوز wallet.deposit)
+router.post('/deposit', authenticate, financialLimiter, authorize('wallet.deposit'), deposit);
 
-// POST /withdraw - برداشت از حساب (کاربر عادی)
-router.post('/withdraw', authenticate, financialLimiter, withdraw);
+// POST /withdraw - برداشت از حساب (نیاز به مجوز wallet.withdraw)
+router.post('/withdraw', authenticate, financialLimiter, authorize('wallet.withdraw'), withdraw);
 
-// POST /transfer - انتقال وجه (کاربر عادی)
-router.post('/transfer', authenticate, financialLimiter, transfer);
+// POST /transfer - انتقال وجه (نیاز به مجوز wallet.transfer)
+router.post('/transfer', authenticate, financialLimiter, authorize('wallet.transfer'), transfer);
 
 // POST /freeze - مسدودسازی وجه (کاربر عادی + محدودیت شدید)
 router.post('/freeze', authenticate, sensitiveLimiter, freeze);
@@ -96,8 +96,8 @@ router.post('/freeze', authenticate, sensitiveLimiter, freeze);
 // POST /escrow/release - آزادسازی Escrow (فقط ادمین + محدودیت شدید)
 router.post('/escrow/release', authenticate, sensitiveLimiter, authorize('admin', 'super_admin'), releaseEscrow);
 
-// POST /refund - بازگشت وجه (فقط ادمین و پشتیبانی + محدودیت شدید)
-router.post('/refund', authenticate, sensitiveLimiter, authorize('admin', 'super_admin', 'support'), refund);
+// POST /refund - بازگشت وجه (نیاز به مجوز wallet.refund)
+router.post('/refund', authenticate, sensitiveLimiter, authorize('wallet.refund'), refund);
 
 // GET /transactions - تاریخچه تراکنش‌ها (کاربر عادی)
 router.get('/transactions', authenticate, getTransactions);

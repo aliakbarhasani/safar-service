@@ -24,9 +24,11 @@ async function registerDriver(req, res) {
 async function updateDriverAccountStatus(req, res) {
   try {
     const { id } = req.params;
-    const { status, adminId } = req.body;
+    const { status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'driverId and status are required' });
-    const result = await driverService.updateDriverAccountStatus(id, status, adminId || 'admin');
+    // SECURITY: adminId MUST come from authenticated JWT, never from request body (prevents Admin ID Spoofing)
+    const adminId = req.user && (req.user.userId || req.user.id) ? (req.user.userId || req.user.id) : 'system';
+    const result = await driverService.updateDriverAccountStatus(id, status, adminId);
     if (result && result.error) return res.status(400).json({ error: result.error });
     res.json(result);
   } catch (err) {
