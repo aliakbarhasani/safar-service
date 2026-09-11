@@ -9,9 +9,13 @@ const driverService = require('../services/driver.service');
 
 async function registerDriver(req, res) {
   try {
-    const fields = req.body;
+    const fields = { ...(req.body || {}) };
     if (!fields.firstName || !fields.lastName || !fields.phoneNumber) {
       return res.status(400).json({ error: 'firstName, lastName and phoneNumber are required' });
+    }
+    // SECURITY/SCHEMA: drivers.user_id FK (NOT NULL) - از توکن احرازشده، هرگز از بادی
+    if (req.user && (req.user.userId || req.user.id)) {
+      fields.userId = req.user.userId || req.user.id;
     }
     const result = await driverService.registerDriver(fields);
     if (result && result.error) return res.status(400).json({ error: result.error });

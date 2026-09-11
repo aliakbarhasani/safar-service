@@ -1,33 +1,44 @@
 /**
- * driver.service.js - سرویس مستقل رانندگان
- * 
+ * driver.service.js - سرویس مستقل رانندگان (PostgreSQL)
+ *
  * طبق اصول Clean Architecture:
- * - تمام منطق تجاری در لایه Service
- * - بدون Hardcode
+ *   - تمام منطق تجاری در لایه Service
+ *   - دسترسی به داده فقط از طریق Repository (PostgreSQL)
+ *   - بدون Fallback درون‌حافظه و بدون Mongoose
  */
 
-const Driver = require('../models/driver.model');
-const { isDBConnected } = require('../../01-core-system/database/db');
+const { DriverRepository } = require('../infrastructure/repositories/DriverRepository');
 const eventBus = require('../../01-core-system/EventBus');
 
-const fallbackDrivers = [];
+const ACCOUNT_STATUSES = ['pending_verification', 'verified', 'rejected', 'suspended', 'blocked'];
+const OPERATIONAL_STATUSES = ['offline', 'online', 'busy', 'on_trip'];
+
+function isExpired(expiry) {
+  return expiry && new Date(expiry) < new Date();
+}
 
 /**
- * ثبت‌نام اولیه راننده
- * accountStatus به صورت خودکار روی pending_verification قرار می‌گیرد
+ * کارخانه ساخت سرویس رانندگان (Dependency Injection)
+ * @param {DriverRepository} [repository] - مخزن PostgreSQL (برای تست تزریق می‌شود)
  */
-async function registerDriver(data) {
-  if (!data.firstName || !data.lastName || !data.phoneNumber) {
-    return { error: 'firstName, lastName and phoneNumber are required' };
-  }
+function createDriverService(repository = new DriverRepository()) {
+  /** ثبت‌نام اولیه راننده؛ accountStatus همیشه روی pending_verification قرار می‌گیرد */
+  async function registerDriver(data) {
+    data = data || {};
+    if (!data.firstName || !data.lastName || !data.phoneNumber) {
+      return { error: 'firstName, lastName and phoneNumber are required' };
+    }
+    if (!data.userId) {
+      return { error: 'userId is required to register a driver' };
+    }
 
-  if (isDBConnected()) {
-    const existing = await Driver.findOne({ phoneNumber: data.phoneNumber });
+    const existing = await repository.findByPhoneNumber(data.phoneNumber);
     if (existing) {
       return { error: 'Driver with this phone number already exists' };
     }
 
-    const driver = new Driver({
+    return repository.create({
+      userId: data.userId,
       firstName: data.firstName,
       lastName: data.lastName,
       phoneNumber: data.phoneNumber,
@@ -47,238 +58,96 @@ async function registerDriver(data) {
       licenseExpiryDate: data.licenseExpiryDate || null,
       insuranceExpiryDate: data.insuranceExpiryDate || null,
       registrationExpiryDate: data.registrationExpiryDate || null,
-      accountStatus: 'pending_verification',
-      operationalStatus: 'offline',
-      documents: data.documents || []
+      documents: data.documents || [],
     });
-
-    const saved = await driver.save();
-    return saved.toObject();
   }
 
-  // حالت fallback
-  const existing = fallbackDrivers.find(d => d.phoneNumber === data.phoneNumber);
-  if (existing) {
-    return { error: 'Driver with this phone number already exists' };
-  }
-
-  const driver = {
-    _id: new (require('mongoose').Types.ObjectId)().toString(),
-    firstName: data.firstName,
-    lastName: data.lastName,
-    phoneNumber: data.phoneNumber,
-    dateOfBirth: data.dateOfBirth || new Date('1990-01-01'),
-    address: data.address || '',
-    vehicleType: data.vehicleType || '',
-    licensePlate: data.licensePlate || '',
-    chassisNumber: data.chassisNumber || '',
-    licenseNumber: data.licenseNumber || '',
-    vehicleIdentificationNumber: data.vehicleIdentificationNumber || '',
-    identityCardNumber: data.identityCardNumber || '',
-    identityCardUrl: data.identityCardUrl || '',
-    selfieUrl: data.selfieUrl || '',
-    drivingLicenseUrl: data.drivingLicenseUrl || '',
-    transitPassUrl: data.transitPassUrl || '',
-    vehicleCardUrl: data.vehicleCardUrl || '',
-    licenseExpiryDate: data.licenseExpiryDate || null,
-    insuranceExpiryDate: data.insuranceExpiryDate || null,
-    registrationExpiryDate: data.registrationExpiryDate || null,
-    accountStatus: 'pending_verification',
-    operationalStatus: 'offline',
-    rating: 5.0,
-    ratingCount: 0,
-    completedTrips: 0,
-    cancelledTrips: 0,
-    currentLocation: { latitude: 0, longitude: 0 },
-    lastSeenAt: null,
-    documents: data.documents || [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null
-  };
-  fallbackDrivers.push(driver);
-  return driver;
-}
-
-/**
- * تغییر وضعیت حساب راننده توسط ادمین
- */
-async function updateDriverAccountStatus(driverId, newStatus, adminId) {
-  const validStatuses = ['pending_verification', 'verified', 'rejected', 'suspended', 'blocked'];
-  if (!validStatuses.includes(newStatus)) {
-    return { error: 'Invalid driver account status' };
-  }
-
-  if (isDBConnected()) {
-    const driver = await Driver.findById(driverId);
+  /** تغییر وضعیت حساب راننده توسط ادمین */
+  async function updateDriverAccountStatus(driverId, newStatus, adminId) {
+    if (!ACCOUNT_STATUSES.includes(newStatus)) {
+      return { error: 'Invalid driver account status' };
+    }
+    const driver = await repository.findById(driverId);
     if (!driver) return { error: 'Driver not found' };
 
     const previousStatus = driver.accountStatus;
-    driver.accountStatus = newStatus;
-    driver.updatedAt = new Date();
-    const saved = await driver.save();
+    const updated = await repository.updateAccountStatus(driverId, newStatus);
 
     eventBus.publish('DriverStatusChanged', {
-      driverId: saved._id,
+      driverId: updated.id || driverId,
       previousStatus,
       newStatus,
-      changedBy: adminId || 'system'
+      changedBy: adminId || 'system',
     });
 
-    return saved.toObject();
+    return updated;
   }
 
-  const driver = fallbackDrivers.find(d => d._id.toString() === driverId.toString());
-  if (!driver) return { error: 'Driver not found' };
-
-  const previousStatus = driver.accountStatus;
-  driver.accountStatus = newStatus;
-  driver.updatedAt = new Date();
-
-  eventBus.publish('DriverStatusChanged', {
-    driverId: driver._id,
-    previousStatus,
-    newStatus,
-    changedBy: adminId || 'system'
-  });
-
-  return driver;
-}
-
-/**
- * تغییر وضعیت عملیاتی راننده
- * 
- * قانون تجاری: راننده فقط در صورتی می‌تواند online شود که:
- * 1. accountStatus او verified باشد
- * 2. هیچ‌یک از تاریخ انقضای مدارکش نگذشته باشد
- */
-async function updateOperationalStatus(driverId, newStatus) {
-  const validStatuses = ['offline', 'online', 'busy', 'on_trip'];
-  if (!validStatuses.includes(newStatus)) {
-    return { error: 'Invalid operational status' };
-  }
-
-  if (isDBConnected()) {
-    const driver = await Driver.findById(driverId);
+  /** تغییر وضعیت عملیاتی راننده (قانون تجاری برای online) */
+  async function updateOperationalStatus(driverId, newStatus) {
+    if (!OPERATIONAL_STATUSES.includes(newStatus)) {
+      return { error: 'Invalid operational status' };
+    }
+    const driver = await repository.findById(driverId);
     if (!driver) return { error: 'Driver not found' };
 
-    // بررسی قانون تجاری برای رفتن به وضعیت online
+    // قانون تجاری: فقط راننده verified بدون مدارک منقضی می‌تواند online شود
     if (newStatus === 'online') {
       if (driver.accountStatus !== 'verified') {
         return {
           error: 'Cannot go online. Account status must be verified.',
-          currentAccountStatus: driver.accountStatus
+          currentAccountStatus: driver.accountStatus,
         };
       }
-
-      const now = new Date();
-      if (driver.licenseExpiryDate && new Date(driver.licenseExpiryDate) < now) {
+      if (isExpired(driver.licenseExpiryDate)) {
         return { error: 'Cannot go online. Driving license has expired.' };
       }
-      if (driver.insuranceExpiryDate && new Date(driver.insuranceExpiryDate) < now) {
+      if (isExpired(driver.insuranceExpiryDate)) {
         return { error: 'Cannot go online. Insurance has expired.' };
       }
-      if (driver.registrationExpiryDate && new Date(driver.registrationExpiryDate) < now) {
+      if (isExpired(driver.registrationExpiryDate)) {
         return { error: 'Cannot go online. Vehicle registration has expired.' };
       }
     }
 
-    driver.operationalStatus = newStatus;
-    driver.updatedAt = new Date();
-    if (newStatus === 'online') {
-      driver.lastSeenAt = new Date();
-    }
-    const saved = await driver.save();
-    return saved.toObject();
+    return repository.updateOperationalStatus(
+      driverId,
+      newStatus,
+      { lastSeenAt: newStatus === 'online' ? new Date() : null },
+    );
   }
 
-  const driver = fallbackDrivers.find(d => d._id.toString() === driverId.toString());
-  if (!driver) return { error: 'Driver not found' };
-
-  if (newStatus === 'online') {
-    if (driver.accountStatus !== 'verified') {
-      return {
-        error: 'Cannot go online. Account status must be verified.',
-        currentAccountStatus: driver.accountStatus
-      };
+  /** به‌روزرسانی موقعیت مکانی راننده */
+  async function updateLocation(driverId, latitude, longitude) {
+    if (latitude == null || longitude == null) {
+      return { error: 'latitude and longitude are required' };
     }
-
-    const now = new Date();
-    if (driver.licenseExpiryDate && new Date(driver.licenseExpiryDate) < now) {
-      return { error: 'Cannot go online. Driving license has expired.' };
-    }
-    if (driver.insuranceExpiryDate && new Date(driver.insuranceExpiryDate) < now) {
-      return { error: 'Cannot go online. Insurance has expired.' };
-    }
-    if (driver.registrationExpiryDate && new Date(driver.registrationExpiryDate) < now) {
-      return { error: 'Cannot go online. Vehicle registration has expired.' };
-    }
-  }
-
-  driver.operationalStatus = newStatus;
-  driver.updatedAt = new Date();
-  if (newStatus === 'online') {
-    driver.lastSeenAt = new Date();
-  }
-
-  return driver;
-}
-
-/**
- * به‌روزرسانی موقعیت مکانی راننده
- */
-async function updateLocation(driverId, latitude, longitude) {
-  if (latitude == null || longitude == null) {
-    return { error: 'latitude and longitude are required' };
-  }
-
-  if (isDBConnected()) {
-    const driver = await Driver.findById(driverId);
+    const driver = await repository.findById(driverId);
     if (!driver) return { error: 'Driver not found' };
-
-    driver.currentLocation = { latitude, longitude };
-    driver.lastSeenAt = new Date();
-    driver.updatedAt = new Date();
-    const saved = await driver.save();
-    return saved.toObject();
+    return repository.updateLocation(driverId, latitude, longitude);
   }
 
-  const driver = fallbackDrivers.find(d => d._id.toString() === driverId.toString());
-  if (!driver) return { error: 'Driver not found' };
-
-  driver.currentLocation = { latitude, longitude };
-  driver.lastSeenAt = new Date();
-  driver.updatedAt = new Date();
-
-  return driver;
-}
-
-/**
- * دریافت اطلاعات راننده
- */
-async function getDriverById(driverId) {
-  if (isDBConnected()) {
-    const driver = await Driver.findById(driverId).lean();
-    return driver || null;
+  /** دریافت اطلاعات راننده */
+  async function getDriverById(driverId) {
+    return repository.findById(driverId);
   }
-  return fallbackDrivers.find(d => d._id.toString() === driverId.toString()) || null;
-}
 
-/**
- * دریافت لیست رانندگان
- */
-async function getAllDrivers() {
-  if (isDBConnected()) {
-    return await Driver.find().lean();
+  /** دریافت لیست رانندگان */
+  async function getAllDrivers() {
+    return repository.findAll();
   }
-  return [...fallbackDrivers];
+
+  return {
+    registerDriver,
+    updateDriverAccountStatus,
+    updateOperationalStatus,
+    updateLocation,
+    getDriverById,
+    getAllDrivers,
+  };
 }
 
-module.exports = {
-  registerDriver,
-  updateDriverAccountStatus,
-  updateOperationalStatus,
-  updateLocation,
-  getDriverById,
-  getAllDrivers
-};
+const driverService = createDriverService();
+
+module.exports = driverService;
+module.exports.createDriverService = createDriverService;
