@@ -134,6 +134,47 @@ async function freeze(req, res) {
 }
 
 /**
+ * آزادسازی وجه مسدود (Release Hold)
+ * POST /api/wallets/hold/release
+ * Body: { amount, referenceType?, referenceId?, reason?, currency? }
+ * SECURITY: userId منحصراً از req.user (توکن) استخراج می‌شود. برای کاربر غیر ادمین،
+ * ارزش userId در بادی پذیرفته نمی‌شود و آزادسازی برای حساب دیگری مسدود است؛
+ * ادمین می‌تواند (با مجوز admin/super_admin) userId متفاوت در بادی بفرستد.
+ */
+async function releaseHold(req, res) {
+  try {
+    const authUserId = req.user && (req.user.userId || req.user.id);
+    if (!authUserId) {
+      return res.status(401).json({ success: false, error: 'User not authenticated' });
+    }
+    const role = String((req.user.role || '')).toLowerCase();
+    const isAdmin = role === 'admin' || role === 'super_admin';
+
+    let userId = authUserId;
+    const bodyUserId = req.body && req.body.userId;
+    if (bodyUserId && bodyUserId !== authUserId) {
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, error: 'Cannot release hold for another user.' });
+      }
+      userId = bodyUserId;
+    }
+
+    const result = await walletService.releaseHold({
+      userId,
+      amount: req.body.amount,
+      referenceType: (req.body && req.body.referenceType) || undefined,
+      referenceId: (req.body && req.body.referenceId) || null,
+      reason: (req.body && req.body.reason) || '',
+      currencyId: (req.body && req.body.currency) || 'IRT',
+    });
+
+    return res.json({ success: true, message: 'Hold released successfully', data: result });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+}
+
+/**
  * آزادسازی Escrow
  * POST /api/wallets/escrow/release
  * Body: { escrowWalletId, recipientId, currency?, description? }
@@ -217,6 +258,7 @@ module.exports = {
   withdraw,
   transfer,
   freeze,
+  releaseHold,
   releaseEscrow,
   refund,
   getTransactions,

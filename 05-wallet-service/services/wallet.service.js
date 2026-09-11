@@ -627,7 +627,7 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
  *   - قفل ردیفی با SELECT ... FOR UPDATE
  *   - بررسی کافی بودن frozen_balance
  */
-async function releaseHold(userId, amount, currencyId = 'IRT', referenceId = null, description = '') {
+async function releaseHold({ userId, amount, referenceType = 'hold', referenceId = null, reason = '', currencyId = 'IRT' } = {}) {
   validateAmount(amount);
   validateCurrency(currencyId);
 
@@ -684,7 +684,7 @@ async function releaseHold(userId, amount, currencyId = 'IRT', referenceId = nul
       amount,
       currencyId,
       type: 'CREDIT',
-      description: description || 'Hold released (trip cancelled)',
+      description: reason || `Hold released (${referenceType})`,
       status: 'success',
       referenceId
     }, client);
@@ -702,15 +702,15 @@ async function releaseHold(userId, amount, currencyId = 'IRT', referenceId = nul
       availableAfter,
       frozenBefore,
       frozenAfter,
-      operationType: 'hold_released',
-      description: description || 'Hold released (trip cancelled)',
+      operationType: 'UNHOLD', // UNHOLD/RELEASE: آزادسازی وجه مسدود
+      description: reason || `Hold released (${referenceType})`,
       referenceId
     }, client);
 
     // انتشار رویداد
     publishBalanceChangedEvent(
       wallet.id, userId, amount, 'CREDIT', currencyId,
-      availableAfter, frozenAfter, tx.id, description || 'Hold released'
+      availableAfter, frozenAfter, tx.id, reason || 'Hold released'
     );
 
     return {
@@ -720,6 +720,7 @@ async function releaseHold(userId, amount, currencyId = 'IRT', referenceId = nul
       userId,
       amount,
       currencyId,
+      referenceType,
       balance: balanceAfter,
       availableBalance: availableAfter,
       frozenBalance: frozenAfter,
