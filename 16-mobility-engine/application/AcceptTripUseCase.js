@@ -15,17 +15,21 @@
 
 const TripStatus = require('../domain/enums/TripStatus');
 const { transitionTo } = require('../domain/trip-state-machine');
-const { TripNotFoundError } = require('../domain/errors/RideErrors');
+const { TripNotFoundError, UnauthorizedDispatchError } = require('../domain/errors/RideErrors');
 const TripDomainEvents = require('../domain/events/TripDomainEvents');
+
+const DISPATCH_KEY_PREFIX = 'dispatch:trip:';
 
 class AcceptTripUseCase {
     /**
      * @param {Object} deps
      * @param {import('../infrastructure/TripRepository')} deps.tripRepository
+     * @param {Object} [deps.redisClient] - کلاینت Redis (برای بررسی تخصیص)
      * @param {Function} [deps.emitEvent]
      */
-    constructor({ tripRepository, emitEvent = null }) {
+    constructor({ tripRepository, redisClient = null, emitEvent = null }) {
         this.tripRepository = tripRepository;
+        this.redis = redisClient;
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
@@ -35,6 +39,18 @@ class AcceptTripUseCase {
             error.code = 'ACCEPT_TRIP_VALIDATION';
             error.statusCode = 400;
             throw error;
+        }
+
+        // ۰) بررسی تخصیص (Acceptance Guard - P3-4): راننده باید از سوی
+        // سیستم Dispatch انتخاب شده باشد. در نبود Redis، گارد غیرفعال است.
+        if (this.redis) {
+            const dispatchKey = `${DISPATCH_KEY_PREFIX}${tripId}`;
+            const assignedDriverId = await this.redis.get(dispatchKey);
+            if (!assignedDriverId || assignedDriverId !== driverId) {
+                throw new UnauthorizedDispatchError(tripId, driverId);
+            }
+            // حذف کلید تا راننده دیگری نتواند از آن استفاده کند
+            await this.redis.del(dispatchKey);
         }
 
         // ۱) پیش‌اعتبارسنجی ماشین حالت کانونی (fail-fast، بدون دسترسی به DB)

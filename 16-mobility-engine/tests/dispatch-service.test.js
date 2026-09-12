@@ -60,6 +60,13 @@ function makeEventBus() {
   };
 }
 
+// ماک Dispatch Timeout Queue (BullMQ)
+function makeDispatchTimeoutQueue() {
+  return {
+    scheduleTimeout: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('TripDispatchService', () => {
   describe('dispatchTrip', () => {
     test('should set Redis key with TTL 15s and publish TripProposedToDriver', async () => {
