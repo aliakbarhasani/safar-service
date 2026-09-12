@@ -1304,6 +1304,158 @@ async function getTransactionHistory(userId, currencyId = null, options = {}) {
   };
 }
 
+/**
+ * پردازش پرداخت نهایی سفر (P5-1) — تراکنش اتمیک چندکیف‌پوله.
+ *
+ * با دریافت رویداد `TripCompleted` فراخوانی می‌شود و در یک تراکنش PostgreSQL:
+ *   1. مبلغ `amount` (کرایه نهایی) از کیف پول مسافر کسر میشود (TRIP_PAYMENT)
+ *      — در صورت ناکافی بودن موجودی، اجازه منفی شدن (بدهی/Debt) داده میشود.
+ *   2. کمیسیون سیستم (از Config خوانده میشود، نه Hardcode) به کیف پول
+ *      پلتفرم واریز میشود (TRIP_COMMISSION).
+ *   3. مابقی (amount - کمیسیون) به کیف پول راننده واریز میشود (TRIP_REVENUE).
+ *
+ * Idempotency: referenceId = `trip-payment:<tripId>`.
+ */
+async function processTripPayment({ tripId, passengerId, driverId, amount, currencyId = 'IRT', commissionRate = null } = {}) {
+  validateAmount(amount);
+  validateCurrency(currencyId);
+  if (!tripId || !passengerId || !driverId) {
+    throw new Error('tripId, passengerId and driverId are required for trip payment');
+  }
+
+  // کمیسیون از Config خوانده میشود؛ مگر آنکه صراحتاً تزریق شود.
+  const rate = (commissionRate == null)
+    ? parseFloat((config.trip.commissionRates || {}).general) || 15
+    : Number(commissionRate);
+  const commission = Math.round(amount * (rate / 100));
+  const driverAmount = amount - commission;
+  const referenceId = `trip-payment:${tripId}`;
+  const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
+
+  return await pg.transaction(async (client) => {
+    if (referenceId) {
+      const existing = await Transaction.findByReferenceId(referenceId);
+      if (existing) {
+        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
+      }
+    }
+
+    // ---- 1) کسر کرایه از کیف پول مسافر (اجازه بدهی) ----
+    const pWallet = await getOrCreateWallet(client, passengerId, currencyId);
+    const pBalBefore = parseFloat(pWallet.balance);
+    const pAvailBefore = parseFloat(pWallet.available_balance);
+    const pFrozenBefore = parseFloat(pWallet.frozen_balance);
+
+    const pUpdated = await Wallet.debitAllowNegative(pWallet.id, amount, client);
+    if (!pUpdated) throw new Error('Failed to debit passenger wallet');
+    const pBalAfter = parseFloat(pUpdated.balance);
+    const pAvailAfter = parseFloat(pUpdated.available_balance);
+    const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
+    const debt = pAvailAfter < 0;
+
+    const pTx = await Transaction.create({
+      walletId: pWallet.id, userId: passengerId, tripId,
+      amount, currencyId, type: 'DEBIT',
+      description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
+      status: debt ? 'pending' : 'success',
+      referenceId: `${referenceId}:passenger`,
+    }, client);
+    await Transaction.createLedgerEntry({
+      walletId: pWallet.id, transactionId: pTx.id,
+      creditAmount: 0, debitAmount: amount, currencyId,
+      balanceBefore: pBalBefore, balanceAfter: pBalAfter,
+      availableBefore: pAvailBefore, availableAfter: pAvailAfter,
+      frozenBefore: pFrozenBefore, frozenAfter: pFrozenAfter,
+      operationType: 'trip_payment',
+      description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
+      referenceId,
+    }, client);
+
+    // ---- 2) کمیسیون سیستم به کیف پول پلتفرم (فقط اگر > 0) ----
+    let platformCommissionId = null;
+
+    if (commission > 0) {
+      const plWallet = await getOrCreateWallet(client, platformUserId, currencyId);
+      const plBalBefore = parseFloat(plWallet.balance);
+      const plAvailBefore = parseFloat(plWallet.available_balance);
+      const plFrozenBefore = parseFloat(plWallet.frozen_balance);
+
+      const plUpdated = await Wallet.creditAvailableBalance(plWallet.id, commission, client);
+      if (!plUpdated) throw new Error('Failed to credit platform commission');
+      const plBalAfter = parseFloat(plUpdated.balance);
+      const plAvailAfter = parseFloat(plUpdated.available_balance);
+      const plFrozenAfter = parseFloat(plUpdated.frozen_balance);
+
+      const plTx = await Transaction.create({
+        walletId: plWallet.id, userId: platformUserId, tripId,
+        amount: commission, currencyId, type: 'CREDIT',
+        description: `TRIP_COMMISSION trip ${tripId}`,
+        status: 'success',
+        referenceId: `${referenceId}:platform`,
+      }, client);
+      await Transaction.createLedgerEntry({
+        walletId: plWallet.id, transactionId: plTx.id,
+        creditAmount: commission, debitAmount: 0, currencyId,
+        balanceBefore: plBalBefore, balanceAfter: plBalAfter,
+        availableBefore: plAvailBefore, availableAfter: plAvailAfter,
+        frozenBefore: plFrozenBefore, frozenAfter: plFrozenAfter,
+        operationType: 'commission',
+        description: `TRIP_COMMISSION trip ${tripId}`,
+        referenceId,
+      }, client);
+      platformCommissionId = plTx.id;
+    }
+
+    // ---- 3) واریز مابقی به کیف پول راننده ----
+    const dWallet = await getOrCreateWallet(client, driverId, currencyId);
+    const dBAlBefore = parseFloat(dWallet.balance);
+    const dAvailBefore = parseFloat(dWallet.available_balance);
+    const dFrozenBefore = parseFloat(dWallet.frozen_balance);
+
+    const dUpdated = await Wallet.creditAvailableBalance(dWallet.id, driverAmount, client);
+    if (!dUpdated) throw new Error('Failed to credit driver wallet');
+    const dBAlAfter = parseFloat(dUpdated.balance);
+    const dAvailAfter = parseFloat(dUpdated.available_balance);
+    const dFrozenAfter = parseFloat(dUpdated.frozen_balance);
+
+    const dTx = await Transaction.create({
+      walletId: dWallet.id, userId: driverId, tripId,
+      amount: driverAmount, currencyId, type: 'CREDIT',
+      description: `TRIP_REVENUE trip ${tripId}`,
+      status: 'success',
+      referenceId: `${referenceId}:driver`,
+    }, client);
+    await Transaction.createLedgerEntry({
+      walletId: dWallet.id, transactionId: dTx.id,
+      creditAmount: driverAmount, debitAmount: 0, currencyId,
+      balanceBefore: dBAlBefore, balanceAfter: dBAlAfter,
+      availableBefore: dAvailBefore, availableAfter: dAvailAfter,
+      frozenBefore: dFrozenBefore, frozenAfter: dFrozenAfter,
+      operationType: 'trip_revenue',
+      description: `TRIP_REVENUE trip ${tripId}`,
+      referenceId,
+    }, client);
+
+    publishBalanceChangedEvent(pWallet.id, passengerId, amount, 'DEBIT', currencyId, pAvailAfter, pFrozenAfter, pTx.id, `TRIP_PAYMENT trip ${tripId}`);
+    publishBalanceChangedEvent(dWallet.id, driverId, driverAmount, 'CREDIT', currencyId, dAvailAfter, dFrozenAfter, dTx.id, `TRIP_REVENUE trip ${tripId}`);
+
+    return {
+      success: true,
+      message: 'Trip payment processed',
+      tripId,
+      amount,
+      commissionRate: rate,
+      commission,
+      driverAmount,
+      debt,
+      referenceId,
+      passengerTransactionId: pTx.id,
+      driverTransactionId: dTx.id,
+      platformCommissionId,
+    };
+  });
+}
+
 module.exports = {
   getWalletBalance,
   depositFunds,
@@ -1313,6 +1465,7 @@ module.exports = {
   releaseHold,
   releaseEscrow,
   refundFunds,
+  processTripPayment,
   getTransactionHistory,
   // چرخه ۷ مرحله‌ای Escrow
   createEscrow,
