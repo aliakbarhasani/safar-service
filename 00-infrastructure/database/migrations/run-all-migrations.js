@@ -37,6 +37,7 @@ const MIGRATION_ORDER = [
   '020_merge_ride_into_trip.sql',
   '022_create_driver_tables.sql',
   '023_create_driver_location_history.sql',
+  '024_create_feedback_schema.sql',
 ];
 
 /**
