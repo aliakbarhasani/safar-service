@@ -13,6 +13,7 @@
  */
 
 const LOCATION_KEY = 'drivers:online:locations';
+const HISTORY_BUFFER_KEY = 'location:history:buffer';
 const DEFAULT_TTL_SECONDS = 300;
 
 class RedisLocationRepository {
@@ -54,6 +55,55 @@ class RedisLocationRepository {
 
     await this.redis.geoadd(this.key, lng, lat, String(driverId));
     return { ok: true, driverId: String(driverId), longitude: lng, latitude: lat };
+  }
+
+  /**
+   * بافر کردن تاریخچه مکانی برای Write-Behind Sync (P3-2).
+   * داده‌ها را به صورت JSON در Redis List با RPUSH اضافه می‌کند.
+   * @param {string} driverId
+   * @param {number} longitude
+   * @param {number} latitude
+   * @param {string} [timestamp] - ISO timestamp (پیش‌فرض: زمان حال)
+   * @returns {Promise<number>} طول صف بعد از افزودن
+   */
+  async bufferLocationHistory(driverId, longitude, latitude, timestamp = null) {
+    if (!driverId) throw new Error('driverId is required');
+    const record = JSON.stringify({
+      driver_id: String(driverId),
+      longitude: Number(longitude),
+      latitude: Number(latitude),
+      recorded_at: timestamp || new Date().toISOString(),
+    });
+    const len = await this.redis.rpush(HISTORY_BUFFER_KEY, record);
+    return len;
+  }
+
+  /**
+   * استخراج و خالی کردن بافر تاریخچه (اتمیک با MULTI/EXEC).
+   * برای Background Worker جهت Bulk Insert در PostgreSQL.
+   * @returns {Promise<Array<{driver_id: string, longitude: number, latitude: number, recorded_at: string}>>}
+   */
+  async drainHistoryBuffer() {
+    const results = await this.redis.multi();
+    if (!results) {
+      // fallback: non-transactional read + delete
+      const raw = await this.redis.lrange(HISTORY_BUFFER_KEY, 0, -1);
+      await this.redis.del(HISTORY_BUFFER_KEY);
+      return raw
+        .map((item) => {
+          try { return JSON.parse(item); } catch { return null; }
+        })
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  /**
+   * دریافت طول بافر (بدون خالی کردن) — برای مانیتورینگ.
+   * @returns {Promise<number>}
+   */
+  async getHistoryBufferSize() {
+    return await this.redis.llen(HISTORY_BUFFER_KEY);
   }
 
   /**
@@ -151,4 +201,4 @@ class RedisLocationRepository {
   }
 }
 
-module.exports = { RedisLocationRepository, LOCATION_KEY, DEFAULT_TTL_SECONDS };
+module.exports = { RedisLocationRepository, LOCATION_KEY, HISTORY_BUFFER_KEY, DEFAULT_TTL_SECONDS };
