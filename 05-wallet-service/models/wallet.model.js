@@ -233,6 +233,31 @@ async function deductFrozen(id, amount, client = null) {
 }
 
 /**
+ * کسر از موجودی قابل (اجازه منفی شدن = بدهی، برای تسویه سفر P5-1)
+ * برخلاف `debitAvailableBalance`، گارد موجودی کافی ندارد:
+ * اگر موجودی مسافر ناکافی باشد، حساب منفی میشود و به سیستم اعتباری ارجاع
+ * داده میشود (Debt/Credit) و در تراکنش بهصورت status 'pending' ثبت میشود.
+ */
+async function debitAllowNegative(id, amount, client = null) {
+  const queryText = `
+    UPDATE ${TABLE}
+    SET available_balance = available_balance - $1,
+        balance = balance - $1,
+        updated_at = NOW()
+    WHERE id = $2 AND deleted_at IS NULL AND status = 'active'
+    RETURNING ${COLUMNS_SELECT}
+  `;
+  const params = [amount, id];
+
+  if (client) {
+    const result = await client.query(queryText, params);
+    return result.rows[0] || null;
+  }
+  const result = await pg.query(queryText, params);
+  return result.rows[0] || null;
+}
+
+/**
  * Soft Delete کیف پول
  */
 async function softDelete(id) {
@@ -262,6 +287,7 @@ module.exports = {
   updateBalances,
   creditAvailableBalance,
   debitAvailableBalance,
+  debitAllowNegative,
   freezeAvailable,
   unfreezeFrozen,
   deductFrozen,

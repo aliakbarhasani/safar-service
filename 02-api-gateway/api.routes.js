@@ -114,9 +114,9 @@ router.use('/api/v1/pricing', authenticate, pricingRouter);
 const TripRepository = require('../16-mobility-engine/infrastructure/TripRepository');
 const CreateTripUseCase = require('../16-mobility-engine/application/CreateTripUseCase');
 const AcceptTripUseCase = require('../16-mobility-engine/application/AcceptTripUseCase');
-const DriverArrivedUseCase = require('../16-mobility-engine/application/DriverArrivedUseCase');
+const ArriveAtPickupUseCase = require('../16-mobility-engine/application/ArriveAtPickupUseCase');
 const StartTripUseCase = require('../16-mobility-engine/application/StartTripUseCase');
-const CompleteTripUseCase = require('../16-mobility-engine/application/CompleteTripUseCase');
+const EndTripUseCase = require('../16-mobility-engine/application/EndTripUseCase');
 const CancelTripUseCase = require('../16-mobility-engine/application/CancelTripUseCase');
 const TripController = require('../16-mobility-engine/presentation/TripController');
 const createTripRouter = require('../16-mobility-engine/presentation/TripRouter');
@@ -130,16 +130,16 @@ const mobilityEventBus = require('../16-mobility-engine/infrastructure/events/ev
 const emitTripEvent = (event, data) => mobilityEventBus.publish(event, data);
 const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent });
 const acceptTripUseCase = new AcceptTripUseCase({ tripRepository, emitEvent: emitTripEvent });
-const driverArrivedUseCase = new DriverArrivedUseCase({ tripRepository, emitEvent: emitTripEvent });
+const arriveAtPickupUseCase = new ArriveAtPickupUseCase({ tripRepository, emitEvent: emitTripEvent });
 const startTripUseCase = new StartTripUseCase({ tripRepository, emitEvent: emitTripEvent });
-const completeTripUseCase = new CompleteTripUseCase({ tripRepository, emitEvent: emitTripEvent });
+const endTripUseCase = new EndTripUseCase({ tripRepository, emitEvent: emitTripEvent });
 const cancelTripUseCase = new CancelTripUseCase({ tripRepository, emitEvent: emitTripEvent });
 const tripController = new TripController({
     createTripUseCase,
     acceptTripUseCase,
-    driverArrivedUseCase,
+    arriveAtPickupUseCase,
     startTripUseCase,
-    completeTripUseCase,
+    endTripUseCase,
     cancelTripUseCase,
 });
 const tripRouter = createTripRouter(tripController);

@@ -8,16 +8,16 @@ class TripController {
     constructor({
         createTripUseCase,
         acceptTripUseCase,
-        driverArrivedUseCase,
+        arriveAtPickupUseCase,
         startTripUseCase,
-        completeTripUseCase,
+        endTripUseCase,
         cancelTripUseCase,
     }) {
         this.createTripUseCase = createTripUseCase;
         this.acceptTripUseCase = acceptTripUseCase;
-        this.driverArrivedUseCase = driverArrivedUseCase;
+        this.arriveAtPickupUseCase = arriveAtPickupUseCase;
         this.startTripUseCase = startTripUseCase;
-        this.completeTripUseCase = completeTripUseCase;
+        this.endTripUseCase = endTripUseCase;
         this.cancelTripUseCase = cancelTripUseCase;
     }
 
@@ -95,7 +95,7 @@ class TripController {
             const { tripId } = req.params;
             const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
-            const result = await this.driverArrivedUseCase.execute({ tripId, changedByUserId });
+            const result = await this.arriveAtPickupUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
                 success: true,
                 message: 'رسیدن راننده ثبت شد.',
@@ -141,7 +141,8 @@ class TripController {
             const { tripId } = req.params;
             const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
-            const result = await this.completeTripUseCase.execute({ tripId, changedByUserId });
+            const finalFare = (req.body && req.body.finalFare != null) ? Number(req.body.finalFare) : null;
+            const result = await this.endTripUseCase.execute({ tripId, changedByUserId, finalFare });
             return res.status(200).json({
                 success: true,
                 message: 'سفر با موفقیت تکمیل شد.',

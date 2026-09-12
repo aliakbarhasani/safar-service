@@ -179,7 +179,7 @@ class TripRepository {
      * @param {import('pg').PoolClient} client - transaction client
      */
     async updateTripStatus(
-        { tripId, status, driverId, cancelReason = null, cancelledBy = null },
+        { tripId, status, driverId, cancelReason = null, cancelledBy = null, finalCost = null },
         client,
     ) {
         const query = `
@@ -190,6 +190,8 @@ class TripRepository {
                 driver_id        = COALESCE($4, driver_id),
                 cancel_reason    = COALESCE($5, cancel_reason),
                 cancelled_by     = COALESCE($6, cancelled_by),
+                final_cost       = COALESCE($7, final_cost),
+                finished_at      = CASE WHEN $3 = 'finished' THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
                 updated_at       = NOW()
             WHERE id = $1
             RETURNING ${SELECT_COLUMNS}
@@ -202,6 +204,7 @@ class TripRepository {
             driverId || null,
             cancelReason,
             cancelledBy,
+            finalCost ?? null,
         ]);
         return result.rows[0];
     }

@@ -40,14 +40,20 @@ const config = {
   },
   wallet: {
     currency: process.env.WALLET_CURRENCY || 'IRT',
+    // حساب متعلق به پلتفرم که کمیسیون سفرها به آن واریز میشود (P5-1)
+    platformUserId: process.env.WALLET_PLATFORM_USER_ID || 'system-platform',
   },
   trip: {
     defaultCost: parseInt(process.env.TRIP_DEFAULT_COST, 10) || 50000,
+    // نرخ سرانه هر کیلومتر برای محاسبه ساده کرایه نهایی (`EndTripUseCase`)
+    perKmRate: parseFloat(process.env.TRIP_PER_KM_RATE) || 2000,
     commissionRates: {
       urban_taxi: parseFloat(process.env.COMMISSION_URBAN_TAXI) || 10,
       intercity_taxi: parseFloat(process.env.COMMISSION_INTERCITY_TAXI) || 7,
       freight: parseFloat(process.env.COMMISSION_FREIGHT) || 5,
       delivery: parseFloat(process.env.COMMISSION_DELIVERY) || 12,
+      // کمیسیون عمومی/پیشفرض سیستم (۱۵٪ در صورت عدم ورود صریح)
+      general: parseFloat(process.env.COMMISSION_GENERAL) || 15,
     },
   },
 };
