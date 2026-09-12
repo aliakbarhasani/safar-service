@@ -57,6 +57,14 @@ function registerEventBridge(io, { eventBus = null } = {}) {
           newStatus: 'ACCEPTED',
           driverId,
         });
+        // P4-2: اتصال مسافر و راننده به یک اتاق مشترک سفر
+        // تا بتوانند موقعیت مکانی و وضعیت سفر را به صورت بلادرنگ دریافت کنند
+        try {
+          io.in(passengerId).socketsJoin(`trip:${tripId}`);
+          io.in(driverId).socketsJoin(`trip:${tripId}`);
+        } catch (err) {
+          console.error(`[WS EventBridge] socketsJoin trip:${tripId} failed:`, err.message);
+        }
       }
     },
 
