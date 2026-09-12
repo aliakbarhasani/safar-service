@@ -6,6 +6,11 @@
  */
 
 const driverService = require('../services/driver.service');
+// P3-1: سرویس مکان‌یابی بلادرنگ با Redis (no-op اگر Redis موجود نباشد)
+const { createLocationService } = require('../../08-location-service/services/location.service');
+const { createRedisClient } = require('../../08-location-service/infrastructure/redis/client');
+const config = require('../../14-config-system/server.config');
+const locationService = createLocationService(createRedisClient(config.redis));
 
 async function registerDriver(req, res) {
   try {
@@ -47,6 +52,10 @@ async function updateOperationalStatus(req, res) {
     if (!id || !status) return res.status(400).json({ error: 'driverId and status are required' });
     const result = await driverService.updateOperationalStatus(id, status);
     if (result && result.error) return res.status(400).json({ error: result.error });
+    // P3-1: اگر راننده آفلاین شد، موقعیتش را از Redis حذف کن
+    if (status === 'offline') {
+      locationService.removeDriverLocation(id).catch(() => null);
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -60,9 +69,17 @@ async function updateLocation(req, res) {
     if (!id || latitude == null || longitude == null) {
       return res.status(400).json({ error: 'driverId, latitude and longitude are required' });
     }
-    const result = await driverService.updateLocation(id, latitude, longitude);
+    // P3-1: به‌روزرسانی موقعیت در PostgreSQL (دائمی) و Redis (بلادرنگ) — موازی
+    const [pgResult, redisResult] = await Promise.allSettled([
+      driverService.updateLocation(id, latitude, longitude),
+      locationService.updateDriverLocation(id, longitude, latitude).catch(() => null),
+    ]);
+    if (pgResult.status === 'rejected') {
+      return res.status(400).json({ error: pgResult.reason && pgResult.reason.message });
+    }
+    const result = pgResult.value;
     if (result && result.error) return res.status(400).json({ error: result.error });
-    res.json(result);
+    res.json({ ...result, redis: redisResult.status === 'fulfilled' && redisResult.value ? 'ok' : 'skipped' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
