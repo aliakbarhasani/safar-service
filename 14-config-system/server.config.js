@@ -25,6 +25,12 @@ const config = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW, 10) || 60000,
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX, 10) || 100,
   },
+  redis: {
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: parseInt(process.env.REDIS_DB, 10) || 0,
+  },
   api: {
     prefix: '/api/v1',
   },
@@ -45,6 +51,8 @@ const config = {
   },
   trip: {
     defaultCost: parseInt(process.env.TRIP_DEFAULT_COST, 10) || 50000,
+    // مبلغ ورودی ثابت (base fare) محاسبه قیمت نهایی — P6-1
+    baseFare: parseInt(process.env.TRIP_BASE_FARE, 10) || 15000,
     // نرخ سرانه هر کیلومتر برای محاسبه ساده کرایه نهایی (`EndTripUseCase`)
     perKmRate: parseFloat(process.env.TRIP_PER_KM_RATE) || 2000,
     commissionRates: {

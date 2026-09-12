@@ -146,6 +146,37 @@ const tripRouter = createTripRouter(tripController);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
 router.use('/api/v1/trips', authenticate, tripRouter);
 
+// ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1) =====
+const { createRedisClient } = require('../18-pricing-service/infrastructure/redisClient');
+const DemandSupplyTracker = require('../18-pricing-service/infrastructure/DemandSupplyTracker').DemandSupplyTracker;
+const CalculateFareUseCase = require('../18-pricing-service/application/CalculateFareUseCase').CalculateFareUseCase;
+
+const pricingRedisClient = createRedisClient();
+const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
+const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker });
+
+// عمومی: مسافر پیش از درخواست سفر، قیمت برآوردی و ضریب surge را می‌بیند
+router.get('/api/v1/trip/estimate', async (req, res) => {
+  const oLat = Number(req.query.originLat);
+  const oLng = Number(req.query.originLng);
+  const dLat = Number(req.query.destLat);
+  const dLng = Number(req.query.destLng);
+  try {
+    const result = await calculateFareUseCase.execute({
+      originLat: oLat,
+      originLng: oLng,
+      destLat: dLat,
+      destLng: dLng,
+    });
+    // ثبت تقاضای منطقه مبدأ در پس‌زمینه (fire-and-forget؛ عدم block کردن پاسخ)
+    if (Number.isFinite(oLat) && Number.isFinite(oLng)) {
+      demandSupplyTracker.recordDemand(oLat, oLng).catch(() => {});
+    }
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
+});
 // ===== مسیرهای سلامت =====
 const healthRoute = require('./routes/health.route');
 router.use('/api/v1', healthRoute);
