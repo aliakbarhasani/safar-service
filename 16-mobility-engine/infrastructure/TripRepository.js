@@ -15,6 +15,11 @@
  * them inside the same transaction as the atomic quote consumption.
  */
 
+const { TripNotFoundError, TripAlreadyAcceptedError } = require('../domain/errors/RideErrors');
+// StateConflictError: نام مستعار معنایی برای تعارض وضعیت (409) — همان
+// TripAlreadyAcceptedError است تا قرارداد خواسته‌شده مرحله P2-2 برقرار باشد.
+const StateConflictError = TripAlreadyAcceptedError;
+
 const LEGACY_STATUS_MAP = Object.freeze({
     REQUESTED: 'requested',
     SEARCHING: 'requested',
@@ -202,6 +207,110 @@ class TripRepository {
     }
 
     /**
+     * قفل کردن سفر پس از شروع تراکنش بیرونی (concurrency-safe read).
+     * @param {string} tripId
+     * @param {import('pg').PoolClient} client - تراکنش جاری (BEGIN قبلاً اجرا شده)
+     * @returns {Promise<Object>} ردیف سفر (شکل canonical)
+     * @throws {TripStateNotFoundError} وقتی سفر وجود ندارد
+     */
+    async lockTripForUpdate(tripId, client) {
+        const query = `SELECT id, lifecycle_status AS status, driver_id, passenger_id FROM trips WHERE id = $1 FOR UPDATE`;
+        const result = await client.query(query, [tripId]);
+        if (result.rows.length === 0) {
+            throw new TripNotFoundError(tripId);
+        }
+        return result.rows[0];
+    }
+
+    /**
+     * تغییر وضعیت اتمیک سفر با قفل ردیفی (P2-2).
+     *
+     * از تداخل پذیرش همزمان یک سفر توسط چند راننده جلوگیری می‌کند:
+     *   1. تراکنش را باز می‌کند (BEGIN) — این متد مالک lifecycle تراکنش است،
+     *   2. سفر را با `SELECT ... FOR UPDATE` قفل می‌کند،
+     *   3. اگر وضعیت فعلی برابر `expectedState` نباشد، ROLLBACK کرده و
+     *      خطای `TripAlreadyAcceptedError` (نام مستعار StateConflictError) می‌اندازد،
+     *   4. در صورت تطابق، وضعیت را به `targetState` برده، driver_id را ست می‌کند،
+     *      ردیف timeline را می‌نویسد و COMMIT می‌کند.
+     *
+     * @param {Object} params
+     * @param {string} params.tripId
+     * @param {string} params.expectedState - وضعیت موردانتظار (مثلاً 'SEARCHING')
+     * @param {string} params.targetState - وضعیت هدف (مثلاً 'ACCEPTED')
+     * @param {string|null} [params.driverId] - شناسه راننده پذیرنده
+     * @param {string|null} [params.changedByUserId] - فاعل تغییر (ثبت timeline)
+     * @param {string} [params.changedByRole='driver']
+     * @param {string} [params.reason='trip_state_changed']
+     * @returns {Promise<Object>} ردیف به‌روزشده سفر (شکل canonical)
+     * @throws {TripNotFoundError} وقتی سفر وجود ندارد (404)
+     * @throws {TripAlreadyAcceptedError} وقتی وضعیت فعلی با expectedState فرق دارد (409)
+     */
+    async updateTripStateAtomic({
+        tripId,
+        expectedState,
+        targetState,
+        driverId = null,
+        changedByUserId = null,
+        changedByRole = 'driver',
+        reason = 'trip_state_changed',
+    }) {
+        if (!tripId || !expectedState || !targetState) {
+            const error = new Error('پارامترهای tripId، expectedState و targetState الزامی هستند.');
+            error.code = 'TRIP_ATOMIC_UPDATE_VALIDATION';
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const client = await this.db.connect();
+        try {
+            await client.query('BEGIN');
+
+            // ۱) خواندن با قفل ردیفی — ردیف تا پایان تراکنش قفل می‌ماند
+            const locked = await this.lockTripForUpdate(tripId, client);
+
+            // ۲) تطبیق وضعیت موردانتظار؛ در صورت عدم تطابق ROLLBACK + خطای تعارض
+            if (locked.status !== expectedState) {
+                await client.query('ROLLBACK');
+                throw new TripAlreadyAcceptedError(tripId);
+            }
+
+            // ۳) به‌روزرسانی وضعیت + تنظیم راننده و ثبت timeline
+            const updated = await this.updateTripStatus(
+                { tripId, status: targetState, driverId },
+                client,
+            );
+            await this.logStatusChange(
+                {
+                    tripId,
+                    oldStatus: expectedState,
+                    newStatus: targetState,
+                    changedByUserId: changedByUserId || driverId,
+                    changedByRole,
+                    reason,
+                },
+                client,
+            );
+
+            await client.query('COMMIT');
+            return updated;
+        } catch (error) {
+            // وقتی خطا از عدم تطابق وضعیت باشد، ROLLBACK قبلاً اجرا شده؛
+            // اجرای دوباره آن را نادیده می‌گیریم (تراکنش دیگر فعالی نیست).
+            if (error && error.code === 'TRIP_ALREADY_ACCEPTED') {
+                throw error;
+            }
+            try {
+                await client.query('ROLLBACK');
+            } catch (_) {
+                // نادیده گرفتن — تراکنش ممکن است قبلاً بسته شده باشد
+            }
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
      * Fetches a trip by id along with its exact current lifecycle status.
      * @returns {Promise<Object|null>} trip row (or null when not found)
      */
@@ -213,3 +322,6 @@ class TripRepository {
 }
 
 module.exports = TripRepository;
+module.exports.StateConflictError = StateConflictError;
+module.exports.TripAlreadyAcceptedError = TripAlreadyAcceptedError;
+module.exports.TripNotFoundError = TripNotFoundError;

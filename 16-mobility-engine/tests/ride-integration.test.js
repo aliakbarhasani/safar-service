@@ -320,8 +320,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     });
 
     // Move ride into SEARCHING so it is "findable" (accept requires SEARCHING per state machine).
-    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
-
+    
     const res = await request(app)
       .post(`/api/v1/trips/${ride.rideId}/accept`)
       .send({ driverId: driverIdA });
@@ -362,8 +361,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
       referenceId: `acc2-${Date.now()}`,
     });
 
-    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
-
+    
     // First driver (A) accepts successfully.
     const resA = await request(app)
       .post(`/api/v1/trips/${ride.rideId}/accept`)
@@ -412,8 +410,7 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(ride.status).toBe('REQUESTED');
 
     // State machine requires SEARCHING before accept (the "request a driver" step).
-    await pool.query('UPDATE trips SET lifecycle_status = $1 WHERE id = $2', ['SEARCHING', ride.rideId]);
-
+    
     // 1) accept
     const accept = await request(app)
       .post(`/api/v1/trips/${ride.rideId}/accept`)
@@ -520,6 +517,75 @@ describe('Ride Engine - Integration (create ride with consumed quote)', () => {
     expect(invalidComplete.body.error).toMatch(/وضعیت/);
 
     // cleanup
+    await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
+  });
+
+  // ==================== Race Condition (P2-2 Step 4) ====================
+  // Two drivers attempt to accept the SAME REQUESTED trip at exactly the same time.
+  // Only ONE should win (200 ACCEPTED) and the other must get a 409 conflict -
+  // due to the row-level lock `SELECT ... FOR UPDATE` in updateTripStateAtomic.
+  test('concurrency: two drivers race to accept the same REQUESTED trip -> one wins (200), other gets 409', async () => {
+    if (!dbAvailable) {
+      return console.log('  * skipped (db unavailable)');
+    }
+
+    // Create a fresh quote + REQUESTED trip (no SEARCHING intermediate).
+    var gen = new GenerateQuoteUseCase(pricingRepository);
+    var quote = await gen.execute({
+      serviceType: 'urban_taxi',
+      distanceKm: 2,
+      durationMin: 4,
+      trafficMultiplier: 1.0,
+    });
+    var quoteId = quote.quoteId;
+    createdQuoteIds.push(quoteId);
+
+    var ctor = new CreateTripUseCase({ tripRepository: tripRepository, pricingRepository: pricingRepository });
+    var ride = await ctor.execute({
+      passengerId: passengerId,
+      serviceType: 'urban_taxi',
+      quoteId: quoteId,
+      originLat: 35.71,
+      originLng: 51.41,
+      destLat: 35.70,
+      destLng: 51.40,
+      referenceId: `race-${Date.now()}`,
+    });
+    expect(ride.status).toBe('REQUESTED');
+
+    // Fire BOTH accepts concurrently via Promise.all (true race on same row).
+    var p1 = request(app)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
+      .send({ driverId: driverIdA });
+    var p2 = request(app)
+      .post(`/api/v1/trips/${ride.rideId}/accept`)
+      .send({ driverId: driverIdB });
+
+    var results = await Promise.all([p1, p2]);
+    var resA = results[0];
+    var resB = results[1];
+
+    // Exactly one of them must have succeeded with 200 ACCEPTED.
+    var winner, loser;
+    if (resA.status === 200) { winner = { res: resA, id: driverIdA }; loser = { res: resB, id: driverIdB }; }
+    else { winner = { res: resB, id: driverIdB }; loser = { res: resA, id: driverIdA }; }
+
+    expect(winner.res.status).toBe(200);
+    expect(winner.res.body.success).toBe(true);
+    expect(winner.res.body.data.status).toBe('ACCEPTED');
+    expect(winner.res.body.data.driverId).toBe(winner.id);
+
+    // The other MUST be rejected with 409 (already accepted / state conflict).
+    expect(loser.res.status).toBe(409);
+    expect(loser.res.body.success).toBe(false);
+
+    // DB verification: exactly one driver_id set, status = ACCEPTED.
+    var row = await pool.query('SELECT lifecycle_status, driver_id FROM trips WHERE id = $1', [ride.rideId]);
+    expect(row.rows.length).toBe(1);
+    expect(row.rows[0].lifecycle_status).toBe('ACCEPTED');
+    expect(row.rows[0].driver_id).toBe(winner.id);
+
+    // Cleanup.
     await pool.query('DELETE FROM trips WHERE id = $1', [ride.rideId]);
   });
 });

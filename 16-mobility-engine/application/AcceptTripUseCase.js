@@ -1,15 +1,21 @@
 /**
  * AcceptTripUseCase - Application Layer (Mobility Engine)
  *
- * A driver accepts a trip. Runs inside a single DB transaction with
- * concurrency control (SELECT ... FOR UPDATE) so that only one driver can
- * accept a given trip. The domain Trip state machine enforces the transition;
- * the ACCEPTED domain event is emitted after commit.
+ * A driver accepts a trip. Fully atomic + event-driven (P2-2):
+ *   1. canonical `trip-state-machine` pre-validates SEARCHING -> ACCEPTED
+ *      (fail-fast: misuse is rejected before any DB work),
+ *   2. `TripRepository.updateTripStateAtomic` runs the whole accept inside
+ *      one transaction (BEGIN → SELECT ... FOR UPDATE → conditional UPDATE →
+ *      timeline → COMMIT); a state mismatch ROLLBACKs and throws a
+ *      409 conflict (only one concurrent driver can win),
+ *   3. the TripAccepted event (`DriverAccepted`) is published AFTER the
+ *      atomic commit (never on failure), so Mobility holds no direct
+ *      wallet/notification dependency.
  */
 
-const Trip = require('../domain/models/Trip');
 const TripStatus = require('../domain/enums/TripStatus');
-const { TripNotFoundError, TripAlreadyAcceptedError } = require('../domain/errors/RideErrors');
+const { transitionTo } = require('../domain/trip-state-machine');
+const { TripNotFoundError } = require('../domain/errors/RideErrors');
 const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 class AcceptTripUseCase {
@@ -31,66 +37,41 @@ class AcceptTripUseCase {
             throw error;
         }
 
-        const db = this.tripRepository.db;
-        const client = await db.connect();
-        try {
-            await client.query('BEGIN');
+        // ۱) پیش‌اعتبارسنجی ماشین حالت کانونی (fail-fast، بدون دسترسی به DB)
+        // سفرها در CreateTripUseCase با REQUESTED ساخته می‌شوند؛ ماشین حالت
+        // canonical این انتقال را (REQUESTED -> ACCEPTED) مجاز می‌داند (خط ۲۸ فلن).
+        transitionTo(TripStatus.REQUESTED, TripStatus.ACCEPTED);
 
-            // الف) واکشی سفر با قفل ردیف (همزمانیایمن)
-            const row = await this.tripRepository.getTripByIdForUpdate(tripId, client);
-            if (!row) {
-                throw new TripNotFoundError(tripId);
-            }
+        // ۲) پذیرش اتمیک با قفل ردیفی (مالکیت تراکنش با ریپازیتوری است)
+        const updated = await this.tripRepository.updateTripStateAtomic({
+            tripId,
+            expectedState: TripStatus.REQUESTED,
+            targetState: TripStatus.ACCEPTED,
+            driverId,
+            changedByUserId: changedByUserId || driverId,
+            changedByRole: 'driver',
+            reason: 'driver_accepted',
+        });
 
-            // ب) اعتبارسنجی وضعیت — فقط SEARCHING قابل پذیرش است
-            if (row.status !== TripStatus.SEARCHING) {
-                throw new TripAlreadyAcceptedError(tripId); // 409
-            }
-
-            // ج) ساخت انتیتی و پذیرش (فراخوانی State Machine)
-            const trip = new Trip({ id: row.id, status: row.status });
-            trip.accept(driverId); // SEARCHING -> ACCEPTED (throws if invalid)
-
-            // د) بهروزرسانی رکورد و ثبت timeline
-            const updated = await this.tripRepository.updateTripStatus(
-                { tripId, status: trip.status, driverId },
-                client,
-            );
-            await this.tripRepository.logStatusChange(
-                {
-                    tripId,
-                    oldStatus: row.status,
-                    newStatus: trip.status,
-                    changedByUserId,
-                    changedByRole: 'driver',
-                    reason: 'driver_accepted',
-                },
-                client,
-            );
-
-            await client.query('COMMIT');
-
-            // هـ) انتشار رویداد دامنه پس از Commit
-            this.emitEvent(TripDomainEvents.DriverAccepted, {
-                tripId,
-                driverId,
-                passengerId: updated.passenger_id,
-            });
-
-            return {
-                tripId: updated.id,
-                status: updated.status,
-                driverId: updated.driver_id,
-                passengerId: updated.passenger_id,
-                origin: { lat: updated.origin_lat, lng: updated.origin_lng },
-                destination: { lat: updated.dest_lat, lng: updated.dest_lng },
-            };
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
+        if (!updated) {
+            throw new TripNotFoundError(tripId);
         }
+
+        // ۳) انتشار رویداد دامنه پس از Commit موفق (سرویس‌های دیگر مطلع می‌شوند)
+        this.emitEvent(TripDomainEvents.DriverAccepted, {
+            tripId,
+            driverId,
+            passengerId: updated.passenger_id,
+        });
+
+        return {
+            tripId: updated.id,
+            status: updated.status,
+            driverId: updated.driver_id,
+            passengerId: updated.passenger_id,
+            origin: { lat: updated.origin_lat, lng: updated.origin_lng },
+            destination: { lat: updated.dest_lat, lng: updated.dest_lng },
+        };
     }
 }
 
