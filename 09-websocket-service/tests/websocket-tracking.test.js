@@ -21,27 +21,56 @@ const mockLocationService = {
 
 // ---- Mock Socket.io Server ----
 function createMockIoServer() {
-  const sockets = new Map();
-  const rooms = new Map();
-  const handlers = {};
+  const sockets = new Map(); // socketId -> socket
+  const userIndex = new Map(); // userId -> socketId
+  const roomMembers = new Map(); // roomId -> Set<socketId>
+  const connectionHandlers = [];
+
+  function joinRoom(socketId, roomId) {
+    if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
+    roomMembers.get(roomId).add(socketId);
+    const sock = sockets.get(socketId);
+    // The mock socket keeps its joined rooms in `sock.rooms` (a Set).
+    if (sock) sock.rooms.add(roomId);
+    // Also track by userId for in(userId).socketsJoin()
+    if (sock.user && (sock.user.userId || sock.user.id)) {
+      userIndex.set(sock.user.userId || sock.user.id, socketId);
+    }
+  }
+
+  function emitToRoom(roomId, event, data) {
+    const members = roomMembers.get(roomId);
+    if (!members) return;
+    for (const socketId of members) {
+      const sock = sockets.get(socketId);
+      if (sock) sock._emitClient(event, data);
+    }
+  }
 
   const io = {
     sockets: { sockets },
     on(event, handler) {
-      handlers[event] = handler;
+      connectionHandlers.push({ event, handler });
+      // Dispatch the new connection handler to already-registered sockets so
+      // their socket.on(...) listeners (e.g. DRIVER_LOCATION) get attached.
+      if (event === 'connection') {
+        for (const sock of sockets.values()) handler(sock);
+      }
     },
-    // Simulate a new socket connection (for testing)
     _simulateConnection(sock) {
-      sockets.set(sock.id, sock);
-      if (handlers.connection) handlers.connection(sock);
+      // eslint-disable-next-line no-undefined
+      if (connectionHandlers.length && connectionHandlers[0].event === 'connection') {
+        connectionHandlers[0].handler(sock);
+      }
     },
-    in(roomId) {
+    in(target) {
       return {
-        socketsJoin(rid) {
-          if (!rooms.has(rid)) rooms.set(rid, new Set());
-          const room = rooms.get(rid);
-          for (const [id] of sockets) {
-            room.add(id);
+        socketsJoin(roomId) {
+          // target can be a socketId or a userId
+          if (sockets.has(target)) {
+            joinRoom(target, roomId);
+          } else if (userIndex.has(target)) {
+            joinRoom(userIndex.get(target), roomId);
           }
         },
       };
@@ -49,19 +78,24 @@ function createMockIoServer() {
     to(roomId) {
       return {
         emit(event, data) {
-          const room = rooms.get(roomId);
-          if (room) {
-            for (const id of room) {
-              const sock = sockets.get(id);
-              if (sock) sock._emitClient(event, data);
-            }
-          }
+          emitToRoom(roomId, event, data);
         },
       };
     },
-    _registerSocket(sock) { sockets.set(sock.id, sock); },
+    emitToRoom,
+    _registerSocket(sock) {
+      sockets.set(sock.id, sock);
+      sock._ioServer = io;
+      if (sock.user && (sock.user.userId || sock.user.id)) {
+        userIndex.set(sock.user.userId || sock.user.id, sock.id);
+      }
+      for (const ch of connectionHandlers) {
+        ch.handler(sock);
+      }
+    },
   };
-  return io;
+
+  return { io, joinRoom, sockets, userIndex, roomMembers, emitToRoom };
 }
 
 // ---- Mock Socket ----
@@ -74,7 +108,18 @@ function createMockSocket(id, user) {
     rooms: new Set(),
     handshake: { auth: { token: null } },
     join(roomId) { this.rooms.add(roomId); },
-    to() { return { emit: () => {} }; },
+    leave(roomId) { this.rooms.delete(roomId); },
+    to: (roomId) => {
+      // Delegate to ioServer if registered, else no-op
+      if (socket._ioServer) {
+        return {
+          emit(event, data) {
+            socket._ioServer.emitToRoom(roomId, event, data);
+          },
+        };
+      }
+      return { emit: () => {} };
+    },
     on: serverEmitter.on.bind(serverEmitter),
     once: serverEmitter.once.bind(serverEmitter),
     emit: (event, data) => serverEmitter.emit(event, data),
@@ -96,11 +141,14 @@ let io, driverSocket, passengerSocket;
 
 beforeAll(() => {
   jest.resetModules();
-  io = createMockIoServer();
+  const mock = createMockIoServer();
+  io = mock.io; // the actual mock server (with closures)
 
   driverSocket = createMockSocket('sock-driver', { userId: DRIVER_ID, role: 'driver' });
   passengerSocket = createMockSocket('sock-passenger', { userId: PASSENGER_ID, role: 'passenger' });
 
+  // Pre-register sockets so userIndex maps userId -> socketId BEFORE
+  // connection.service / event-bridge.service attach their listeners.
   io._registerSocket(driverSocket);
   io._registerSocket(passengerSocket);
 
@@ -170,7 +218,7 @@ describe('P4-2: Real-time trip tracking', () => {
   });
 
   test('DriverLocationUpdated handler calls locationService.updateDriverLocation', async () => {
-    const { DriverLocationUpdatedHandler } = require('../../../08-location-service/handlers/DriverLocationUpdated.handler');
+    const { DriverLocationUpdatedHandler } = require('../../08-location-service/handlers/DriverLocationUpdated.handler');
     const handler = new DriverLocationUpdatedHandler({ eventBus: mockEventBus, locationService: mockLocationService });
     await handler.handle({ driverId: DRIVER_ID, latitude: 35.9, longitude: 51.6 });
     expect(mockLocationService.updateDriverLocation).toHaveBeenCalledWith(DRIVER_ID, 51.6, 35.9);
