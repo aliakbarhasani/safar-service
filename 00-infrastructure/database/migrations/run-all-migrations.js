@@ -36,6 +36,7 @@ const MIGRATION_ORDER = [
   '019_unify_roles_and_services.sql',
   '020_merge_ride_into_trip.sql',
   '022_create_driver_tables.sql',
+  '023_create_driver_location_history.sql',
 ];
 
 /**
