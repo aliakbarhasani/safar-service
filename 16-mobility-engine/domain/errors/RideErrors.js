@@ -39,6 +39,17 @@ class RideAlreadyAcceptedError extends Error {
     }
 }
 
+class UnauthorizedDispatchError extends Error {
+    constructor(tripId, driverId) {
+        super(`راننده ${driverId} مجاز به پذیرش سفر ${tripId} نیست (تخصیص معتبر یافت نشد یا منقضی شده).`);
+        this.name = 'UnauthorizedDispatchError';
+        this.tripId = tripId;
+        this.driverId = driverId;
+        this.code = 'UNAUTHORIZED_DISPATCH';
+        this.statusCode = 403;
+    }
+}
+
 class InvalidRideStateError extends Error {
     constructor(status, expectedStatus) {
         super(`وضعیت فعلی سفر (${status}) اجازه‌ی این عملیات را نمی‌دهد؛ وضعیت موردنیاز ${expectedStatus} است.`);
@@ -58,4 +69,5 @@ module.exports = {
     // Canonical mobility-engine aliases (phase 2 consolidation)
     TripNotFoundError: RideNotFoundError,
     TripAlreadyAcceptedError: RideAlreadyAcceptedError,
+    UnauthorizedDispatchError,
 };

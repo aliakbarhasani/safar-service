@@ -30,6 +30,7 @@ class TripDispatchService {
     driverService,
     redisClient,
     eventBus = null,
+    dispatchTimeoutQueue = null,
     ttlSeconds = DISPATCH_TTL_SECONDS,
     radiusKm = DISPATCH_RADIUS_KM,
   } = {}) {
@@ -41,6 +42,7 @@ class TripDispatchService {
     this.driverService = driverService;
     this.redis = redisClient;
     this.eventBus = eventBus;
+    this.dispatchTimeoutQueue = dispatchTimeoutQueue;
     this.ttlSeconds = ttlSeconds;
     this.radiusKm = radiusKm;
   }
@@ -85,6 +87,16 @@ class TripDispatchService {
     // ۳) ذخیره کاندیدا در Redis با TTL (جلوگیری از ارسال همزمان)
     const dispatchKey = this._buildDispatchKey(tripId);
     await this.redis.set(dispatchKey, selectedDriver.driverId, 'EX', this.ttlSeconds);
+
+    // ۳.۵) زمان‌بندی تایم‌اوت در صف BullMQ (P3-4)
+    if (this.dispatchTimeoutQueue) {
+      try {
+        await this.dispatchTimeoutQueue.scheduleTimeout(tripId, this.ttlSeconds * 1000);
+      } catch (err) {
+        // خطا در صف تاخیری نباید عملیات اصلی را مختل کند
+        console.warn(`[TripDispatchService] failed to schedule timeout for trip ${tripId}:`, err.message);
+      }
+    }
 
     // ۴) انتشار رویداد
     this._publishEvent('TripProposedToDriver', {
