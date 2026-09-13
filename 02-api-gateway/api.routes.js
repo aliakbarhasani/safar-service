@@ -155,7 +155,31 @@ const tripRouter = createTripRouter(tripController);
 router.use('/api/v1/trips', authenticate, tripRouter);
 
 // ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1/P6-2) =====
-const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore });
+// (P10-1) DynamicConfigStore برای خواندن تنظیمات پویا از Redis به جای config استاتیک
+const { DynamicConfigStore } = require('../14-config-system/infrastructure/DynamicConfigStore');
+const dynamicConfigStore = new DynamicConfigStore({
+  redisClient: pricingRedisClient,
+  defaults: {
+    'trip.baseFare': parseFloat((config.trip || {}).baseFare) || 15000,
+    'trip.perKmRate': parseFloat((config.trip || {}).perKmRate) || 2000,
+    'trip.maxSurge': parseFloat((config.trip || {}).maxSurge) || 2.0,
+  },
+});
+const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore, dynamicConfigStore });
+
+// (P10-1) مسیرهای مدیریت تنظیمات پویا (22-admin-service)
+const { createConfigRoutes } = require('../22-admin-service/routes/config.routes');
+const { ConfigController } = require('../22-admin-service/controllers/ConfigController');
+const configController = new ConfigController({
+  configStore: dynamicConfigStore,
+  editableKeys: ['trip.baseFare', 'trip.perKmRate', 'trip.maxSurge', 'wallet.currency'],
+});
+const adminConfigRoutes = createConfigRoutes({
+  configController,
+  authenticate,
+  authorize,
+});
+router.use('/api/v1/admin/configs', adminConfigRoutes);
 
 // عمومی: مسافر پیش از درخواست سفر، قیمت برآوردی و ضریب surge را می‌بیند
 router.get('/api/v1/trip/estimate', async (req, res) => {

@@ -21,6 +21,13 @@ const MAX_SURGE = 2.0;
 const SURGE_FLOOR = 1.1;
 const QUOTE_TTL_SECONDS = 300; // 5 دقیقه (P6-2)
 
+// (P10-1) کلیدهای تنظیمات پویا — به جای خواندن مستقیم از config
+const CONFIG_KEYS = {
+  perKmRate: 'trip.perKmRate',
+  baseFare: 'trip.baseFare',
+  maxSurge: 'trip.maxSurge',
+};
+
 /** Haversine distance in kilometres between two lat/lng points. */
 function haversineKm(lat1, lng1, lat2, lng2) {
   if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return 0;
@@ -56,13 +63,16 @@ class CalculateFareUseCase {
    * @param {import('../infrastructure/DemandSupplyTracker').DemandSupplyTracker} deps.demandSupplyTracker
    * @param {import('../infrastructure/FareQuoteStore').FareQuoteStore} [deps.fareQuoteStore]
    *        (P6-2) وقتی تزریق شود، Quote ضد-دستکاری با quoteId ذخیره میشود.
+   * @param {DynamicConfigStore} [deps.dynamicConfigStore]
+   *        (P10-1) خواندن تنظیمات پویا از Redis به جای config استاتیک
    */
-  constructor({ demandSupplyTracker, fareQuoteStore = null }) {
+  constructor({ demandSupplyTracker, fareQuoteStore = null, dynamicConfigStore = null }) {
     if (!demandSupplyTracker) {
       throw new Error('CalculateFareUseCase: demandSupplyTracker is required');
     }
     this.tracker = demandSupplyTracker;
     this.fareQuoteStore = fareQuoteStore;
+    this.configStore = dynamicConfigStore;
   }
 
   /**
@@ -102,8 +112,16 @@ class CalculateFareUseCase {
     }
 
     const distance = round2(haversineKm(oLat, oLng, dLat, dLng));
-    const rate = perKmRate != null ? Number(perKmRate) : parseFloat((config.trip || {}).perKmRate) || 2000;
-    const base = baseFare != null ? Number(baseFare) : parseFloat((config.trip || {}).baseFare) || 0;
+
+    // (P10-1) خواندن تنظیمات پویا از DynamicConfigStore (با fallback به config استاتیک)
+    let rate, base;
+    if (this.configStore) {
+      rate = perKmRate != null ? Number(perKmRate) : (await this.configStore.getConfig(CONFIG_KEYS.perKmRate, parseFloat((config.trip || {}).perKmRate) || 2000));
+      base = baseFare != null ? Number(baseFare) : (await this.configStore.getConfig(CONFIG_KEYS.baseFare, parseFloat((config.trip || {}).baseFare) || 15000));
+    } else {
+      rate = perKmRate != null ? Number(perKmRate) : parseFloat((config.trip || {}).perKmRate) || 2000;
+      base = baseFare != null ? Number(baseFare) : parseFloat((config.trip || {}).baseFare) || 0;
+    }
 
     const geohash = ngeohash.encode(oLat, oLng, GEOHASH_PRECISION);
     const { ratio } = await this.tracker.getSupplyAndDemand(geohash, { supply });
