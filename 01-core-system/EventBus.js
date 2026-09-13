@@ -16,6 +16,7 @@
  */
 
 const EventEmitter = require('events');
+const { requestContext } = require('../00-infrastructure/logger/context');
 
 class EventBus extends EventEmitter {
   constructor() {
@@ -29,7 +30,14 @@ class EventBus extends EventEmitter {
    * @param {*} data - داده‌های مرتبط با رویداد
    */
   publish(event, data) {
-    this.emit(event, { event, data, timestamp: new Date().toISOString() });
+    const store = requestContext.getStore();
+    const correlationId = store?.correlationId || null;
+    this.emit(event, {
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+      metadata: { correlationId },
+    });
   }
 
   /**
