@@ -1,0 +1,16 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "description": "Omni-channel notification service with Strategy pattern (Push + SMS)",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest --runInBand --testTimeout=30000",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1"
+  }
+}
