@@ -65,14 +65,18 @@ class CalculateFareUseCase {
    *        (P6-2) وقتی تزریق شود، Quote ضد-دستکاری با quoteId ذخیره میشود.
    * @param {DynamicConfigStore} [deps.dynamicConfigStore]
    *        (P10-1) خواندن تنظیمات پویا از Redis به جای config استاتیک
+   * @param {Object} [deps.promoService]
+   *        (P10-2) سرویس اعتبارسنجی کد تخفیف — validate({ code, userId, fare })
+   *        را با خروجی { valid, discountAmount, finalFare } پیاده‌سازی می‌کند.
    */
-  constructor({ demandSupplyTracker, fareQuoteStore = null, dynamicConfigStore = null }) {
+  constructor({ demandSupplyTracker, fareQuoteStore = null, dynamicConfigStore = null, promoService = null }) {
     if (!demandSupplyTracker) {
       throw new Error('CalculateFareUseCase: demandSupplyTracker is required');
     }
     this.tracker = demandSupplyTracker;
     this.fareQuoteStore = fareQuoteStore;
     this.configStore = dynamicConfigStore;
+    this.promoService = promoService;
   }
 
   /**
@@ -84,9 +88,10 @@ class CalculateFareUseCase {
    * @param {number} [input.perKmRate] - override config per-km rate
    * @param {number} [input.baseFare] - override config base fare
    * @param {number} [input.supply] - optional explicit supply (tests)
-   * @returns {Promise<{ estimatedFare:number, distance:number, surgeMultiplier:number, geohash:string }>}
+   * @param {string} [input.promoCode] - optional promo code for discount (P10-2)
+   * @returns {Promise<{ estimatedFare:number, distance:number, surgeMultiplier:number, geohash:string, discountAmount?:number, finalFare?:number, promoCode?:string }>}
    */
-  async execute({ originLat, originLng, destLat, destLng, perKmRate = null, baseFare = null, supply = null }) {
+  async execute({ originLat, originLng, destLat, destLng, perKmRate = null, baseFare = null, supply = null, promoCode = null }) {
     const oLat = Number(originLat);
     const oLng = Number(originLng);
     const dLat = Number(destLat);
@@ -131,6 +136,24 @@ class CalculateFareUseCase {
     const estimatedFare = Math.round(basePrice * surgeMultiplier);
 
     const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio };
+
+    // (P10-2) Promo code validation — if promoCode provided and promoService injected
+    if (promoCode && this.promoService) {
+      try {
+        const promoResult = await this.promoService.validate({
+          code: promoCode,
+          userId: null, // userId not available at estimate time; validated at trip creation
+          fare: estimatedFare,
+        });
+        if (promoResult && promoResult.valid) {
+          result.discountAmount = promoResult.discountAmount;
+          result.finalFare = estimatedFare - promoResult.discountAmount;
+          result.promoCode = promoCode;
+        }
+      } catch (_) {
+        // Promo validation failure should not break fare estimation
+      }
+    }
 
     // (P6-2) الگوی Fare Quote: ذخیره Quote ضد-دستکاری در Redis با TTL 5 دقیقه.
     // Mobility در ساخت سفر فقط quoteId را میپذیرد و قیمت را از همین Quote میخواند.

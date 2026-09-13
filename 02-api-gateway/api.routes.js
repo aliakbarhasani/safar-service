@@ -165,7 +165,42 @@ const dynamicConfigStore = new DynamicConfigStore({
     'trip.maxSurge': parseFloat((config.trip || {}).maxSurge) || 2.0,
   },
 });
-const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore, dynamicConfigStore });
+
+// (P10-2) سرویس تخفیف — ValidatePromoUseCase با مدلهای Promo و قفل توزیع‌شده Redeis
+let validatePromoUseCase = null;
+try {
+  const { Pool } = require('pg');
+  const promoPool = new Pool({
+    host: config.pg.host,
+    port: config.pg.port,
+    database: config.pg.database,
+    user: config.pg.user,
+    password: config.pg.password,
+    max: 5,
+    connectionTimeoutMillis: 2000,
+  });
+  const { PromoCode } = require('../23-promo-service/models/PromoCode');
+  const { PromoUsage } = require('../23-promo-service/models/PromoUsage');
+  const { ValidatePromoUseCase } = require('../23-promo-service/application/ValidatePromoUseCase');
+  const { TripCompletedHandler } = require('../23-promo-service/handlers/TripCompleted.handler');
+  validatePromoUseCase = new ValidatePromoUseCase({
+    promoCodeModel: new PromoCode(promoPool),
+    promoUsageModel: new PromoUsage(promoPool),
+    redisClient: pricingRedisClient,
+  });
+  // ثبت نهایی مصرف کد تخفیف در پایان سفر
+  const tripCompletedHandler = new TripCompletedHandler({
+    promoCodeModel: new PromoCode(promoPool),
+    promoUsageModel: new PromoUsage(promoPool),
+    pool: promoPool,
+    eventBus: mobilityEventBus,
+  });
+  tripCompletedHandler.subscribe();
+} catch (err) {
+  // اگر پایگاه داده/وابستگی در دسترس نبود، تخفیف فعال نمیشود ولی سرویس قیمت سالم میماند.
+  console.warn('[gateway] Promo service unavailable:', err.message);
+}
+const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore, dynamicConfigStore, promoService: validatePromoUseCase });
 
 // (P10-1) مسیرهای مدیریت تنظیمات پویا (22-admin-service)
 const { createConfigRoutes } = require('../22-admin-service/routes/config.routes');
@@ -187,12 +222,14 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
   const oLng = Number(req.query.originLng);
   const dLat = Number(req.query.destLat);
   const dLng = Number(req.query.destLng);
+  const promoCode = req.query.promoCode ? String(req.query.promoCode) : null;
   try {
     const result = await calculateFareUseCase.execute({
       originLat: oLat,
       originLng: oLng,
       destLat: dLat,
       destLng: dLng,
+      promoCode,
     });
     // ثبت تقاضای منطقه مبدأ در پس‌زمینه (fire-and-forget؛ عدم block کردن پاسخ)
     if (Number.isFinite(oLat) && Number.isFinite(oLng)) {
