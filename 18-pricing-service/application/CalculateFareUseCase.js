@@ -13,11 +13,13 @@
  */
 
 const ngeohash = require('ngeohash');
+const crypto = require('crypto');
 const config = require('../../14-config-system/server.config');
 
 const GEOHASH_PRECISION = 5;
 const MAX_SURGE = 2.0;
 const SURGE_FLOOR = 1.1;
+const QUOTE_TTL_SECONDS = 300; // 5 دقیقه (P6-2)
 
 /** Haversine distance in kilometres between two lat/lng points. */
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -52,12 +54,15 @@ class CalculateFareUseCase {
   /**
    * @param {Object} deps
    * @param {import('../infrastructure/DemandSupplyTracker').DemandSupplyTracker} deps.demandSupplyTracker
+   * @param {import('../infrastructure/FareQuoteStore').FareQuoteStore} [deps.fareQuoteStore]
+   *        (P6-2) وقتی تزریق شود، Quote ضد-دستکاری با quoteId ذخیره میشود.
    */
-  constructor({ demandSupplyTracker }) {
+  constructor({ demandSupplyTracker, fareQuoteStore = null }) {
     if (!demandSupplyTracker) {
       throw new Error('CalculateFareUseCase: demandSupplyTracker is required');
     }
     this.tracker = demandSupplyTracker;
+    this.fareQuoteStore = fareQuoteStore;
   }
 
   /**
@@ -107,7 +112,37 @@ class CalculateFareUseCase {
     const basePrice = distance * rate + base;
     const estimatedFare = Math.round(basePrice * surgeMultiplier);
 
-    return { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio };
+    const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio };
+
+    // (P6-2) الگوی Fare Quote: ذخیره Quote ضد-دستکاری در Redis با TTL 5 دقیقه.
+    // Mobility در ساخت سفر فقط quoteId را میپذیرد و قیمت را از همین Quote میخواند.
+    if (this.fareQuoteStore) {
+      const quoteId = crypto.randomUUID();
+      const createdAt = new Date();
+      const expiresAt = new Date(createdAt.getTime() + this.fareQuoteStore.ttlSeconds * 1000);
+      const quote = {
+        quoteId,
+        estimatedFare,
+        distance,
+        surgeMultiplier,
+        geohash,
+        originLat: oLat,
+        originLng: oLng,
+        destLat: dLat,
+        destLng: dLng,
+        createdAt: createdAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      };
+      try {
+        await this.fareQuoteStore.save(quote);
+        result.quoteId = quoteId;
+        result.expiresAt = quote.expiresAt;
+      } catch (_) {
+        // خطای Redis نباید تخمین قیمت را بشکند؛ quoteId بدون ذخیره برنمیگردد.
+      }
+    }
+
+    return result;
   }
 }
 

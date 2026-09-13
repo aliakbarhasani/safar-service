@@ -70,7 +70,56 @@ class DemandSupplyTracker {
     if (demand === 1) {
       await this.redis.expire(key, this.ttlSeconds);
     }
+    // (P6-2) عضویت منطقه در SET مناطق فعال برای Heatmap سریع (بدون SCAN).
+    try {
+      if (typeof this.redis.sadd === 'function') {
+        await this.redis.sadd('active_geohashes', geohash);
+      }
+    } catch (_) { /* ignore */ }
     return { geohash, demand };
+  }
+
+  /**
+   * (P6-2) Heatmap: مناطق فعال با surge > 1.0.
+   * برای پرهیز از هزینهی KEYS، از SCAN با الگو استفاده میشود (non-blocking).
+   * هر زمان recordDemand فراخوانی شود، نام geohash در SET «active_geohashes»
+   * نیز ذخیره میشود تا جستجوی O(1) در آینده ممکن باشد.
+   * @returns {Promise<Array<{ geohash: string, demand: number, supply: number, surge: number }>>}
+   */
+  async getActiveSurgeZones() {
+    const zones = [];
+    const { computeSurge } = require('../application/CalculateFareUseCase');
+
+    // ترجیح: SET اعضای فعال (سریع)؛ fallback: SCAN با الگو.
+    let geohashes = [];
+    try {
+      if (typeof this.redis.smembers === 'function') {
+        geohashes = await this.redis.smembers('active_geohashes');
+      }
+    } catch (_) {
+      geohashes = [];
+    }
+    if (!geohashes || !geohashes.length) {
+      if (typeof this.redis.scan !== 'function') return zones;
+      let cursor = '0';
+      do {
+        const [next, keys] = await this.redis.scan(cursor, 'MATCH', 'demand:*:15min', 'COUNT', 100);
+        cursor = next;
+        for (const key of keys) {
+          // demand:<geohash>:15min -> geohash
+          geohashes.push(key.split(':')[1]);
+        }
+      } while (cursor !== '0');
+    }
+
+    for (const geohash of geohashes) {
+      const { demand, supply, ratio } = await this.getSupplyAndDemand(geohash);
+      const surge = computeSurge(ratio);
+      if (surge > 1.0) {
+        zones.push({ geohash, demand, supply, surge });
+      }
+    }
+    return zones;
   }
 
   /** Register the free-driver count for a region (sets a TTL too). */

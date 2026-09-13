@@ -60,6 +60,31 @@ class FareQuoteStore {
     }
   }
 
+  /**
+   * P6-2 contract alias: `saveQuote(quoteId, data, ttl = 300)`.
+   * Persists the quote payload under `fare_quote:{quoteId}` with TTL seconds.
+   */
+  async saveQuote(quoteId, data, ttl = this.ttlSeconds) {
+    if (!quoteId) throw new Error('FareQuoteStore.saveQuote: quoteId is required');
+    const effectiveTtl = Number(ttl) > 0 ? Number(ttl) : this.ttlSeconds;
+    const quote = { quoteId, ...data };
+    if (effectiveTtl === this.ttlSeconds) {
+      return this.save(quote);
+    }
+    const payload = JSON.stringify(quote);
+    if (typeof this.redis.setex === 'function') {
+      await this.redis.setex(this._key(quoteId), effectiveTtl, payload);
+    } else {
+      await this.redis.set(this._key(quoteId), payload, 'EX', effectiveTtl);
+    }
+    return quote;
+  }
+
+  /** P6-2 contract alias: `getQuote(quoteId)` — same as get(). */
+  async getQuote(quoteId) {
+    return this.get(quoteId);
+  }
+
   /** Consume (read + delete) — optional one-time-use semantics. */
   async consume(quoteId) {
     const quote = await this.get(quoteId);

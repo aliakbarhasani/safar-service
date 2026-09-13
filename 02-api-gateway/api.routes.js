@@ -123,12 +123,20 @@ const createTripRouter = require('../16-mobility-engine/presentation/TripRouter'
 
 const tripPool = getPool();
 const tripRepository = new TripRepository(tripPool);
+// ===== (P6-2) Fare Quote Store ضد-دستکاری (18-pricing-service) =====
+const { createRedisClient } = require('../18-pricing-service/infrastructure/redisClient');
+const DemandSupplyTracker = require('../18-pricing-service/infrastructure/DemandSupplyTracker').DemandSupplyTracker;
+const CalculateFareUseCase = require('../18-pricing-service/application/CalculateFareUseCase').CalculateFareUseCase;
+const { FareQuoteStore } = require('../18-pricing-service/infrastructure/FareQuoteStore');
 // P2-1 (Event-Driven): انتشار رویدادهای دامنه سفر روی EventBus مرکزی
 // (بدون وابستگی مستقیم Mobility به Wallet). امضای Envelope مرکزی:
 // { event, data, timestamp } — بنابراین adapter باید (event, data) را بگیرد.
 const mobilityEventBus = require('../16-mobility-engine/infrastructure/events/event-bus');
 const emitTripEvent = (event, data) => mobilityEventBus.publish(event, data);
-const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent });
+const pricingRedisClient = createRedisClient();
+const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
+const fareQuoteStore = new FareQuoteStore(pricingRedisClient);
+const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent, fareQuoteStore });
 const acceptTripUseCase = new AcceptTripUseCase({ tripRepository, emitEvent: emitTripEvent });
 const arriveAtPickupUseCase = new ArriveAtPickupUseCase({ tripRepository, emitEvent: emitTripEvent });
 const startTripUseCase = new StartTripUseCase({ tripRepository, emitEvent: emitTripEvent });
@@ -146,14 +154,8 @@ const tripRouter = createTripRouter(tripController);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
 router.use('/api/v1/trips', authenticate, tripRouter);
 
-// ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1) =====
-const { createRedisClient } = require('../18-pricing-service/infrastructure/redisClient');
-const DemandSupplyTracker = require('../18-pricing-service/infrastructure/DemandSupplyTracker').DemandSupplyTracker;
-const CalculateFareUseCase = require('../18-pricing-service/application/CalculateFareUseCase').CalculateFareUseCase;
-
-const pricingRedisClient = createRedisClient();
-const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
-const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker });
+// ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1/P6-2) =====
+const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore });
 
 // عمومی: مسافر پیش از درخواست سفر، قیمت برآوردی و ضریب surge را می‌بیند
 router.get('/api/v1/trip/estimate', async (req, res) => {
@@ -175,6 +177,17 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
+});
+
+// ===== نقشه حرارتی مناطق پرتقاضا (P6-2) — مخصوص رانندگان =====
+// مناطقی که surgeMultiplier > 1.0 دارند به همراه ضریب هر منطقه.
+router.get('/api/v1/pricing/heatmap', authenticate, async (req, res) => {
+  try {
+    const zones = await demandSupplyTracker.getActiveSurgeZones();
+    return res.status(200).json({ success: true, data: zones });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 // ===== مسیرهای سلامت =====
