@@ -38,6 +38,7 @@ const MIGRATION_ORDER = [
   '022_create_driver_tables.sql',
   '023_create_driver_location_history.sql',
   '024_create_feedback_schema.sql',
+  '025_create_audit_logs.sql',
 ];
 
 /**
