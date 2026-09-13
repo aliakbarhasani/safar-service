@@ -16,6 +16,9 @@ const router = express.Router();
 // authorize:   بررسی مجوز granular (مثل 'users.read') یا نقش (مثل 'admin')
 const { authenticate, authorize } = require('../17-rbac-service/presentation/middleware/rbac.middleware');
 const { RbacModule } = require('../17-rbac-service/index');
+// (P11-1) احراز هویت Stateless با توکن IAM — وریفای RS256 با public.pem
+const { authenticate: iamAuthenticate } = require('../02-api-gateway/middlewares/auth.middleware');
+const { createAuthRoutes: createIamAuthRoutes } = require('../24-iam-service/routes/auth.routes');
 
 // Seed مجوزهای پایه (idempotent — در صورت وجود، خطا نمی‌دهد)
 const rbacModule = new RbacModule({ pool: getPool() });
@@ -44,6 +47,15 @@ router.use('/api/auth', authRoutes);
 
 const registrationRoutes = require('../13-auth-management/presentation/routes/RegistrationRouter');
 router.use('/api/auth', registrationRoutes);
+
+// ===== IAM: صدور و چرخش توکن (24-iam-service, P11-1) =====
+// ساخت AuthService (کلید خصوصی RSA) — redis در time of use دوباره تنظیم می‌شود
+const { AuthService } = require('../24-iam-service/application/AuthService');
+const iamAuthRoutes = createIamAuthRoutes({
+  authService: new AuthService({ issuer: 'safar-iam' }),
+  logger: console,
+});
+router.use('/api/v1/auth', iamAuthRoutes);
 
 // ===== مسیرهای کیف پول (05-wallet-service) =====
 const walletRoutes = require('../05-wallet-service/routes/wallet.route');
@@ -152,7 +164,8 @@ const tripController = new TripController({
 });
 const tripRouter = createTripRouter(tripController);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
-router.use('/api/v1/trips', authenticate, tripRouter);
+// (P11-1) لایه‌ی احراز هویت Stateless (IAM) پیش از RBAC — توکن Bearer با public.pem وریفای می‌شود
+router.use('/api/v1/trips', iamAuthenticate, authenticate, tripRouter);
 
 // ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1/P6-2) =====
 // (P10-1) DynamicConfigStore برای خواندن تنظیمات پویا از Redis به جای config استاتیک
