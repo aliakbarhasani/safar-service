@@ -1,0 +1,17 @@
+{
+  "name": "dispatch-service",
+  "version": "1.0.0",
+  "description": "Smart trip dispatch engine with BullMQ and Redis",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}
