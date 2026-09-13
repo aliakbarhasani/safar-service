@@ -82,7 +82,15 @@ function registerEventBridge(io, { eventBus = null } = {}) {
 
     TripCancelled: (data) => {
       const { tripId } = data || {};
-      if (tripId) safeEmit(io, `trip:${tripId}`, 'TRIP_CANCELLED', data);
+      if (!tripId) return;
+      // P7-1: طرف مقابل (راننده/مسافر) بلافاصله روی نقشه لغو سفر را می‌بیند
+      safeEmit(io, `trip:${tripId}`, 'TRIP_CANCELLED', data);
+      // P7-1: خروج تمام سوکت‌ها از روم سفر (چرخه حیات روم پایان یافت)
+      try {
+        io.in(`trip:${tripId}`).socketsLeave(`trip:${tripId}`);
+      } catch (err) {
+        console.error(`[WS EventBridge] socketsLeave trip:${tripId} failed:`, err.message);
+      }
     },
   };
 

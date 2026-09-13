@@ -14,10 +14,16 @@
 
 const Trip = require('../domain/models/Trip');
 const { isValidRole } = require('../../01-core-system/constants/Roles');
-const { TripNotFoundError } = require('../domain/errors/RideErrors');
+const config = require('../../14-config-system/server.config');
+const { TripNotFoundError, UnauthorizedTripCancelError } = require('../domain/errors/RideErrors');
 const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
 const CANCELLATION_ROLES = ['passenger', 'driver', 'admin', 'system'];
+// قوانین کسبوکار (P7-1): فقط این وضعیتها قابل لغو هستند
+// (IN_PROGRESS لغو نمیشود — پایان مییابد یا با پشتیبانی تماس گرفته میشود).
+const CANCELLABLE_STATUSES = ['REQUESTED', 'SEARCHING', 'ACCEPTED', 'ARRIVED'];
+// وضعیتهای مشمول جریمه مسافر (راننده وقت گذاشته یا رسیده است).
+const PENALTY_STATUSES = ['ACCEPTED', 'ARRIVED'];
 
 class CancelTripUseCase {
     /**
@@ -56,11 +62,40 @@ class CancelTripUseCase {
                 throw new TripNotFoundError(tripId);
             }
 
-            // ب) لغو آگاه از نقش (State Machine دامنه)
+            // ب) قوانین کسبوکار: وضعیت باید قابل لغو باشد (P7-1)
+            if (!CANCELLABLE_STATUSES.includes(row.status)) {
+                const error = new Error(
+                    `سفر در وضعیت ${row.status} قابل لغو نیست (فقط REQUESTED / ACCEPTED / ARRIVED).`
+                );
+                error.code = 'TRIP_NOT_CANCELLABLE';
+                error.statusCode = 409;
+                error.status = row.status;
+                throw error;
+            }
+
+            // ج) مالکیت: فقط مسافر یا رانندهی همین سفر (ادمین/سیستم مستثنی)
+            const passengerId = row.passenger_id || null;
+            const driverId = row.driver_id || null;
+            if (
+                (role === 'passenger' || role === 'driver') &&
+                cancelledByUserId &&
+                cancelledByUserId !== passengerId &&
+                cancelledByUserId !== driverId
+            ) {
+                throw new UnauthorizedTripCancelError(tripId, cancelledByUserId);
+            }
+
+            // ه) لغو آگاه از نقش (State Machine دامنه)
             const trip = new Trip({ id: row.id, status: row.status });
             trip.cancelByRole(role, reason); // -> CANCELLED_BY_PASSENGER | CANCELLED_BY_DRIVER
 
-            // ج) بهروزرسانی رکورد + ثبت timeline (در همان تراکنش)
+            // و) جریمه لغو: مسافر در ACCEPTED/ARRIVED جریمه میشود (baseFare از Config)
+            const baseFare = parseInt((config.trip || {}).baseFare, 10) || 0;
+            const penaltyAmount = (role === 'passenger' && PENALTY_STATUSES.includes(row.status))
+                ? baseFare
+                : 0;
+
+            // ز) بهروزرسانی رکورد + ثبت timeline (در همان تراکنش)
             const updated = await this.tripRepository.updateTripStatus(
                 {
                     tripId,
@@ -74,7 +109,7 @@ class CancelTripUseCase {
                 },
                 client,
             );
-            const actorId = cancelledByUserId || row.passenger_id || row.driver_id;
+            const actorId = cancelledByUserId || passengerId || driverId;
             await this.tripRepository.logStatusChange(
                 {
                     tripId,
@@ -89,13 +124,23 @@ class CancelTripUseCase {
 
             await client.query('COMMIT');
 
-            // د) انتشار رویداد دامنه پس از Commit
+            // د) انتشار رویداد کانونیک TripCancelled (با جریمه) پس از Commit
+            this.emitEvent(TripDomainEvents.TripCancelled, {
+                tripId,
+                cancelledBy: cancelledByUserId || passengerId,
+                role,
+                penaltyAmount,
+                driverId,
+                passengerId,
+                reason: trip.cancelReason,
+            });
+            // رویدادهای قدیمی برای سازگاری عقب (releaseHold/P2-1 و ...)
             this.emitEvent(role === 'driver' ? TripDomainEvents.TripCancelledByDriver : TripDomainEvents.TripCancelledByPassenger, {
                 tripId,
                 status: trip.status,
                 role,
-                passengerId: updated.passenger_id,
-                driverId: updated.driver_id,
+                passengerId,
+                driverId,
                 reason: trip.cancelReason,
             });
 
@@ -104,9 +149,11 @@ class CancelTripUseCase {
                 status: updated.status,           // exact domain state (UPPERCASE)
                 previousStatus: row.status,
                 cancelledByRole: role,
+                cancelledByUserId: actorId,
+                penaltyAmount,
                 cancelReason: updated.cancel_reason,
-                passengerId: updated.passenger_id,
-                driverId: updated.driver_id,
+                passengerId,
+                driverId,
             };
         } catch (error) {
             await client.query('ROLLBACK');
