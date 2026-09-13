@@ -65,6 +65,11 @@ Thumbs.db
 # temporary files
 *.tmp
 
+# TLS/encryption keys (must never be committed)
+*.pem
+*.key
+!generate-keys.js
+
 # Local verification artifacts
 _schema_check.js
 _ph3_err.txt
