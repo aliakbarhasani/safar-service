@@ -50,6 +50,17 @@ class UnauthorizedDispatchError extends Error {
     }
 }
 
+class UnauthorizedTripCancelError extends Error {
+    constructor(tripId, userId) {
+        super(`کاربر ${userId} مجاز به لغو سفر ${tripId} نیست (نه مسافر و نه راننده این سفر است).`);
+        this.name = 'UnauthorizedTripCancelError';
+        this.tripId = tripId;
+        this.userId = userId;
+        this.code = 'UNAUTHORIZED_TRIP_CANCEL';
+        this.statusCode = 403;
+    }
+}
+
 class InvalidRideStateError extends Error {
     constructor(status, expectedStatus) {
         super(`وضعیت فعلی سفر (${status}) اجازه‌ی این عملیات را نمی‌دهد؛ وضعیت موردنیاز ${expectedStatus} است.`);
@@ -70,4 +81,5 @@ module.exports = {
     TripNotFoundError: RideNotFoundError,
     TripAlreadyAcceptedError: RideAlreadyAcceptedError,
     UnauthorizedDispatchError,
+    UnauthorizedTripCancelError,
 };

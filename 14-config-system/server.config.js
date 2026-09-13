@@ -48,6 +48,8 @@ const config = {
     currency: process.env.WALLET_CURRENCY || 'IRT',
     // حساب متعلق به پلتفرم که کمیسیون سفرها به آن واریز میشود (P5-1)
     platformUserId: process.env.WALLET_PLATFORM_USER_ID || 'system-platform',
+    // سهم راننده از جریمه لغو سفر (درصد) — P7-1 (مابقی به پلتفرم)
+    cancellationDriverShare: parseFloat(process.env.CANCELLATION_DRIVER_SHARE) || 80,
   },
   trip: {
     defaultCost: parseInt(process.env.TRIP_DEFAULT_COST, 10) || 50000,

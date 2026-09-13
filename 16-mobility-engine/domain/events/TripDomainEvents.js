@@ -21,6 +21,8 @@ const TripDomainEvents = Object.freeze({
     TripCompleted: 'TripCompleted',
     TripCancelledByPassenger: 'TripCancelledByPassenger',
     TripCancelledByDriver: 'TripCancelledByDriver',
+    // رویداد کانونیک لغو (P7-1) — با جریمه، برای Wallet/Location/Notification
+    TripCancelled: 'TripCancelled',
     TripExpired: 'TripExpired',
     TripEmergencyCancelled: 'TripEmergencyCancelled',
 });
