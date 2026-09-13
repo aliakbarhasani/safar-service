@@ -85,3 +85,88 @@ describe('DemandSupplyTracker (P6-1)', () => {
     expect(res.ratio).toBe(0);
   });
 });
+
+describe('DemandSupplyTracker.getActiveSurgeZones (P6-2)', () => {
+  function createSocialFakeRedis() {
+    const store = new Map();
+    const sets = new Map();
+    return {
+      _store: store,
+      async incr(key) {
+        const next = (parseInt(store.get(key) || '0', 10) || 0) + 1;
+        store.set(key, String(next));
+        return next;
+      },
+      async get(key) {
+        const v = store.get(key);
+        return v === undefined ? null : v;
+      },
+      async set(key, value, _mode, _seconds) {
+        store.set(key, String(value));
+        return 'OK';
+      },
+      async expire() { return 1; },
+      async sadd(setKey, member) {
+        if (!sets.has(setKey)) sets.set(setKey, new Set());
+        sets.get(setKey).add(member);
+        return 1;
+      },
+      async smembers(setKey) {
+        return sets.has(setKey) ? Array.from(sets.get(setKey)) : [];
+      },
+      async scan(cursor, _m, _pattern, _c, _count) {
+        const keys = Array.from(store.keys()).filter((k) => /^demand:.*:15min$/.test(k));
+        return ['0', keys];
+      },
+    };
+  }
+
+  test('recordDemand registers geohash in active_geohashes SET', async () => {
+    const redis = createSocialFakeRedis();
+    const tracker = new DemandSupplyTracker(redis);
+    await tracker.recordDemand(LAT, LNG);
+    const members = await redis.smembers('active_geohashes');
+    expect(members).toContain(ngeohash.encode(LAT, LNG, 5));
+  });
+
+  test('returns only zones with surge > 1.0 (via SMEMBERS fast path)', async () => {
+    const redis = createSocialFakeRedis();
+    const tracker = new DemandSupplyTracker(redis);
+    const hotGh = ngeohash.encode(LAT, LNG, 5);        // demand 6 / supply 1 -> surge 2.0
+    const coolGh = ngeohash.encode(34.0, 50.0, 5);     // demand 1 / default 3 -> no surge
+
+    for (let i = 0; i < 6; i += 1) await tracker.recordDemand(LAT, LNG);
+    await tracker.recordDemand(34.0, 50.0);
+    await tracker.setSupply(hotGh, 1);
+
+    const zones = await tracker.getActiveSurgeZones();
+    const hot = zones.find((z) => z.geohash === hotGh);
+    const cool = zones.find((z) => z.geohash === coolGh);
+    expect(hot).toBeDefined();
+    expect(hot.surge).toBeGreaterThan(1.0);
+    expect(hot.surge).toBeLessThanOrEqual(2.0);
+    expect(cool).toBeUndefined();
+  });
+
+  test('falls back to SCAN when SMEMBERS is unavailable', async () => {
+    const redis = createSocialFakeRedis();
+    delete redis.smembers; // مجبور به SCAN
+    const tracker = new DemandSupplyTracker(redis);
+    const hotGh = ngeohash.encode(LAT, LNG, 5);
+
+    for (let i = 0; i < 4; i += 1) await tracker.recordDemand(LAT, LNG);
+    await tracker.setSupply(hotGh, 1);
+
+    const zones = await tracker.getActiveSurgeZones();
+    expect(zones).toHaveLength(1);
+    expect(zones[0].geohash).toBe(hotGh);
+    expect(zones[0].surge).toBeGreaterThan(1.0);
+  });
+
+  test('returns empty list when there is no demand anywhere', async () => {
+    const redis = createSocialFakeRedis();
+    const tracker = new DemandSupplyTracker(redis);
+    const zones = await tracker.getActiveSurgeZones();
+    expect(zones).toEqual([]);
+  });
+});

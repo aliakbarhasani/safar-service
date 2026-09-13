@@ -15,16 +15,31 @@ const TripStatus = require('../domain/enums/TripStatus');
 const { ALL_SERVICE_TYPES, isValidServiceType } = require('../../01-core-system/constants/ServiceTypes');
 const TripDomainEvents = require('../domain/events/TripDomainEvents');
 
+/** حداکثر اختلاف مجاز مختصات درخواست با Quote (متر) — P6-2 */
+const QUOTE_COORD_TOLERANCE_METERS = 50;
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+    const toRad = (d) => (d * Math.PI) / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 class CreateTripUseCase {
     /**
      * @param {Object} deps
      * @param {import('../infrastructure/TripRepository')} deps.tripRepository
      * @param {import('../../15-pricing-engine/infrastructure/PricingRepository')} deps.pricingRepository
      * @param {Function} [deps.emitEvent] - optional domain-event subscriber
+     * @param {Object} [deps.fareQuoteStore] - (P6-2) Quote store ضد-دستکاری (18-pricing-service)
      */
-    constructor({ tripRepository, pricingRepository, emitEvent = null }) {
+    constructor({ tripRepository, pricingRepository, emitEvent = null, fareQuoteStore = null }) {
         this.tripRepository = tripRepository;
         this.pricingRepository = pricingRepository;
+        this.fareQuoteStore = fareQuoteStore;
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
@@ -61,6 +76,33 @@ class CreateTripUseCase {
             throw error;
         }
 
+        // (P6-2) گارد Quote ضد-دستکاری: قیمت فقط از Quote سرور خوانده میشود.
+        let quoteFare = null;
+        if (this.fareQuoteStore) {
+            const quote = await this.fareQuoteStore.get(quoteId);
+            if (!quote) {
+                const error = new Error('قیمت منقضی شده است، لطفاً دوباره تلاش کنید.');
+                error.code = 'QUOTE_EXPIRED';
+                error.statusCode = 410;
+                throw error;
+            }
+            if (
+                Number.isFinite(originLat) && Number.isFinite(originLng) &&
+                Number.isFinite(destLat) && Number.isFinite(destLng) &&
+                Number.isFinite(quote.originLat)
+            ) {
+                const oDelta = haversineMeters(originLat, originLng, quote.originLat, quote.originLng);
+                const dDelta = haversineMeters(destLat, destLng, quote.destLat, quote.destLng);
+                if (oDelta > QUOTE_COORD_TOLERANCE_METERS || dDelta > QUOTE_COORD_TOLERANCE_METERS) {
+                    const error = new Error('مختصات درخواست با Quote همخوانی ندارد.');
+                    error.code = 'INVALID_QUOTE';
+                    error.statusCode = 400;
+                    throw error;
+                }
+            }
+            quoteFare = Number(quote.estimatedFare) || null;
+        }
+
         const db = this.tripRepository.db;
         const client = await db.connect();
         try {
@@ -74,7 +116,7 @@ class CreateTripUseCase {
                 client, // join the outer transaction
             );
 
-            // ب) ساخت انتیتی غنی Trip
+            // ب) ساخت انتیتی غنی Trip — قیمت فقط از Quote سرور (P6-2)
             const trip = new Trip({
                 passengerId,
                 quoteId,
@@ -86,6 +128,7 @@ class CreateTripUseCase {
                 destinationAddress,
                 paymentMethod,
                 countryId,
+                estimatedCost: quoteFare,
             });
 
             // ج) ذخیره سفر در جدول trips
