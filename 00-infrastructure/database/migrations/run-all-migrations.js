@@ -40,6 +40,8 @@ const MIGRATION_ORDER = [
   '024_create_feedback_schema.sql',
   '025_create_audit_logs.sql',
   '026_create_promo_schema.sql',
+  '027_create_outbox_table.sql',
+  '028_create_inbox_table.sql',
 ];
 
 /**
