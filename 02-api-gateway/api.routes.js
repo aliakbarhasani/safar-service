@@ -19,6 +19,8 @@ const { RbacModule } = require('../17-rbac-service/index');
 // (P11-1) احراز هویت Stateless با توکن IAM — وریفای RS256 با public.pem
 const { authenticate: iamAuthenticate } = require('../02-api-gateway/middlewares/auth.middleware');
 const { createAuthRoutes: createIamAuthRoutes } = require('../24-iam-service/routes/auth.routes');
+// (P11-2) میدلور مجوزدهی/سیاست ABAC با موتور PolicyEngine
+const { authorize: iamAuthorize } = require('../02-api-gateway/middlewares/authorize.middleware');
 
 // Seed مجوزهای پایه (idempotent — در صورت وجود، خطا نمی‌دهد)
 const rbacModule = new RbacModule({ pool: getPool() });
@@ -167,6 +169,52 @@ const tripRouter = createTripRouter(tripController);
 // (P11-1) لایه‌ی احراز هویت Stateless (IAM) پیش از RBAC — توکن Bearer با public.pem وریفای می‌شود
 router.use('/api/v1/trips', iamAuthenticate, authenticate, tripRouter);
 
+// (P11-2) خواندن یک سفر با سیاست ABAC (trip:read:own)
+// fetchTripById منبع را از دیتابیس می‌خواند تا سیاست مالکیت مسافر/راننده اعمال شود.
+async function fetchTripById(tripId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    'SELECT id, passenger_id, driver_id FROM trips WHERE id = $1',
+    [tripId]
+  );
+  const row = rows && rows[0];
+  if (!row) throw new Error('trip not found');
+  return {
+    id: row.id,
+    passengerId: row.passenger_id,
+    driverId: row.driver_id,
+  };
+}
+router.get(
+  '/api/v1/trips/:id',
+  iamAuthenticate,
+  iamAuthorize('trip:read:own', async (req) => fetchTripById(req.params.id)),
+  async (req, res) => {
+    // پس از عبور authorize، منبع در req.resource موجود است
+    const resource = req.resource;
+    if (!resource) return res.status(404).json({ success: false, error: 'trip not found' });
+    // در فاز حاضر فقط ابرداری مجوز (شاذنه) گزارش می‌شود؛ هندلر کامل خواندن در فاز بعدی.
+    return res.status(200).json({ success: true, data: { tripId: resource.id } });
+  }
+);
+
+// ===== (P13-1) مسیرهای مکانیابی رانندگان — 17-location-service =====
+// POST /api/v1/location/update : ثبت/به‌روزرسانی موقعیت راننده در Redis GEO (GEOADD + TTL)
+// GET  /api/v1/location/nearby : جستجوی رانندگان اطراف (GEOSEARCH + WITHDIST ASC)
+// امنیت: iamAuthenticate (RS256) + iamAuthorize('driver:location:update') برای راننده
+const { RedisGeoRepository } = require('../17-location-service/infrastructure/RedisGeoRepository');
+const { FindNearbyDriversUseCase } = require('../17-location-service/application/FindNearbyDriversUseCase');
+const { createLocationRoutes } = require('../17-location-service/routes/location.routes');
+const geoRepository = new RedisGeoRepository({ redisClient: pricingRedisClient });
+const locationRoutes = createLocationRoutes({
+  geoRepository,
+  findNearbyDriversUseCase: new FindNearbyDriversUseCase({ geoRepository }),
+  iamAuthenticate,
+  authorize: iamAuthorize,
+  logger: console,
+});
+router.use('/api/v1/location', locationRoutes);
+
 // ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1/P6-2) =====
 // (P10-1) DynamicConfigStore برای خواندن تنظیمات پویا از Redis به جای config استاتیک
 const { DynamicConfigStore } = require('../14-config-system/infrastructure/DynamicConfigStore');
@@ -224,8 +272,9 @@ const configController = new ConfigController({
 });
 const adminConfigRoutes = createConfigRoutes({
   configController,
-  authenticate,
-  authorize,
+  // (P11-2) سیاست ABAC: احراز هویت Stateless (IAM) + مجوز admin:config:write
+  authenticate: iamAuthenticate,
+  authorize: (_, _extractor) => iamAuthorize('admin:config:write'),
 });
 router.use('/api/v1/admin/configs', adminConfigRoutes);
 
