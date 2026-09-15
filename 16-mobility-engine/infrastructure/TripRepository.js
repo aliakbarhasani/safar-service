@@ -65,8 +65,10 @@ const SELECT_COLUMNS = `
 `;
 
 class TripRepository {
-    constructor(dbClient) {
+    constructor(dbClient, { outboxRepository = null } = {}) {
         this.db = dbClient;
+        // (P12/P13-2) اختیاری: ثبت رویداد در Outbox داخل همان تراکنش وضعیت سفر
+        this.outboxRepository = outboxRepository;
     }
 
     /**
@@ -256,6 +258,7 @@ class TripRepository {
         changedByUserId = null,
         changedByRole = 'driver',
         reason = 'trip_state_changed',
+        outboxEvent = null,
     }) {
         if (!tripId || !expectedState || !targetState) {
             const error = new Error('پارامترهای tripId، expectedState و targetState الزامی هستند.');
@@ -293,6 +296,18 @@ class TripRepository {
                 },
                 client,
             );
+
+            // ۴) (P13-2 + P12) ثبت رویداد در Outbox داخل «همان تراکنش»:
+            // اگر این درج شکست بخورد، تغییر وضعیت نیز ROLLBACK می‌شود؛ بنابراین
+            // هرگز رویدادی بدون تغییر وضعیت (یا برعکس) در سیستم ثبت نمی‌شود.
+            if (outboxEvent) {
+                if (!this.outboxRepository) {
+                    const error = new Error('TripRepository: برای ثبت outboxEvent باید outboxRepository تزریق شده باشد.');
+                    error.code = 'OUTBOX_REPOSITORY_MISSING';
+                    throw error;
+                }
+                await this.outboxRepository.insert(outboxEvent, client);
+            }
 
             await client.query('COMMIT');
             return updated;
