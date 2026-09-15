@@ -134,9 +134,15 @@ const EndTripUseCase = require('../16-mobility-engine/application/EndTripUseCase
 const CancelTripUseCase = require('../16-mobility-engine/application/CancelTripUseCase');
 const TripController = require('../16-mobility-engine/presentation/TripController');
 const createTripRouter = require('../16-mobility-engine/presentation/TripRouter');
+// (P13-2) پیشنهاد سفر + قفل توزیعشده روی Redis
+const TripOfferRepository = require('../16-mobility-engine/infrastructure/redis/TripOfferRepository');
 
 const tripPool = getPool();
-const tripRepository = new TripRepository(tripPool);
+// (P12) Outbox: هر رویداد دامنه در همان تراکنش تغییر وضعیت ثبت و سپس توسط
+// OutboxRelay به EventBus منتشر می‌شود (Transactional Outbox).
+const { OutboxRepository } = require('../00-infrastructure/events/OutboxRepository');
+const outboxRepository = new OutboxRepository({ pool: tripPool });
+const tripRepository = new TripRepository(tripPool, { outboxRepository });
 // ===== (P6-2) Fare Quote Store ضد-دستکاری (18-pricing-service) =====
 const { createRedisClient } = require('../18-pricing-service/infrastructure/redisClient');
 const DemandSupplyTracker = require('../18-pricing-service/infrastructure/DemandSupplyTracker').DemandSupplyTracker;
@@ -151,7 +157,12 @@ const pricingRedisClient = createRedisClient();
 const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
 const fareQuoteStore = new FareQuoteStore(pricingRedisClient);
 const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent, fareQuoteStore });
-const acceptTripUseCase = new AcceptTripUseCase({ tripRepository, emitEvent: emitTripEvent });
+const acceptTripUseCase = new AcceptTripUseCase({
+  tripRepository,
+  emitEvent: emitTripEvent,
+  // (P13-2) پیشنهاد سفر + قفل توزیع‌شده روی Redis (SETNX)
+  tripOfferRepository: new TripOfferRepository({ redisClient: pricingRedisClient }),
+});
 const arriveAtPickupUseCase = new ArriveAtPickupUseCase({ tripRepository, emitEvent: emitTripEvent });
 const startTripUseCase = new StartTripUseCase({ tripRepository, emitEvent: emitTripEvent });
 const endTripUseCase = new EndTripUseCase({ tripRepository, emitEvent: emitTripEvent });
@@ -214,6 +225,31 @@ const locationRoutes = createLocationRoutes({
   logger: console,
 });
 router.use('/api/v1/location', locationRoutes);
+
+// ===== (P13-2) مسیرهای توزیع سفر — 16-mobility-engine =====
+// POST /api/v1/dispatch/trips/:tripId/accept
+// امنیت: iamAuthenticate (RS256) + الزام نقش DRIVER؛ driverId از توکن استخراج میشود.
+const { createDispatchRoutes } = require('../16-mobility-engine/routes/dispatch.routes');
+const dispatchRoutes = createDispatchRoutes({
+  acceptTripUseCase,
+  iamAuthenticate,
+  logger: console,
+});
+router.use('/api/v1/dispatch', dispatchRoutes);
+
+// ===== (P12) Worker جدول Outbox (اختیاری — بهصورت پیشفرض خاموش) =====
+// انتشار تضمینشده رویدادهای ثبتشده در `outbox_events` روی EventBus.
+// در محیط production با OUTBOX_RELAY_ENABLED=true فعال میشود.
+if (String(process.env.OUTBOX_RELAY_ENABLED || '').toLowerCase() === 'true') {
+  const OutboxRelay = require('../01-core-system/OutboxRelay');
+  const outboxRelay = new OutboxRelay({
+    outboxRepository,
+    eventBus: mobilityEventBus,
+    logger: console,
+  });
+  outboxRelay.start();
+  console.log('[gateway] OutboxRelay started (interval 1s)');
+}
 
 // ===== تخمین قیمت داینامیک سفر (18-pricing-service, P6-1/P6-2) =====
 // (P10-1) DynamicConfigStore برای خواندن تنظیمات پویا از Redis به جای config استاتیک
