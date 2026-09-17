@@ -5,10 +5,10 @@ const path = require('path');
 const keysDir = path.resolve(__dirname);
 const privateKeyPath = path.join(keysDir, 'jwt_private.pem');
 const publicKeyPath = path.join(keysDir, 'jwt_public.pem');
-const passphrase = process.env.JWT_KEY_PASSPHRASE;
+const passphrase = process.env.JWT_PRIVATE_KEY_PASSPHRASE;
 
 if (!passphrase || !passphrase.trim()) {
-  throw new Error('JWT_KEY_PASSPHRASE is required and must be supplied outside the repository.');
+  throw new Error('JWT_PRIVATE_KEY_PASSPHRASE is required and must be supplied outside the repository.');
 }
 
 // Generate RSA key pair.
