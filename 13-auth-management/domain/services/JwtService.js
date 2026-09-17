@@ -11,6 +11,10 @@ class JwtService {
   constructor() {
     this.privateKey = this._readKey('JWT_PRIVATE_KEY');
     this.publicKey = this._readKey('JWT_PUBLIC_KEY');
+    this.privateKeyPassphrase = process.env.JWT_PRIVATE_KEY_PASSPHRASE || '';
+    this.signingKey = this.privateKeyPassphrase
+      ? { key: this.privateKey, passphrase: this.privateKeyPassphrase }
+      : this.privateKey;
   }
 
   _readKey(name) {
@@ -32,7 +36,7 @@ class JwtService {
       type: 'access',
     };
 
-    return jwt.sign(payload, this.privateKey, {
+    return jwt.sign(payload, this.signingKey, {
       algorithm: 'RS256',
       expiresIn: '15m',
       jwtid: `access-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -48,7 +52,7 @@ class JwtService {
       jti: `refresh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     };
 
-    return jwt.sign(payload, this.privateKey, {
+    return jwt.sign(payload, this.signingKey, {
       algorithm: 'RS256',
       expiresIn: '7d',
     });
