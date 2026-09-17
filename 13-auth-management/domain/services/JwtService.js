@@ -1,25 +1,27 @@
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
-const path = require('path');
-const config = require('../../../14-config-system/server.config');
 
+/**
+ * JWT service
+ *
+ * RS256 is the only supported JWT algorithm.
+ * Keys are supplied by environment variables and are never read from
+ * tracked repository files.
+ */
 class JwtService {
   constructor() {
-    this.privateKeyPath = path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_private.pem');
-    this.publicKeyPath = path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_public.pem');
-    this.privateKey = null;
-    this.publicKey = null;
-    this._loadKeys();
+    this.privateKey = this._readKey('JWT_PRIVATE_KEY');
+    this.publicKey = this._readKey('JWT_PUBLIC_KEY');
   }
 
-  _loadKeys() {
-    try {
-      this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf-8');
-      this.publicKey = fs.readFileSync(this.publicKeyPath, 'utf-8');
-    } catch (err) {
-      console.error('[JwtService] Failed to load RSA keys:', err.message);
-      throw new Error('JWT keys not found. Please generate them first.');
+  _readKey(name) {
+    const value = process.env[name];
+    if (!value || !value.trim()) {
+      throw new Error(`${name} is not configured`);
     }
+
+    // Supports both real multiline environment values and values stored with
+    // escaped newlines (for example in a .env file).
+    return value.includes('\\n') ? value.replace(/\\n/g, '\n') : value;
   }
 
   generateAccessToken(user) {
@@ -33,7 +35,6 @@ class JwtService {
     return jwt.sign(payload, this.privateKey, {
       algorithm: 'RS256',
       expiresIn: '15m',
-      // jti یکتا برای ابطال نشست (Logout) از طریق user_sessions.token
       jwtid: `access-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     });
   }
