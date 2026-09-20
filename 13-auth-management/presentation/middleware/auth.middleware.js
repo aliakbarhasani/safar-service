@@ -22,9 +22,7 @@ function getJwtService() {
 }
 
 // Extract user from JWT token.
-// دو الگوریتم پشتیبانی می‌شود:
-//   1) RS256 (کانونی - JwtService) - سازگار با توکن‌های صادرشده از verify-otp/پروفایل
-//   2) HS256 (backward-compat) - با config.jwt.secret
+// فقط RS256 (کانونی - JwtService) پشتیبانی می‌شود.
 //
 // استخراج توکن (Hybrid):
 //   a) هدر `Authorization: Bearer <token>` (کلاینت موبایل/سرویس‌ها) — در اولویت
@@ -45,7 +43,8 @@ function extractAccessToken(req) {
 }
 
 // بررسی فعال بودن نشست در user_sessions برای jti توکن.
-// خروجی: true (فعال) / false (ابطال شده) / null (دیتابیس در دسترس نیست → fail-open)
+// خروجی: true (فعال) / false (ابطال شده).
+// خطای دیتابیس باید fail-closed باشد و نباید احراز هویت را عبور دهد.
 let _sessionRepo = null;
 async function checkSessionActive(jti) {
   try {
@@ -55,8 +54,8 @@ async function checkSessionActive(jti) {
     }
     const sessionId = await _sessionRepo.findActiveByAccessTokenJti(jti);
     return sessionId ? true : false;
-  } catch {
-    return null; // fail-open
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -86,7 +85,7 @@ function authenticate(req, res, next) {
 
     const decoded = jwtService.verifyAccessToken(token);
 
-    // بررسی ابطال نشست (Logout) در user_sessions — fail-open در نبود دیتابیس
+    // بررسی ابطال نشست (Logout) در user_sessions — خطای DB باید fail-closed باشد.
     if (decoded.jti) {
       checkSessionActive(decoded.jti)
         .then((active) => {
@@ -101,8 +100,11 @@ function authenticate(req, res, next) {
           return next();
         })
         .catch(() => {
-          req.user = decoded;
-          return next();
+          return res.status(503).json({
+            success: false,
+            status_code: 503,
+            message: 'Authentication session store is temporarily unavailable. Please try again later.',
+          });
         });
       return;
     }
