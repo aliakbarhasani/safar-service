@@ -33,6 +33,8 @@ bower_components/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
 .env.test
 .env.*.local
 
@@ -64,6 +66,12 @@ Thumbs.db
 
 # temporary files
 *.tmp
+*_out.txt
+*_err.txt
+all_files_list.txt
+all_dirs_list.txt
+test_out.txt
+migrate_out.txt
 
 # TLS/encryption keys (must never be committed)
 *.pem

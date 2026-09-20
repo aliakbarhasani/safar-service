@@ -1,5 +1,0 @@
-  console.log
-    ◇ injected env (31) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
-
-      at _log (node_modules/dotenv/lib/main.js:131:11)
-

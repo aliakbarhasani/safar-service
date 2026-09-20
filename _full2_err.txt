@@ -1,9 +1,0 @@
-  ●  process.exit called with "0"
-
-    [0m [90m 411 |[39m console[33m.[39mlog([32m`========================================\n`[39m)[33m;[39m
-     [90m 412 |[39m
-    [31m[1m>[22m[39m[90m 413 |[39m process[33m.[39mexit(failed [33m>[39m [35m0[39m [33m?[39m [35m1[39m [33m:[39m [35m0[39m)[33m;[39m
-     [90m     |[39m         [31m[1m^[22m[39m
-     [90m 414 |[39m[0m
-
-      at Object.exit (15-pricing-engine/__tests__/pricing-engine.test.js:413:9)
