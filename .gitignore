@@ -68,6 +68,10 @@ Thumbs.db
 *.tmp
 *_out.txt
 *_err.txt
+full*.txt
+_*.cmd
+_*.txt
+_nm_all.txt
 all_files_list.txt
 all_dirs_list.txt
 test_out.txt
