@@ -7,7 +7,7 @@
 
 ## Communication with Modules
 - Related to: 04-auth-service (Authentication)
-- Related to: 06-trip-service (Trips)
+- Related to: 16-mobility-engine (Trips)
 - Related to: 05-wallet-service (Wallet)
 
 ## Files

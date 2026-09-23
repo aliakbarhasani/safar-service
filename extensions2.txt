@@ -1,9 +1,0 @@
-christian-kohler.path-intellisense
-codeium.codeium
-continue.continue
-eamodio.gitlens
-esbenp.prettier-vscode
-github.codespaces
-saoudrizwan.claude-dev
-streetsidesoftware.code-spell-checker
-usernamehw.errorlens

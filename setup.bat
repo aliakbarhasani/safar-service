@@ -72,7 +72,6 @@ echo To start the server:
 echo   node server.js
 echo.
 echo To start individual microservices:
-echo   node 12-trip-management/run-server.js
 echo   node 13-auth-management/run-server.js
 echo   node 14-admin-panel/run-server.js
 echo   node 15-pricing-engine/run-server.js
