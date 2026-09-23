@@ -9,12 +9,19 @@
  */
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 
 const app = require('../../run-server');
-const config = require('../../../14-config-system/server.config');
+
+// SECURITY (P0): توکن تست فقط با RS256 و کلید خصوصی واقعی سرویس امضا می‌شود.
+const PRIVATE_KEY = fs.readFileSync(
+  path.resolve(__dirname, '..', '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem'),
+  'utf8'
+);
 
 const dbPool = new Pool({
   host: process.env.PG_HOST || '127.0.0.1',
@@ -26,7 +33,11 @@ const dbPool = new Pool({
 });
 
 function signToken(role) {
-  return jwt.sign({ userId: 'pricing-test-user', phoneNumber: '+989120000090', role }, config.jwt.secret, { expiresIn: '1h' });
+  return jwt.sign(
+    { userId: 'pricing-test-user', phoneNumber: '+989120000090', role, type: 'access' },
+    PRIVATE_KEY,
+    { algorithm: 'RS256', expiresIn: '1h' }
+  );
 }
 
 async function isDbAvailable() {

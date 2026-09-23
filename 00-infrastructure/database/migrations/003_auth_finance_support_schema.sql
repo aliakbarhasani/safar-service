@@ -31,49 +31,59 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE earning_type AS ENUM (
-    'trip_fare',
-    'bonus',
-    'tip',
-    'adjustment',
-    'penalty'
-);
-
-CREATE TYPE settlement_status AS ENUM (
-    'pending',
-    'processing',
-    'completed',
-    'failed',
-    'cancelled'
-);
-
-CREATE TYPE ticket_priority AS ENUM (
-    'low',
-    'medium',
-    'high',
-    'urgent',
-    'critical'
-);
-
-CREATE TYPE ticket_status AS ENUM (
-    'open',
-    'in_progress',
-    'waiting_on_customer',
-    'waiting_on_third_party',
-    'resolved',
-    'closed',
-    'escalated'
-);
-
-CREATE TYPE ticket_department AS ENUM (
-    'support',
-    'billing',
-    'technical',
-    'driver_affairs',
-    'cargo',
-    'tours',
-    'security'
-);
+-- (P1 — Idempotent) ساخت enumها داخل بلوک محافظت‌شده تا اجرای چندباره خطا ندهد
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'earning_type') THEN
+        CREATE TYPE earning_type AS ENUM (
+            'trip_fare',
+            'bonus',
+            'tip',
+            'adjustment',
+            'penalty'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'settlement_status') THEN
+        CREATE TYPE settlement_status AS ENUM (
+            'pending',
+            'processing',
+            'completed',
+            'failed',
+            'cancelled'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_priority') THEN
+        CREATE TYPE ticket_priority AS ENUM (
+            'low',
+            'medium',
+            'high',
+            'urgent',
+            'critical'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_status') THEN
+        CREATE TYPE ticket_status AS ENUM (
+            'open',
+            'in_progress',
+            'waiting_on_customer',
+            'waiting_on_third_party',
+            'resolved',
+            'closed',
+            'escalated'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ticket_department') THEN
+        CREATE TYPE ticket_department AS ENUM (
+            'support',
+            'billing',
+            'technical',
+            'driver_affairs',
+            'cargo',
+            'tours',
+            'security'
+        );
+    END IF;
+END $$;
 
 -- ============================================================================
 -- PART 1: AUTH & SECURITY
@@ -84,7 +94,7 @@ CREATE TYPE ticket_department AS ENUM (
 -- Stores device information for push notification targeting and device
 -- management. Each device is uniquely identified by its hardware ID.
 -- --------------------------------------------------------------------------
-CREATE TABLE devices (
+CREATE TABLE IF NOT EXISTS devices (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     device_id           VARCHAR(255) NOT NULL UNIQUE,        -- Unique device hardware identifier
     fcm_token           VARCHAR(512),                         -- Firebase Cloud Messaging token for push notifications
@@ -99,11 +109,11 @@ CREATE TABLE devices (
     deleted_at          TIMESTAMPTZ                           -- Soft Delete
 );
 
-CREATE INDEX idx_devices_device_id ON devices(device_id);
-CREATE INDEX idx_devices_platform ON devices(platform);
-CREATE INDEX idx_devices_fcm_token ON devices(fcm_token) WHERE fcm_token IS NOT NULL;
-CREATE INDEX idx_devices_active ON devices(is_active) WHERE is_active = TRUE;
-CREATE INDEX idx_devices_deleted_at ON devices(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(device_id);
+CREATE INDEX IF NOT EXISTS idx_devices_platform ON devices(platform);
+CREATE INDEX IF NOT EXISTS idx_devices_fcm_token ON devices(fcm_token) WHERE fcm_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_devices_deleted_at ON devices(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- --------------------------------------------------------------------------
 -- TABLE: user_devices
@@ -111,7 +121,7 @@ CREATE INDEX idx_devices_deleted_at ON devices(deleted_at) WHERE deleted_at IS N
 -- multiple devices (phone, tablet, etc.), and a device could theoretically
 -- be shared (though typically one user per device).
 -- --------------------------------------------------------------------------
-CREATE TABLE user_devices (
+CREATE TABLE IF NOT EXISTS user_devices (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id           UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -125,9 +135,9 @@ CREATE TABLE user_devices (
     CONSTRAINT unique_user_device UNIQUE (user_id, device_id)
 );
 
-CREATE INDEX idx_user_devices_user ON user_devices(user_id);
-CREATE INDEX idx_user_devices_device ON user_devices(device_id);
-CREATE INDEX idx_user_devices_primary ON user_devices(user_id, device_id) WHERE is_primary = TRUE;
+CREATE INDEX IF NOT EXISTS idx_user_devices_user ON user_devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_devices_device ON user_devices(device_id);
+CREATE INDEX IF NOT EXISTS idx_user_devices_primary ON user_devices(user_id, device_id) WHERE is_primary = TRUE;
 
 -- ============================================================================
 -- PART 2: FLEET FINANCE (Multi-Currency)
@@ -139,7 +149,7 @@ CREATE INDEX idx_user_devices_primary ON user_devices(user_id, device_id) WHERE 
 -- multiple earning entries (fare, tip, bonus, penalty) with individual
 -- currency support for cross-border operations.
 -- --------------------------------------------------------------------------
-CREATE TABLE driver_earnings (
+CREATE TABLE IF NOT EXISTS driver_earnings (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     driver_id           UUID NOT NULL REFERENCES drivers(id),
     trip_id             UUID NOT NULL REFERENCES trips(id),
@@ -156,13 +166,13 @@ CREATE TABLE driver_earnings (
     deleted_at          TIMESTAMPTZ                           -- Soft Delete
 );
 
-CREATE INDEX idx_driver_earnings_driver ON driver_earnings(driver_id);
-CREATE INDEX idx_driver_earnings_trip ON driver_earnings(trip_id);
-CREATE INDEX idx_driver_earnings_currency ON driver_earnings(currency_id);
-CREATE INDEX idx_driver_earnings_unsettled ON driver_earnings(driver_id) WHERE is_settled = FALSE AND deleted_at IS NULL;
-CREATE INDEX idx_driver_earnings_type ON driver_earnings(driver_id, earning_type);
-CREATE INDEX idx_driver_earnings_date ON driver_earnings(earned_at DESC);
-CREATE INDEX idx_driver_earnings_deleted_at ON driver_earnings(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_driver ON driver_earnings(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_trip ON driver_earnings(trip_id);
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_currency ON driver_earnings(currency_id);
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_unsettled ON driver_earnings(driver_id) WHERE is_settled = FALSE AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_type ON driver_earnings(driver_id, earning_type);
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_date ON driver_earnings(earned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_earnings_deleted_at ON driver_earnings(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- --------------------------------------------------------------------------
 -- TABLE: driver_settlements
@@ -170,7 +180,7 @@ CREATE INDEX idx_driver_earnings_deleted_at ON driver_earnings(deleted_at) WHERE
 -- actual payout to the driver's bank account or wallet, with full
 -- multi-currency and multi-country compliance.
 -- --------------------------------------------------------------------------
-CREATE TABLE driver_settlements (
+CREATE TABLE IF NOT EXISTS driver_settlements (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     driver_id           UUID NOT NULL REFERENCES drivers(id),
     amount              BIGINT NOT NULL CHECK (amount >= 0),  -- Total settlement amount
@@ -195,12 +205,15 @@ CREATE TABLE driver_settlements (
     deleted_at          TIMESTAMPTZ                           -- Soft Delete
 );
 
-CREATE INDEX idx_driver_settlements_driver ON driver_settlements(driver_id);
-CREATE INDEX idx_driver_settlements_currency ON driver_settlements(currency_id);
-CREATE INDEX idx_driver_settlements_status ON driver_settlements(status);
-CREATE INDEX idx_driver_settlements_date ON driver_settlements(settlement_date DESC);
-CREATE INDEX idx_driver_settlements_period ON driver_settlements(driver_id, period_start, period_end);
-CREATE INDEX idx_driver_settlements_deleted_at ON driver_settlements(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_driver ON driver_settlements(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_currency ON driver_settlements(currency_id);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_status ON driver_settlements(status);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_date ON driver_settlements(settlement_date DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_period ON driver_settlements(driver_id, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_driver_settlements_deleted_at ON driver_settlements(deleted_at) WHERE deleted_at IS NOT NULL;
+-- (P1 — Idempotent) حذف محافظت‌شده پیش از بازسازی constraint
+ALTER TABLE driver_earnings DROP CONSTRAINT IF EXISTS fk_driver_earnings_settlement;
+
 
 -- Add FK constraint from driver_earnings to driver_settlements (after settlements table exists)
 ALTER TABLE driver_earnings
@@ -216,7 +229,7 @@ ALTER TABLE driver_earnings
 -- Comprehensive support ticket system with unique tracking codes,
 -- priority levels, and multi-department routing.
 -- --------------------------------------------------------------------------
-CREATE TABLE tickets (
+CREATE TABLE IF NOT EXISTS tickets (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL REFERENCES users(id),  -- Ticket creator (passenger, driver, or provider)
     assigned_to         UUID REFERENCES users(id),           -- Support agent assigned to this ticket
@@ -241,24 +254,24 @@ CREATE TABLE tickets (
     deleted_at          TIMESTAMPTZ                           -- Soft Delete
 );
 
-CREATE INDEX idx_tickets_user ON tickets(user_id);
-CREATE INDEX idx_tickets_assigned ON tickets(assigned_to);
-CREATE INDEX idx_tickets_status ON tickets(status);
-CREATE INDEX idx_tickets_priority ON tickets(priority);
-CREATE INDEX idx_tickets_department ON tickets(department);
-CREATE INDEX idx_tickets_tracking ON tickets(tracking_code);
-CREATE INDEX idx_tickets_entity ON tickets(related_entity_type, related_entity_id);
-CREATE INDEX idx_tickets_open ON tickets(status) WHERE status IN ('open', 'in_progress', 'waiting_on_customer');
-CREATE INDEX idx_tickets_escalated ON tickets(is_escalated) WHERE is_escalated = TRUE;
-CREATE INDEX idx_tickets_created ON tickets(created_at DESC);
-CREATE INDEX idx_tickets_deleted_at ON tickets(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
+CREATE INDEX IF NOT EXISTS idx_tickets_department ON tickets(department);
+CREATE INDEX IF NOT EXISTS idx_tickets_tracking ON tickets(tracking_code);
+CREATE INDEX IF NOT EXISTS idx_tickets_entity ON tickets(related_entity_type, related_entity_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_open ON tickets(status) WHERE status IN ('open', 'in_progress', 'waiting_on_customer');
+CREATE INDEX IF NOT EXISTS idx_tickets_escalated ON tickets(is_escalated) WHERE is_escalated = TRUE;
+CREATE INDEX IF NOT EXISTS idx_tickets_created ON tickets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tickets_deleted_at ON tickets(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- --------------------------------------------------------------------------
 -- TABLE: ticket_messages
 -- Message thread within each support ticket. Supports rich text and
 -- file attachments for comprehensive communication.
 -- --------------------------------------------------------------------------
-CREATE TABLE ticket_messages (
+CREATE TABLE IF NOT EXISTS ticket_messages (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id           UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     sender_id           UUID NOT NULL REFERENCES users(id),  -- Who sent the message
@@ -270,9 +283,9 @@ CREATE TABLE ticket_messages (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_ticket_messages_ticket ON ticket_messages(ticket_id);
-CREATE INDEX idx_ticket_messages_sender ON ticket_messages(sender_id);
-CREATE INDEX idx_ticket_messages_created ON ticket_messages(ticket_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_sender ON ticket_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_created ON ticket_messages(ticket_id, created_at);
 
 -- ============================================================================
 -- DEFAULT DATA: Support Permissions
@@ -293,27 +306,27 @@ INSERT INTO permissions (name, module, description) VALUES
     ('settlements.create', 'finance', 'Create driver settlements'),
     ('settlements.read', 'finance', 'View driver settlements'),
     ('settlements.process', 'finance', 'Process driver settlements'),
-    ('settlements.cancel', 'finance', 'Cancel driver settlements');
+    ('settlements.cancel', 'finance', 'Cancel driver settlements') ON CONFLICT DO NOTHING;
 
 -- Assign ticket permissions to support role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'support'), id FROM permissions
-WHERE name IN ('tickets.create', 'tickets.read', 'tickets.update', 'tickets.assign', 'tickets.close', 'tickets.escalate');
+WHERE name IN ('tickets.create', 'tickets.read', 'tickets.update', 'tickets.assign', 'tickets.close', 'tickets.escalate') ON CONFLICT DO NOTHING;
 
 -- Assign ticket & finance permissions to admin role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions
-WHERE module IN ('support', 'finance');
+WHERE module IN ('support', 'finance') ON CONFLICT DO NOTHING;
 
 -- Assign ticket create/read to driver role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'driver'), id FROM permissions
-WHERE name IN ('tickets.create', 'tickets.read', 'earnings.read', 'settlements.read');
+WHERE name IN ('tickets.create', 'tickets.read', 'earnings.read', 'settlements.read') ON CONFLICT DO NOTHING;
 
 -- Assign ticket create/read to passenger role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'passenger'), id FROM permissions
-WHERE name IN ('tickets.create', 'tickets.read');
+WHERE name IN ('tickets.create', 'tickets.read') ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- END OF MIGRATION 003

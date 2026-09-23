@@ -11,8 +11,13 @@
 -- we rebuild these two tables to the exact final schema here.
 -- ============================================================================
 
-DROP TABLE IF EXISTS pricing_audit_logs;
-DROP TABLE IF EXISTS quotes;
+-- (P1 — بازنویسی غیرتخریبی / Idempotent) بازنویسی شد:
+-- پیش‌تر این دو جدول با `DROP TABLE IF EXISTS` حذف و از صفر ساخته می‌شدند؛ روی هر
+-- دیتابیسی که داده داشت، این کار تمام رکوردهای `quotes` و `pricing_audit_logs` را
+-- نابود می‌کرد. اکنون هیچ DROP ای اجرا نمی‌شود: جدول‌ها با
+-- `CREATE TABLE IF NOT EXISTS` ساخته می‌شوند و ستون‌های نبوده با
+-- `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (بلوک‌های پایین‌تر) تکمیل می‌شوند.
+-- نتیجه: حفظ دادهٔ موجود + اجرای چندبارهٔ بی‌خطر (Idempotent).
 
 -- ----------------------------------------------------------------------------
 -- TABLE: quotes
@@ -44,13 +49,39 @@ CREATE TABLE IF NOT EXISTS quotes (
     CONSTRAINT chk_quotes_nonneg     CHECK (gross_amount >= 0 AND customer_final_amount >= 0 AND provider_amount >= 0)
 );
 
+-- (P1 — Idempotent schema-repair) به‌جای حذف/بازسازی جدول، فقط ستون‌های نبوده
+-- اضافه می‌شوند. روی نصب تازه بی‌اثر (no-op) و روی دیتابیس قدیمی اسکیما را ترمیم می‌کند.
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS reference_id           VARCHAR(100);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS pricing_config_id      UUID;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS service_type           VARCHAR(50);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS currency_code          VARCHAR(3);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS currency_precision     INTEGER;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rounding_mode          VARCHAR(30);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS gross_amount           NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS discount_amount        NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS tax_amount             NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS commission_amount      NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS provider_amount        NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS customer_final_amount  NUMERIC(19, 4);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS status                 VARCHAR(20);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS input_snapshot         JSONB;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS calculation_snapshot   JSONB;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS created_at             TIMESTAMPTZ;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS expires_at             TIMESTAMPTZ;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS consumed_at            TIMESTAMPTZ;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS cancelled_at           TIMESTAMPTZ;
+-- Soft Delete (P1): حذف منطقی به‌جای حذف فیزیکی داده
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deleted_at             TIMESTAMPTZ;
+-- ایندکس Soft Delete برای فیلترکردن رکوردهای حذف‌شده
+CREATE INDEX IF NOT EXISTS idx_quotes_deleted_at ON quotes(deleted_at);
+
 -- Idempotency scope: unique reference_id only when present (nullable)
-CREATE UNIQUE INDEX idx_quotes_reference
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quotes_reference
     ON quotes(reference_id)
     WHERE reference_id IS NOT NULL;
 
-CREATE INDEX idx_quotes_status  ON quotes(status);
-CREATE INDEX idx_quotes_expires ON quotes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_quotes_status  ON quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quotes_expires ON quotes(expires_at);
 
 -- ----------------------------------------------------------------------------
 -- TABLE: pricing_audit_logs (immutable per-calculation snapshot)
@@ -66,5 +97,15 @@ CREATE TABLE IF NOT EXISTS pricing_audit_logs (
     CONSTRAINT chk_audit_action CHECK (action_type IN ('QUOTE_GENERATED', 'QUOTE_CONSUMED', 'QUOTE_EXPIRED', 'QUOTE_CANCELLED'))
 );
 
-CREATE INDEX idx_pricing_audit_quote     ON pricing_audit_logs(quote_id);
-CREATE INDEX idx_pricing_audit_created   ON pricing_audit_logs(created_at);
+-- (P1 — Idempotent schema-repair) تکمیل ستون‌های نبوده بدون حذف داده
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS quote_id          UUID;
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS action_type       VARCHAR(50);
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS rule_snapshot     JSONB;
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS calculation_steps JSONB;
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS created_at        TIMESTAMPTZ;
+-- Soft Delete (P1): حذف منطقی به‌جای حذف فیزیکی داده
+ALTER TABLE pricing_audit_logs ADD COLUMN IF NOT EXISTS deleted_at        TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_pricing_audit_quote     ON pricing_audit_logs(quote_id);
+CREATE INDEX IF NOT EXISTS idx_pricing_audit_created   ON pricing_audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_pricing_audit_deleted   ON pricing_audit_logs(deleted_at);

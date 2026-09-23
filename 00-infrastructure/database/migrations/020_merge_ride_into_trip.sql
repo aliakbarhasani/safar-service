@@ -67,7 +67,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='idx_trips_quote') THEN
-        CREATE INDEX idx_trips_quote ON trips(quote_id) WHERE quote_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_trips_quote ON trips(quote_id) WHERE quote_id IS NOT NULL;
     END IF;
 END $$;
 

@@ -7,9 +7,48 @@
  */
 
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 const { getPool } = require('../01-core-system/database/db');
 const router = express.Router();
+
+// ===== کمک‌تابع‌های پروکسی (اصلاح 404) =====
+// نکته کلیدی: Express در `router.use('<mount>', proxy)` پیشوند mount را از `req.url`
+// حذف می‌کند؛ بنابراین بازنویسی مسیر باید پیشوند سرویس مقصد را «دقیقاً یک‌بار» بازگرداند
+// و هیچ بخش ضروری دیگری از URL (sub-path یا query string) را حذف/تغییر ندهد.
+function rewriteToServicePrefix(prefix) {
+  return (path) => {
+    const raw = typeof path === 'string' && path.length ? path : '/';
+    const qIndex = raw.indexOf('?');
+    const pathname = qIndex === -1 ? raw : raw.slice(0, qIndex);
+    const query = qIndex === -1 ? '' : raw.slice(qIndex);
+
+    let target = pathname;
+    if (!pathname.startsWith(prefix)) {
+      target = pathname === '/' || pathname === ''
+        ? prefix
+        : `${prefix}${pathname.startsWith('/') ? '' : '/'}${pathname}`;
+    }
+    // سرویس‌های مقصد بدون اسلش انتهایی مسیرگذاری شده‌اند → حذف اسلش انتهایی اضافی
+    if (target.length > 1 && target.endsWith('/')) target = target.replace(/\/+$/, '');
+
+    return `${target}${query}`;
+  };
+}
+
+// خطای پروکسی (مثلاً سرویس مقصد پایین است) → 502 روشن، نه 404 گمراه‌کننده
+function proxyErrorHandler(serviceName) {
+  return (err, req, res) => {
+    console.error(`[gateway] proxy error (${serviceName}):`, err.message);
+    if (res && !res.headersSent && typeof res.status === 'function') {
+      return res.status(502).json({
+        success: false,
+        status_code: 502,
+        message: `${serviceName} service unavailable`,
+      });
+    }
+    return undefined;
+  };
+}
 
 // ===== RBAC: میان‌افزار امنیتی و کنترل دسترسی مرکزی (17-rbac-service) =====
 // authenticate: توکن RS256 (Bearer یا کوکی HttpOnly) → req.user
@@ -73,28 +112,32 @@ router.use('/api/drivers', driverRoutes);
 
 // ===== مسیرهای بازارچه (09-marketplace) =====
 // بازارچه روی 3012 — جلوگیری از تداخل با سرویس‌های دیگر (AdminPanel روی 3002)
+// مسیرهای سرویس مقصد: /api/v1/marketplace/products | /products/:id | /health
 const marketplaceProxy = createProxyMiddleware({
   target: process.env.MARKETPLACE_URL || 'http://localhost:3012',
   changeOrigin: true,
   logLevel: 'warn',
-  pathRewrite: (path) => {
-    if (!path || path === '/') return '/api/v1/marketplace';
-    if (path.startsWith('/api/v1/marketplace')) return path;
-    return path.startsWith('/') ? `/api/v1/marketplace${path}` : `/api/v1/marketplace/${path}`;
+  pathRewrite: rewriteToServicePrefix('/api/v1/marketplace'),
+  on: {
+    // بدنه‌ی خوانده‌شده توسط express.json() در 01-core-system/app.js دوباره
+    // به سرویس مقصد فرستاده می‌شود (در غیر این صورت درخواست‌های POST معلق می‌مانند).
+    proxyReq: fixRequestBody,
+    error: proxyErrorHandler('marketplace'),
   },
 });
 router.use('/api/v1/marketplace', marketplaceProxy);
 
 // ===== مسیرهای تبلیغات (10-ads-service) =====
 // تبلیغات روی 3013 — جدا از سایر سرویس‌ها
+// مسیرهای سرویس مقصد: /api/v1/ads/campaigns | /campaigns/:id | /health
 const adsProxy = createProxyMiddleware({
   target: process.env.ADS_URL || 'http://localhost:3013',
   changeOrigin: true,
   logLevel: 'warn',
-  pathRewrite: (path) => {
-    if (!path || path === '/') return '/api/v1/ads';
-    if (path.startsWith('/api/v1/ads')) return path;
-    return path.startsWith('/') ? `/api/v1/ads${path}` : `/api/v1/ads/${path}`;
+  pathRewrite: rewriteToServicePrefix('/api/v1/ads'),
+  on: {
+    proxyReq: fixRequestBody,
+    error: proxyErrorHandler('ads'),
   },
 });
 router.use('/api/v1/ads', adsProxy);

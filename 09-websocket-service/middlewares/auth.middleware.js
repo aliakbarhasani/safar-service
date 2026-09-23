@@ -5,6 +5,9 @@
  * populates socket.user and joins the socket to a per-user room so that
  * direct messages can be routed via io.to(userId).emit(...).
  *
+ * SECURITY (P0): فقط توکن‌های امضاشده با RS256 و کلید عمومی `jwt_public.pem`
+ * پذیرفته می‌شوند. هیچ سکرت متقارن (HS256) یا الگوریتم دیگری پذیرفته نمی‌شود.
+ *
  * Token sources (in order of precedence):
  *   1. socket.handshake.auth.token  (recommended by Socket.io v4)
  *   2. socket.handshake.headers.authorization
@@ -30,12 +33,13 @@ function extractToken(handshake) {
 
 /**
  * Verify a JWT and return the decoded payload (or null on failure).
+ * SECURITY: فقط الگوریتم RS256 با کلید عمومی معتبر (config.jwt.publicKey).
  * @param {string} token
  * @returns {Object|null}
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] });
+    return jwt.verify(token, config.jwt.publicKey, { algorithms: ['RS256'] });
   } catch (_) {
     return null;
   }

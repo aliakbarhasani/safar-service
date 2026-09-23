@@ -14,13 +14,19 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE wallet_type AS ENUM (
-    'user',      -- Regular user wallet (passengers)
-    'driver',    -- Driver wallet
-    'platform',  -- Platform/company wallet
-    'escrow',    -- Escrow/holding wallet for trip payments
-    'system'     -- System wallet (no user_id required)
-);
+-- (P1 — Idempotent) ساخت enum داخل بلوک محافظت‌شده تا اجرای چندباره خطا ندهد
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wallet_type') THEN
+        CREATE TYPE wallet_type AS ENUM (
+            'user',      -- Regular user wallet (passengers)
+            'driver',    -- Driver wallet
+            'platform',  -- Platform/company wallet
+            'escrow',    -- Escrow/holding wallet for trip payments
+            'system'     -- System wallet (no user_id required)
+        );
+    END IF;
+END $$;
 
 -- ============================================================================
 -- ALTER TABLE: wallets - Add balance separation
@@ -38,6 +44,9 @@ ALTER TABLE wallets
 UPDATE wallets
 SET available_balance = balance
 WHERE available_balance = 0 AND balance > 0;
+-- (P1 — Idempotent) حذف محافظت‌شده پیش از بازسازی constraint
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS ck_wallet_balance_total;
+
 
 -- Add constraint: total balance must always match available + frozen
 ALTER TABLE wallets
@@ -50,6 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_wallets_type ON wallets(wallet_type);
 -- Update users table reference for wallet_type
 -- Drop existing constraint on balance (to be replaced by the new one)
 ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_balance_check;
+-- (P1 — Idempotent) حذف محافظت‌شده پیش از بازسازی constraint
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_balance_check;
+
 ALTER TABLE wallets ADD CONSTRAINT wallets_balance_check CHECK (balance >= 0);
 
 -- ============================================================================
@@ -58,6 +70,9 @@ ALTER TABLE wallets ADD CONSTRAINT wallets_balance_check CHECK (balance >= 0);
 -- System wallets (platform, escrow, system) don't belong to a specific user.
 -- This change makes user_id optional for non-human wallet types.
 ALTER TABLE wallets ALTER COLUMN user_id DROP NOT NULL;
+-- (P1 — Idempotent) حذف محافظت‌شده پیش از بازسازی constraint
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS check_user_id_for_humans;
+
 ALTER TABLE wallets ADD CONSTRAINT check_user_id_for_humans CHECK (
     wallet_type IN ('system', 'platform', 'escrow') OR user_id IS NOT NULL
 );
@@ -67,7 +82,7 @@ ALTER TABLE wallets ADD CONSTRAINT check_user_id_for_humans CHECK (
 -- Append-only ledger for complete financial traceability
 -- Every financial operation creates an immutable ledger entry
 -- ============================================================================
-CREATE TABLE wallet_ledger (
+CREATE TABLE IF NOT EXISTS wallet_ledger (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     wallet_id           UUID NOT NULL REFERENCES wallets(id),
     transaction_id      UUID REFERENCES transactions(id),    -- Related transaction (nullable for system entries)
@@ -94,20 +109,20 @@ CREATE TABLE wallet_ledger (
 );
 
 -- Indexes for ledger queries
-CREATE INDEX idx_wallet_ledger_wallet ON wallet_ledger(wallet_id);
-CREATE INDEX idx_wallet_ledger_transaction ON wallet_ledger(transaction_id);
-CREATE INDEX idx_wallet_ledger_currency ON wallet_ledger(currency_id);
-CREATE INDEX idx_wallet_ledger_operation ON wallet_ledger(operation_type);
-CREATE INDEX idx_wallet_ledger_created ON wallet_ledger(created_at DESC);
-CREATE INDEX idx_wallet_ledger_wallet_date ON wallet_ledger(wallet_id, created_at DESC);
-CREATE INDEX idx_wallet_ledger_reference ON wallet_ledger(reference_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_wallet ON wallet_ledger(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_transaction ON wallet_ledger(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_currency ON wallet_ledger(currency_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_operation ON wallet_ledger(operation_type);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_created ON wallet_ledger(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_wallet_date ON wallet_ledger(wallet_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_reference ON wallet_ledger(reference_id);
 
 -- ============================================================================
 -- TABLE: financial_audit_logs
 -- Security audit trail for all financial operations
 -- Immutable log for compliance and forensic analysis
 -- ============================================================================
-CREATE TABLE financial_audit_logs (
+CREATE TABLE IF NOT EXISTS financial_audit_logs (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type          VARCHAR(64) NOT NULL,                -- e.g. 'wallet_created', 'balance_changed', 'escrow_released', 'reconciliation_run'
     wallet_id           UUID REFERENCES wallets(id),
@@ -122,12 +137,12 @@ CREATE TABLE financial_audit_logs (
 );
 
 -- Indexes for audit queries
-CREATE INDEX idx_financial_audit_wallet ON financial_audit_logs(wallet_id);
-CREATE INDEX idx_financial_audit_user ON financial_audit_logs(user_id);
-CREATE INDEX idx_financial_audit_actor ON financial_audit_logs(actor_id);
-CREATE INDEX idx_financial_audit_event ON financial_audit_logs(event_type);
-CREATE INDEX idx_financial_audit_transaction ON financial_audit_logs(transaction_id);
-CREATE INDEX idx_financial_audit_created ON financial_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_wallet ON financial_audit_logs(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_user ON financial_audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_actor ON financial_audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_event ON financial_audit_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_transaction ON financial_audit_logs(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_financial_audit_created ON financial_audit_logs(created_at DESC);
 
 -- ============================================================================
 -- FUNCTION: Automatically log wallet changes to financial_audit_logs
@@ -224,7 +239,7 @@ FROM currencies c
 WHERE NOT EXISTS (
     SELECT 1 FROM wallets w
     WHERE w.wallet_type = 'platform' AND w.currency_id = c.id
-);
+) ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- END OF MIGRATION 004

@@ -42,6 +42,7 @@ const MIGRATION_ORDER = [
   '026_create_promo_schema.sql',
   '027_create_outbox_table.sql',
   '028_create_inbox_table.sql',
+  '029_add_soft_delete_columns.sql',
 ];
 
 /**

@@ -10,6 +10,22 @@ const { Client } = require('pg');
 const config = require('../../../14-config-system/server.config');
 
 async function cleanSchema() {
+  // ── (P1 — ایمنی) محافظت در برابر اجرای تصادفی مخرب ─────────────────────────
+  // این ابزار کل Schema را با `DROP SCHEMA public CASCADE` نابود می‌کند.
+  // برای اینکه هرگز به‌طور تصادفی روی محیط عملیاتی/استیجینگ اجرا نشود،
+  // اجرا فقط با تأیید صریح محیطی (ALLOW_SCHEMA_RESET=true) و خارج از production مجاز است.
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ Refused: clean-schema.js must never run against production.');
+    process.exit(1);
+  }
+  if (process.env.ALLOW_SCHEMA_RESET !== 'true') {
+    console.error(
+      '❌ Refused: this script destroys the whole schema. ' +
+      'Set ALLOW_SCHEMA_RESET=true to confirm explicitly.'
+    );
+    process.exit(1);
+  }
+
   const client = new Client({
     host: config.pg.host,
     port: config.pg.port,

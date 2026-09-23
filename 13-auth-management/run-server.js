@@ -4,8 +4,6 @@ const dotenv = require('dotenv');
 const AuthRouter = require('./presentation/routes/AuthRouter');
 const RegistrationRouter = require('./presentation/routes/RegistrationRouter');
 const createProfileRoutes = require('./routes/profile.routes');
-const jwt = require('jsonwebtoken');
-const JwtService = require('./domain/services/JwtService');
 const { registerUserRegisteredHandler } = require('../01-core-system/handlers/UserRegisteredHandler');
 const { globalRateLimit } = require('./presentation/middleware/rate-limit.middleware');
 
@@ -50,28 +48,12 @@ app.use('/api/v1/auth', RegistrationRouter);
 // Mount profile & settings routes under versioned API path
 app.use('/api/v1/profile', createProfileRoutes());
 
-// Temporary helper: translate HS256 tokens (issued by verify-otp) to RS256 tokens
-// This allows internal E2E tests where verify-otp returns an HS256 token while
-// the application expects RS256 (JwtService) for protected routes.
-app.post('/api/v1/auth/translate-token', express.json(), (req, res) => {
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'token is required' });
-
-  try {
-    const secret = process.env.JWT_SECRET || 'dev-secret';
-    const decoded = jwt.verify(token, secret);
-    const jwtService = new JwtService();
-    const rsToken = jwtService.generateAccessToken({
-      id: decoded.userId || decoded.user_id || decoded.user?.id,
-      phoneNumber: decoded.phoneNumber || decoded.phone_number || decoded.phone,
-      role: decoded.role,
-    });
-
-    return res.status(200).json({ success: true, token: rsToken });
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
+// SECURITY (P0 — حذف شد): اندپوینت `POST /api/v1/auth/translate-token` که توکن‌های
+// HS256 را با سکرت پیش‌فرض (`process.env.JWT_SECRET || 'dev-secret'`) و بدون محدودیت
+// الگوریتم وریفای می‌کرد و در ازای آن یک توکن RS256 با «نقش دلخواه ورودی» صادر می‌کرد.
+// این مسیر امکان جعل هویت و تشدید سطح دسترسی (privilege escalation) را فراهم می‌کرد.
+// تنهاترین مسیر معتبر صدور توکن، `/api/v1/auth` (AuthRouter/RegistrationRouter) با
+// امضای RS256 و کلید خصوصی محافظت‌شده است.
 
 const port = process.env.PORT || 3001;
 

@@ -16,37 +16,57 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE user_role AS ENUM ('passenger', 'driver', 'provider', 'admin', 'super_admin');
-CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'banned');
-
-CREATE TYPE driver_account_status AS ENUM ('pending_verification', 'verified', 'rejected', 'suspended', 'blocked');
-CREATE TYPE driver_operational_status AS ENUM ('offline', 'online', 'busy', 'on_trip');
-
-CREATE TYPE trip_status AS ENUM (
-    'requested',
-    'driver_assigned',
-    'driver_arrived',
-    'passenger_boarded',
-    'in_progress',
-    'finished',
-    'cancelled',
-    'security_investigation',
-    'emergency_stop'
-);
-
-CREATE TYPE trip_payment_method AS ENUM ('wallet', 'cash', 'pay_later');
-CREATE TYPE service_type AS ENUM ('urban_taxi', 'intercity_taxi', 'freight', 'delivery');
-
-CREATE TYPE transaction_type AS ENUM ('CREDIT', 'DEBIT');
-CREATE TYPE transaction_status AS ENUM ('pending', 'success', 'failed');
-
-CREATE TYPE driver_document_type AS ENUM ('identity_card', 'driving_license', 'vehicle_card', 'operation_permit', 'selfie');
+-- (P1 — Idempotent) PostgreSQL دستور `CREATE TYPE IF NOT EXISTS` ندارد؛ ساخت enumها
+-- داخل یک بلوک محافظت‌شده انجام می‌شود تا اجرای چندبارهٔ migration خطا ندهد.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('passenger', 'driver', 'provider', 'admin', 'super_admin');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
+        CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'banned');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'driver_account_status') THEN
+        CREATE TYPE driver_account_status AS ENUM ('pending_verification', 'verified', 'rejected', 'suspended', 'blocked');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'driver_operational_status') THEN
+        CREATE TYPE driver_operational_status AS ENUM ('offline', 'online', 'busy', 'on_trip');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'trip_status') THEN
+        CREATE TYPE trip_status AS ENUM (
+            'requested',
+            'driver_assigned',
+            'driver_arrived',
+            'passenger_boarded',
+            'in_progress',
+            'finished',
+            'cancelled',
+            'security_investigation',
+            'emergency_stop'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'trip_payment_method') THEN
+        CREATE TYPE trip_payment_method AS ENUM ('wallet', 'cash', 'pay_later');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'service_type') THEN
+        CREATE TYPE service_type AS ENUM ('urban_taxi', 'intercity_taxi', 'freight', 'delivery');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type') THEN
+        CREATE TYPE transaction_type AS ENUM ('CREDIT', 'DEBIT');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_status') THEN
+        CREATE TYPE transaction_status AS ENUM ('pending', 'success', 'failed');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'driver_document_type') THEN
+        CREATE TYPE driver_document_type AS ENUM ('identity_card', 'driving_license', 'vehicle_card', 'operation_permit', 'selfie');
+    END IF;
+END $$;
 
 -- ============================================================================
 -- TABLE: currencies
 -- Multi-currency support for global expansion
 -- ============================================================================
-CREATE TABLE currencies (
+CREATE TABLE IF NOT EXISTS currencies (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code            VARCHAR(3) NOT NULL UNIQUE,          -- ISO 4217 (IRT, USD, AFN, EUR, etc.)
     name            VARCHAR(64) NOT NULL,
@@ -59,14 +79,14 @@ CREATE TABLE currencies (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_currencies_code ON currencies(code);
-CREATE INDEX idx_currencies_is_default ON currencies(is_default) WHERE is_default = TRUE;
+CREATE INDEX IF NOT EXISTS idx_currencies_code ON currencies(code);
+CREATE INDEX IF NOT EXISTS idx_currencies_is_default ON currencies(is_default) WHERE is_default = TRUE;
 
 -- ============================================================================
 -- TABLE: countries
 -- Multi-country support
 -- ============================================================================
-CREATE TABLE countries (
+CREATE TABLE IF NOT EXISTS countries (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code            VARCHAR(2) NOT NULL UNIQUE,          -- ISO 3166-1 alpha-2 (AF, IR, US, etc.)
     name            VARCHAR(128) NOT NULL,
@@ -78,13 +98,13 @@ CREATE TABLE countries (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_countries_code ON countries(code);
+CREATE INDEX IF NOT EXISTS idx_countries_code ON countries(code);
 
 -- ============================================================================
 -- TABLE: users
 -- Core user table for passengers, providers, admins
 -- ============================================================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name        VARCHAR(128) NOT NULL,
     last_name         VARCHAR(128) NOT NULL,
@@ -104,17 +124,17 @@ CREATE TABLE users (
     deleted_at        TIMESTAMPTZ                          -- Soft Delete
 );
 
-CREATE UNIQUE INDEX idx_users_phone ON users(phone_number) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_users_email ON users(email) WHERE email IS NOT NULL AND deleted_at IS NULL;
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_country ON users(country_id);
-CREATE INDEX idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_country ON users(country_id);
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: drivers
 -- Complete driver profile with all required fields
 -- ============================================================================
-CREATE TABLE drivers (
+CREATE TABLE IF NOT EXISTS drivers (
     id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                     UUID NOT NULL REFERENCES users(id),
     first_name                  VARCHAR(128) NOT NULL,
@@ -167,19 +187,19 @@ CREATE TABLE drivers (
     deleted_at                  TIMESTAMPTZ               -- Soft Delete
 );
 
-CREATE UNIQUE INDEX idx_drivers_user ON drivers(user_id) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_drivers_phone ON drivers(phone_number) WHERE deleted_at IS NULL;
-CREATE INDEX idx_drivers_account_status ON drivers(account_status);
-CREATE INDEX idx_drivers_operational_status ON drivers(operational_status) WHERE operational_status = 'online';
-CREATE INDEX idx_drivers_location ON drivers(current_location_latitude, current_location_longitude);
-CREATE INDEX idx_drivers_vehicle_type ON drivers(vehicle_type);
-CREATE INDEX idx_drivers_deleted_at ON drivers(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_drivers_user ON drivers(user_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_drivers_phone ON drivers(phone_number) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_drivers_account_status ON drivers(account_status);
+CREATE INDEX IF NOT EXISTS idx_drivers_operational_status ON drivers(operational_status) WHERE operational_status = 'online';
+CREATE INDEX IF NOT EXISTS idx_drivers_location ON drivers(current_location_latitude, current_location_longitude);
+CREATE INDEX IF NOT EXISTS idx_drivers_vehicle_type ON drivers(vehicle_type);
+CREATE INDEX IF NOT EXISTS idx_drivers_deleted_at ON drivers(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: driver_documents
 -- Separate table for driver documents (one-to-many relationship)
 -- ============================================================================
-CREATE TABLE driver_documents (
+CREATE TABLE IF NOT EXISTS driver_documents (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     driver_id       UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
     document_type   driver_document_type NOT NULL,
@@ -191,14 +211,14 @@ CREATE TABLE driver_documents (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_driver_documents_driver ON driver_documents(driver_id);
-CREATE INDEX idx_driver_documents_type ON driver_documents(driver_id, document_type);
+CREATE INDEX IF NOT EXISTS idx_driver_documents_driver ON driver_documents(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_documents_type ON driver_documents(driver_id, document_type);
 
 -- ============================================================================
 -- TABLE: trips
 -- Full trip lifecycle matching the 9-state state machine
 -- ============================================================================
-CREATE TABLE trips (
+CREATE TABLE IF NOT EXISTS trips (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     passenger_id        UUID NOT NULL REFERENCES users(id),
     driver_id           UUID REFERENCES drivers(id),
@@ -249,19 +269,19 @@ CREATE TABLE trips (
     deleted_at          TIMESTAMPTZ                     -- Soft Delete
 );
 
-CREATE INDEX idx_trips_passenger ON trips(passenger_id);
-CREATE INDEX idx_trips_driver ON trips(driver_id);
-CREATE INDEX idx_trips_status ON trips(status);
-CREATE INDEX idx_trips_created_at ON trips(created_at DESC);
-CREATE INDEX idx_trips_passenger_status ON trips(passenger_id, status);
-CREATE INDEX idx_trips_driver_status ON trips(driver_id, status);
-CREATE INDEX idx_trips_deleted_at ON trips(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_trips_passenger ON trips(passenger_id);
+CREATE INDEX IF NOT EXISTS idx_trips_driver ON trips(driver_id);
+CREATE INDEX IF NOT EXISTS idx_trips_status ON trips(status);
+CREATE INDEX IF NOT EXISTS idx_trips_created_at ON trips(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trips_passenger_status ON trips(passenger_id, status);
+CREATE INDEX IF NOT EXISTS idx_trips_driver_status ON trips(driver_id, status);
+CREATE INDEX IF NOT EXISTS idx_trips_deleted_at ON trips(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: wallets
 -- Multi-currency wallet per user
 -- ============================================================================
-CREATE TABLE wallets (
+CREATE TABLE IF NOT EXISTS wallets (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id),
     currency_id     UUID NOT NULL REFERENCES currencies(id),
@@ -274,15 +294,15 @@ CREATE TABLE wallets (
     CONSTRAINT unique_user_currency UNIQUE (user_id, currency_id)
 );
 
-CREATE INDEX idx_wallets_user ON wallets(user_id);
-CREATE INDEX idx_wallets_currency ON wallets(currency_id);
-CREATE INDEX idx_wallets_deleted_at ON wallets(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_wallets_user ON wallets(user_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_currency ON wallets(currency_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_deleted_at ON wallets(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: transactions
 -- All financial transactions (wallet charges, trip payments, etc.)
 -- ============================================================================
-CREATE TABLE transactions (
+CREATE TABLE IF NOT EXISTS transactions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     wallet_id       UUID NOT NULL REFERENCES wallets(id),
     trip_id         UUID REFERENCES trips(id),
@@ -294,16 +314,16 @@ CREATE TABLE transactions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_transactions_wallet ON transactions(wallet_id);
-CREATE INDEX idx_transactions_trip ON transactions(trip_id);
-CREATE INDEX idx_transactions_created ON transactions(created_at DESC);
-CREATE INDEX idx_transactions_type ON transactions(wallet_id, type);
+CREATE INDEX IF NOT EXISTS idx_transactions_wallet ON transactions(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_trip ON transactions(trip_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(wallet_id, type);
 
 -- ============================================================================
 -- TABLE: system_configs
 -- Dynamic configuration storage (no hardcode)
 -- ============================================================================
-CREATE TABLE system_configs (
+CREATE TABLE IF NOT EXISTS system_configs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     category        VARCHAR(64) NOT NULL,                   -- e.g. 'pricing', 'commission', 'features'
     key             VARCHAR(128) NOT NULL,
@@ -316,13 +336,13 @@ CREATE TABLE system_configs (
     CONSTRAINT unique_config_key UNIQUE (category, key)
 );
 
-CREATE INDEX idx_system_configs_category ON system_configs(category);
+CREATE INDEX IF NOT EXISTS idx_system_configs_category ON system_configs(category);
 
 -- ============================================================================
 -- TABLE: audit_logs
 -- Central audit trail for all important events
 -- ============================================================================
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type      VARCHAR(64) NOT NULL,                   -- e.g. 'TripCreated', 'WalletCharged'
     entity_type     VARCHAR(64) NOT NULL,                   -- e.g. 'trip', 'wallet', 'user'
@@ -332,10 +352,10 @@ CREATE TABLE audit_logs (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_logs_event ON audit_logs(event_type);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_actor ON audit_logs(actor_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
 
 -- ============================================================================
 -- DEFAULT DATA
@@ -347,13 +367,13 @@ INSERT INTO currencies (code, name, symbol, is_default, exchange_rate, decimal_p
     ('USD', 'US Dollar', '$', FALSE, 0.000024, 2),
     ('EUR', 'Euro', '€', FALSE, 0.000022, 2),
     ('AFN', 'Afghan Afghani', '؋', FALSE, 0.0018, 2),
-    ('AED', 'UAE Dirham', 'د.إ', FALSE, 0.000088, 2);
+    ('AED', 'UAE Dirham', 'د.إ', FALSE, 0.000088, 2) ON CONFLICT DO NOTHING;
 
 -- Insert default countries
 INSERT INTO countries (code, name, phone_prefix, currency_id, timezone) VALUES
     ('IR', 'Iran', '+98', (SELECT id FROM currencies WHERE code = 'IRT'), 'Asia/Tehran'),
     ('AF', 'Afghanistan', '+93', (SELECT id FROM currencies WHERE code = 'AFN'), 'Asia/Kabul'),
-    ('AE', 'United Arab Emirates', '+971', (SELECT id FROM currencies WHERE code = 'AED'), 'Asia/Dubai');
+    ('AE', 'United Arab Emirates', '+971', (SELECT id FROM currencies WHERE code = 'AED'), 'Asia/Dubai') ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- END OF MIGRATION 001

@@ -15,24 +15,32 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE notification_type AS ENUM (
-    'trip_update',
-    'promotion',
-    'system_alert',
-    'security_alert',
-    'payment_reminder',
-    'driver_message'
-);
-
-CREATE TYPE coupon_discount_type AS ENUM ('percentage', 'fixed_amount');
-
-CREATE TYPE review_entity_type AS ENUM ('trip', 'driver', 'passenger');
+-- (P1 — Idempotent) ساخت enumها داخل بلوک محافظت‌شده تا اجرای چندباره خطا ندهد
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
+        CREATE TYPE notification_type AS ENUM (
+            'trip_update',
+            'promotion',
+            'system_alert',
+            'security_alert',
+            'payment_reminder',
+            'driver_message'
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'coupon_discount_type') THEN
+        CREATE TYPE coupon_discount_type AS ENUM ('percentage', 'fixed_amount');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'review_entity_type') THEN
+        CREATE TYPE review_entity_type AS ENUM ('trip', 'driver', 'passenger');
+    END IF;
+END $$;
 
 -- ============================================================================
 -- TABLE: roles
 -- RBAC: Defines roles in the system (admin, super_admin, support, etc.)
 -- ============================================================================
-CREATE TABLE roles (
+CREATE TABLE IF NOT EXISTS roles (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(64) NOT NULL UNIQUE,           -- e.g. 'super_admin', 'admin', 'support', 'driver', 'passenger'
     display_name    VARCHAR(128) NOT NULL,
@@ -43,14 +51,14 @@ CREATE TABLE roles (
     deleted_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_roles_name ON roles(name);
-CREATE INDEX idx_roles_deleted_at ON roles(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_roles_name ON roles(name);
+CREATE INDEX IF NOT EXISTS idx_roles_deleted_at ON roles(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: permissions
 -- RBAC: Defines granular permissions mapped to modules
 -- ============================================================================
-CREATE TABLE permissions (
+CREATE TABLE IF NOT EXISTS permissions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(128) NOT NULL UNIQUE,          -- e.g. 'users.create', 'trips.read', 'drivers.update_status'
     module          VARCHAR(64) NOT NULL,                   -- e.g. 'users', 'trips', 'drivers', 'wallets'
@@ -59,13 +67,13 @@ CREATE TABLE permissions (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_permissions_module ON permissions(module);
+CREATE INDEX IF NOT EXISTS idx_permissions_module ON permissions(module);
 
 -- ============================================================================
 -- TABLE: role_permissions
 -- RBAC: Many-to-many relationship between roles and permissions
 -- ============================================================================
-CREATE TABLE role_permissions (
+CREATE TABLE IF NOT EXISTS role_permissions (
     role_id         UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     permission_id   UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -73,13 +81,13 @@ CREATE TABLE role_permissions (
     PRIMARY KEY (role_id, permission_id)
 );
 
-CREATE INDEX idx_role_permissions_permission ON role_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission ON role_permissions(permission_id);
 
 -- ============================================================================
 -- TABLE: user_roles
 -- RBAC: Many-to-many relationship between users and roles
 -- ============================================================================
-CREATE TABLE user_roles (
+CREATE TABLE IF NOT EXISTS user_roles (
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role_id         UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     assigned_by     UUID REFERENCES users(id),
@@ -88,13 +96,13 @@ CREATE TABLE user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 
-CREATE INDEX idx_user_roles_role ON user_roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
 
 -- ============================================================================
 -- TABLE: addresses
 -- Multi-country address storage for users
 -- ============================================================================
-CREATE TABLE addresses (
+CREATE TABLE IF NOT EXISTS addresses (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title           VARCHAR(128) NOT NULL,                  -- e.g. 'Home', 'Work', 'Office'
@@ -113,16 +121,16 @@ CREATE TABLE addresses (
     deleted_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_addresses_user ON addresses(user_id);
-CREATE INDEX idx_addresses_country ON addresses(country_id);
-CREATE INDEX idx_addresses_default ON addresses(user_id) WHERE is_default = TRUE;
-CREATE INDEX idx_addresses_deleted_at ON addresses(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id);
+CREATE INDEX IF NOT EXISTS idx_addresses_country ON addresses(country_id);
+CREATE INDEX IF NOT EXISTS idx_addresses_default ON addresses(user_id) WHERE is_default = TRUE;
+CREATE INDEX IF NOT EXISTS idx_addresses_deleted_at ON addresses(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: files
 -- Centralized file management for all uploaded documents
 -- ============================================================================
-CREATE TABLE files (
+CREATE TABLE IF NOT EXISTS files (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     url             VARCHAR(512) NOT NULL,
     original_name   VARCHAR(256) NOT NULL,
@@ -136,16 +144,16 @@ CREATE TABLE files (
     deleted_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_files_module ON files(module);
-CREATE INDEX idx_files_entity ON files(entity_type, entity_id);
-CREATE INDEX idx_files_uploader ON files(uploaded_by);
-CREATE INDEX idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_files_module ON files(module);
+CREATE INDEX IF NOT EXISTS idx_files_entity ON files(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_files_uploader ON files(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: notifications
 -- Notification system for users
 -- ============================================================================
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title           VARCHAR(256) NOT NULL,
@@ -160,17 +168,17 @@ CREATE TABLE notifications (
     deleted_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_notifications_user ON notifications(user_id);
-CREATE INDEX idx_notifications_unread ON notifications(user_id) WHERE is_read = FALSE;
-CREATE INDEX idx_notifications_type ON notifications(type);
-CREATE INDEX idx_notifications_sent ON notifications(sent_at DESC);
-CREATE INDEX idx_notifications_deleted_at ON notifications(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id) WHERE is_read = FALSE;
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_sent ON notifications(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_deleted_at ON notifications(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: reviews
 -- Unified rating system for trips, drivers, and passengers
 -- ============================================================================
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trip_id         UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
     reviewer_id     UUID NOT NULL REFERENCES users(id),     -- Who gave the review
@@ -185,17 +193,17 @@ CREATE TABLE reviews (
     CONSTRAINT unique_review_per_trip UNIQUE (trip_id, reviewer_id, reviewee_id)
 );
 
-CREATE INDEX idx_reviews_trip ON reviews(trip_id);
-CREATE INDEX idx_reviews_reviewer ON reviews(reviewer_id);
-CREATE INDEX idx_reviews_reviewee ON reviews(reviewee_id);
-CREATE INDEX idx_reviews_rating ON reviews(reviewee_id, rating);
-CREATE INDEX idx_reviews_deleted_at ON reviews(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reviews_trip ON reviews(trip_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer ON reviews(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee ON reviews(reviewee_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(reviewee_id, rating);
+CREATE INDEX IF NOT EXISTS idx_reviews_deleted_at ON reviews(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: coupons
 -- Discount coupon system with Multi-Country & Multi-Currency support
 -- ============================================================================
-CREATE TABLE coupons (
+CREATE TABLE IF NOT EXISTS coupons (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code                VARCHAR(32) NOT NULL,
     description         TEXT,
@@ -217,18 +225,18 @@ CREATE TABLE coupons (
     deleted_at          TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX idx_coupons_code ON coupons(code) WHERE deleted_at IS NULL;
-CREATE INDEX idx_coupons_country ON coupons(country_id);
-CREATE INDEX idx_coupons_currency ON coupons(currency_id);
-CREATE INDEX idx_coupons_active ON coupons(is_active) WHERE is_active = TRUE;
-CREATE INDEX idx_coupons_dates ON coupons(starts_at, expires_at);
-CREATE INDEX idx_coupons_deleted_at ON coupons(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_coupons_country ON coupons(country_id);
+CREATE INDEX IF NOT EXISTS idx_coupons_currency ON coupons(currency_id);
+CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_coupons_dates ON coupons(starts_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_coupons_deleted_at ON coupons(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- ============================================================================
 -- TABLE: user_coupons
 -- Tracks coupon usage per user
 -- ============================================================================
-CREATE TABLE user_coupons (
+CREATE TABLE IF NOT EXISTS user_coupons (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     coupon_id       UUID NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
@@ -238,8 +246,8 @@ CREATE TABLE user_coupons (
     CONSTRAINT unique_user_coupon_usage UNIQUE (user_id, coupon_id, trip_id)
 );
 
-CREATE INDEX idx_user_coupons_user ON user_coupons(user_id);
-CREATE INDEX idx_user_coupons_coupon ON user_coupons(coupon_id);
+CREATE INDEX IF NOT EXISTS idx_user_coupons_user ON user_coupons(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_coupons_coupon ON user_coupons(coupon_id);
 
 -- ============================================================================
 -- DEFAULT DATA: RBAC
@@ -251,7 +259,7 @@ INSERT INTO roles (name, display_name, description, is_system) VALUES
     ('admin', 'Administrator', 'Administrative access to manage system', TRUE),
     ('support', 'Support Agent', 'Customer support access', TRUE),
     ('driver', 'Driver', 'Service provider - can accept trips', TRUE),
-    ('passenger', 'Passenger', 'End user - can request trips', TRUE);
+    ('passenger', 'Passenger', 'End user - can request trips', TRUE) ON CONFLICT DO NOTHING;
 
 -- Insert default permissions
 INSERT INTO permissions (name, module, description) VALUES
@@ -298,31 +306,31 @@ INSERT INTO permissions (name, module, description) VALUES
     ('roles.read', 'rbac', 'View roles'),
     ('roles.update', 'rbac', 'Update roles'),
     ('roles.delete', 'rbac', 'Delete roles'),
-    ('permissions.assign', 'rbac', 'Assign permissions to roles');
+    ('permissions.assign', 'rbac', 'Assign permissions to roles') ON CONFLICT DO NOTHING;
 
 -- Assign all permissions to super_admin role
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT (SELECT id FROM roles WHERE name = 'super_admin'), id FROM permissions;
+SELECT (SELECT id FROM roles WHERE name = 'super_admin'), id FROM permissions ON CONFLICT DO NOTHING;
 
 -- Assign specific permissions to admin role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'admin'), id FROM permissions
-WHERE module IN ('users', 'drivers', 'trips', 'wallets', 'config', 'coupons', 'reviews');
+WHERE module IN ('users', 'drivers', 'trips', 'wallets', 'config', 'coupons', 'reviews') ON CONFLICT DO NOTHING;
 
 -- Assign specific permissions to support role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'support'), id FROM permissions
-WHERE name IN ('users.read', 'drivers.read', 'trips.read', 'reviews.read', 'reviews.create');
+WHERE name IN ('users.read', 'drivers.read', 'trips.read', 'reviews.read', 'reviews.create') ON CONFLICT DO NOTHING;
 
 -- Assign specific permissions to driver role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'driver'), id FROM permissions
-WHERE name IN ('trips.read', 'trips.update', 'wallets.read', 'drivers.read');
+WHERE name IN ('trips.read', 'trips.update', 'wallets.read', 'drivers.read') ON CONFLICT DO NOTHING;
 
 -- Assign specific permissions to passenger role
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM roles WHERE name = 'passenger'), id FROM permissions
-WHERE name IN ('trips.create', 'trips.read', 'trips.cancel', 'wallets.read', 'reviews.create', 'reviews.read');
+WHERE name IN ('trips.create', 'trips.read', 'trips.cancel', 'wallets.read', 'reviews.create', 'reviews.read') ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- END OF MIGRATION 002

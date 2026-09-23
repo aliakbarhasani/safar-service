@@ -15,31 +15,43 @@
 -- ENUM TYPES
 -- ============================================================================
 
-CREATE TYPE payment_gateway AS ENUM (
-    'zarinpal',    -- درگاه پرداخت زرین‌پال
-    'idpay',       -- درگاه پرداخت آیدی پی
-    'payv1',       -- پی وی ون
-    'stripe',      -- Stripe (International)
-    'paypal',      -- PayPal (International)
-    'wallet',      -- Internal wallet transfer
-    'bank_transfer', -- Direct bank transfer
-    'cash'         -- Cash payment
-);
+-- (P1 — Idempotent) PostgreSQL دستور `CREATE TYPE IF NOT EXISTS` ندارد؛ بنابراین
+-- ساخت هر enum داخل بلوک محافظت‌شده انجام می‌شود تا اجرای چندبارهٔ migration خطا ندهد.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_gateway') THEN
+        CREATE TYPE payment_gateway AS ENUM (
+            'zarinpal',    -- درگاه پرداخت زرین‌پال
+            'idpay',       -- درگاه پرداخت آیدی پی
+            'payv1',       -- پی وی ون
+            'stripe',      -- Stripe (International)
+            'paypal',      -- PayPal (International)
+            'wallet',      -- Internal wallet transfer
+            'bank_transfer', -- Direct bank transfer
+            'cash'         -- Cash payment
+        );
+    END IF;
+END $$;
 
-CREATE TYPE escrow_status AS ENUM (
-    'active',       -- وجوه مسدود شده و فعال
-    'released',     -- آزاد شده به مقصد
-    'refunded',     -- بازگشت داده شده به فرستنده
-    'expired',      -- منقضی شده
-    'disputed',     -- مورد اختلاف
-    'resolved'      -- اختلاف حل شده
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'escrow_status') THEN
+        CREATE TYPE escrow_status AS ENUM (
+            'active',       -- وجوه مسدود شده و فعال
+            'released',     -- آزاد شده به مقصد
+            'refunded',     -- بازگشت داده شده به فرستنده
+            'expired',      -- منقضی شده
+            'disputed',     -- مورد اختلاف
+            'resolved'      -- اختلاف حل شده
+        );
+    END IF;
+END $$;
 
 -- ============================================================================
 -- TABLE: escrow_transactions
 -- Complete lifecycle tracking for escrow operations
 -- ============================================================================
-CREATE TABLE escrow_transactions (
+CREATE TABLE IF NOT EXISTS escrow_transactions (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     trip_id             UUID REFERENCES trips(id),
     payer_id            UUID NOT NULL REFERENCES users(id),     -- Who paid (passenger)
@@ -66,11 +78,12 @@ CREATE TABLE escrow_transactions (
     deleted_at          TIMESTAMPTZ                          -- Soft Delete (only for administrative cleanup)
 );
 
-CREATE INDEX idx_escrow_trip ON escrow_transactions(trip_id);
-CREATE INDEX idx_escrow_payer ON escrow_transactions(payer_id);
-CREATE INDEX idx_escrow_payee ON escrow_transactions(payee_id);
-CREATE INDEX idx_escrow_status ON escrow_transactions(status);
-CREATE INDEX idx_escrow_created ON escrow_transactions(created_at DESC);
+-- (P1 — Idempotent) ایندکس‌ها با IF NOT EXISTS تا اجرای چندباره خطا ندهد
+CREATE INDEX IF NOT EXISTS idx_escrow_trip ON escrow_transactions(trip_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_payer ON escrow_transactions(payer_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_payee ON escrow_transactions(payee_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_status ON escrow_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_escrow_created ON escrow_transactions(created_at DESC);
 
 -- ============================================================================
 -- STRICT CONSTRAINTS ON wallets TABLE
@@ -90,14 +103,21 @@ ALTER TABLE wallets
     ALTER COLUMN frozen_balance TYPE NUMERIC(20,8);
 
 -- 2. Strict non-negative CHECK constraints
+-- (P1 — Idempotent) `ADD CONSTRAINT` در اجرای مجدد خطا می‌دهد؛ بنابراین هر
+-- constraint ابتدا با IF EXISTS حذف و سپس بازسازی می‌شود.
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS check_balance_non_negative;
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS check_available_balance_non_negative;
+ALTER TABLE wallets DROP CONSTRAINT IF EXISTS check_frozen_balance_non_negative;
+
 ALTER TABLE wallets
     ADD CONSTRAINT check_balance_non_negative CHECK (balance >= 0),
     ADD CONSTRAINT check_available_balance_non_negative CHECK (available_balance >= 0),
     ADD CONSTRAINT check_frozen_balance_non_negative CHECK (frozen_balance >= 0);
 
 -- 3. Validate total balance = available + frozen (already exists, re-assert)
--- Ensure the constraint is enforced
+-- Ensure the constraint is enforced (P1 — Idempotent: حذف محافظت‌شده پیش از بازسازی)
 ALTER TABLE wallets DROP CONSTRAINT IF EXISTS ck_wallet_balance_total;
+
 ALTER TABLE wallets
     ADD CONSTRAINT ck_wallet_balance_total
     CHECK (balance = available_balance + frozen_balance);
@@ -165,7 +185,7 @@ ALTER TABLE transactions
 
 -- 3. UNIQUE index on reference_id (only when NOT NULL)
 DROP INDEX IF EXISTS idx_transactions_reference_unique;
-CREATE UNIQUE INDEX idx_transactions_reference_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_reference_unique
     ON transactions(reference_id) WHERE reference_id IS NOT NULL;
 
 -- 4. Index on gateway fields
@@ -190,20 +210,24 @@ ALTER TABLE wallet_ledger
     ALTER COLUMN frozen_after TYPE NUMERIC(20,8);
 
 -- 2. Strict non-negative CHECK constraints on ledger
+-- (P1 — Idempotent) ابتدا حذف محافظت‌شده (IF EXISTS) و سپس بازسازی constraint
+ALTER TABLE wallet_ledger DROP CONSTRAINT IF EXISTS check_ledger_credit_non_negative;
+ALTER TABLE wallet_ledger DROP CONSTRAINT IF EXISTS check_ledger_debit_non_negative;
+
 ALTER TABLE wallet_ledger
     ADD CONSTRAINT check_ledger_credit_non_negative CHECK (credit_amount >= 0),
     ADD CONSTRAINT check_ledger_debit_non_negative CHECK (debit_amount >= 0);
 
--- 3. Ensure no deleted_at column (wallet_ledger is append-only)
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'wallet_ledger' AND column_name = 'deleted_at'
-    ) THEN
-        ALTER TABLE wallet_ledger DROP COLUMN deleted_at;
-    END IF;
-END $$;
+-- 3. (P1 — بازنویسی غیرتخریبی) کیف پول/دفتر کل تنها-افزودنی (append-only) است.
+-- SECURITY/STABILITY: در نسخهٔ قبلی اینجا ستون `deleted_at` با دستور مخرب
+-- `ALTER TABLE wallet_ledger DROP COLUMN deleted_at` به‌صورت فیزیکی حذف می‌شد.
+-- حذف فیزیکی ستون برگشت‌ناپذیر است و می‌تواند در محیط‌هایی که این ستون را
+-- از قبل داشتند باعث از دست رفتن داده شود؛ بنابراین آن دستور به‌کلی حذف شد.
+-- اصل «تنها-افزودنی» بودن دفتر کل، ساختاری و قطعی تضمین شده است توسط تریگر
+-- `fn_prevent_ledger_mutation` (پایین‌تر) که هر UPDATE/DELETE را مسدود می‌کند؛
+-- پس ستون `deleted_at` بی‌اثر (inert) است و حذف فیزیکی آن ضرورتی ندارد.
+-- Soft Delete عمداً روی دفتر کل اعمال نمی‌شود (داده‌های مالی باید تغییرناپذیر بمانند).
+-- (در این migration هیچ دستور تخریبی باقی نمانده است.)
 
 -- ============================================================================
 -- APPEND-ONLY TRIGGER FOR wallet_ledger
@@ -241,7 +265,7 @@ CREATE TRIGGER trg_prevent_ledger_delete
 -- REFERENCE_ID UNIQUE ON wallet_ledger
 -- ============================================================================
 DROP INDEX IF EXISTS idx_wallet_ledger_reference_unique;
-CREATE UNIQUE INDEX idx_wallet_ledger_reference_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_ledger_reference_unique
     ON wallet_ledger(reference_id) WHERE reference_id IS NOT NULL;
 
 -- ============================================================================

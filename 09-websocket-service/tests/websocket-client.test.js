@@ -5,8 +5,20 @@
  * Tests auth middleware, event bridge, and connection lifecycle.
  */
 
+const fs = require('fs');
+const path = require('path');
 const jwt = require('jsonwebtoken');
-const config = require('../config');
+
+// SECURITY (P0): توکن‌های تست فقط با RS256 و کلید خصوصی واقعی سرویس امضا می‌شوند.
+// سکرت متقارن HS256 (`config.jwt.secret`) از سرویس حذف شده است.
+const PRIVATE_KEY = fs.readFileSync(
+  path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem'),
+  'utf8'
+);
+
+function signRs256(payload) {
+  return jwt.sign(payload, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '5m' });
+}
 
 // ── Mock EventBus ──────────────────────────────────────────────────────────
 class MockEventBus {
@@ -41,7 +53,7 @@ function makeSocket({ token = null, header = null } = {}) {
 
 describe('Auth Middleware', () => {
   test('accepts valid token from auth.token', () => {
-    const token = jwt.sign({ userId: 'user-123', role: 'passenger' }, config.jwt.secret, { algorithm: 'HS256' });
+    const token = signRs256({ userId: 'user-123', role: 'passenger' });
     const socket = makeSocket({ token });
     const next = jest.fn();
     authMiddleware(socket, next);
@@ -51,12 +63,24 @@ describe('Auth Middleware', () => {
   });
 
   test('accepts valid token from Authorization header', () => {
-    const token = jwt.sign({ userId: 'user-456', role: 'driver' }, config.jwt.secret, { algorithm: 'HS256' });
+    const token = signRs256({ userId: 'user-456', role: 'driver' });
     const socket = makeSocket({ header: `Bearer ${token}` });
     const next = jest.fn();
     authMiddleware(socket, next);
     expect(next).toHaveBeenCalledWith();
     expect(socket.user.id).toBe('user-456');
+  });
+
+  test('rejects HS256 token signed with a symmetric secret (no HS256 fallback)', () => {
+    const hs256 = jwt.sign({ userId: 'user-999', role: 'admin' }, 'safar-service-jwt-secret-key-2026', {
+      algorithm: 'HS256',
+      expiresIn: '5m',
+    });
+    const socket = makeSocket({ token: hs256 });
+    const next = jest.fn();
+    authMiddleware(socket, next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('invalid') }));
+    expect(socket.user).toBeNull();
   });
 
   test('rejects missing token', () => {
@@ -74,7 +98,7 @@ describe('Auth Middleware', () => {
   });
 
   test('rejects token without user identity', () => {
-    const token = jwt.sign({ role: 'admin' }, config.jwt.secret, { algorithm: 'HS256' });
+    const token = signRs256({ role: 'admin' });
     const socket = makeSocket({ token });
     const next = jest.fn();
     authMiddleware(socket, next);

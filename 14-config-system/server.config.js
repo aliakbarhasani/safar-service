@@ -1,5 +1,27 @@
+const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+
+// ── (P0 امنیتی) کلید عمومی RS256 — اجباری و Fail-Fast ────────────────────────
+// SECURITY: هیچ سکرت متقارن/متنی و هیچ مقدار پیش‌فرضی برای JWT وجود ندارد.
+// تنها الگوریتم پذیرفته‌شده RS256 است و کلید عمومی از فایل jwt_public.pem
+// بارگذاری می‌شود. در صورت نبود/نامعتبر بودن کلید، سرویس بالا نمی‌آید.
+const JWT_PUBLIC_KEY_PATH =
+  process.env.JWT_PUBLIC_KEY_PATH || path.resolve(__dirname, '..', '00-infrastructure', 'keys', 'jwt_public.pem');
+
+let jwtPublicKey;
+try {
+  jwtPublicKey = fs.readFileSync(JWT_PUBLIC_KEY_PATH, 'utf8');
+  if (!jwtPublicKey.includes('-----BEGIN PUBLIC KEY-----')) {
+    throw new Error('file content is not a PEM RSA public key');
+  }
+} catch (err) {
+  throw new Error(
+    `[config-system] FATAL: RS256 public key is required but could not be loaded from ` +
+    `"${JWT_PUBLIC_KEY_PATH}" (${err.message}). ` +
+    `Generate the key pair with 00-infrastructure/keys/generate-keys.js and restart the service.`
+  );
+}
 
 const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
@@ -41,7 +63,10 @@ const config = {
     level: process.env.LOG_LEVEL || 'info',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'safar-service-jwt-secret-key-2026',
+    // SECURITY (P0): سکرت متقارن حذف شد. فقط RS256 با کلید عمومی معتبر پذیرفته می‌شود.
+    algorithm: 'RS256',
+    publicKey: jwtPublicKey,
+    publicKeyPath: JWT_PUBLIC_KEY_PATH,
     expiration: process.env.JWT_EXPIRATION || '7d',
   },
   wallet: {

@@ -11,13 +11,21 @@
  */
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 
 const authApp = require('../../../13-auth-management/run-server');
 const marketplaceApp = require('../../../09-marketplace/run-server');
-const config = require('../../../14-config-system/server.config');
+
+// SECURITY (P0): توکن تست فقط با RS256 و کلید خصوصی واقعی سرویس امضا می‌شود؛
+// سکرت متقارن (HS256) از پروژه حذف شده است.
+const PRIVATE_KEY = fs.readFileSync(
+  path.resolve(__dirname, '..', '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem'),
+  'utf8'
+);
 
 const dbPool = new Pool({
   host: process.env.PG_HOST || '127.0.0.1',
@@ -103,9 +111,9 @@ describe('Business registration end-to-end (live Postgres)', () => {
     expect(sellerId).toBeTruthy();
 
     const token = jwt.sign(
-      { userId: sellerId, phoneNumber: uniquePhone, role: 'seller' },
-      config.jwt.secret,
-      { expiresIn: '1h' }
+      { userId: sellerId, phoneNumber: uniquePhone, role: 'seller', type: 'access' },
+      PRIVATE_KEY,
+      { algorithm: 'RS256', expiresIn: '1h' }
     );
 
     const res = await request(marketplaceApp)
