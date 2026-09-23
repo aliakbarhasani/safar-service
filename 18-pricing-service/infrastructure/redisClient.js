@@ -28,15 +28,27 @@ function createRedisClient(opts = {}) {
   }
   const cfg = config.redis || {};
   try {
-    return new Redis({
+        const redis = new Redis({
       host: opts.host || cfg.host || '127.0.0.1',
       port: opts.port || cfg.port || 6379,
       password: opts.password !== undefined ? opts.password : cfg.password,
       db: opts.db != null ? opts.db : cfg.db || 0,
       lazyConnect: false,
       maxRetriesPerRequest: 2,
+      // bounded retry: stop reconnecting after 5 attempts (prevents reconnect spam
+      // when Redis is down). maxRetriesPerRequest=2 bounds per-op latency.
       retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 1000)),
     });
+
+    // 🔒 fail-open: an ECONNREFUSED on a downed Redis must NOT crash the Gateway.
+    // Without this listener a dropped Redis would throw an unhandled 'error'
+    // event during boot (ioredis emits 'error' once before retryStrategy gives up).
+    // Pricing/surge then degrades to defaults (multiplier 1.0) instead of crashing.
+    redis.on('error', (err) => {
+      console.warn('[pricing-service] Redis connection warning — degraded mode:', err.message);
+    });
+
+    return redis;
   } catch (err) {
     console.warn('[pricing-service] Redis client creation failed, degrading:', err.message);
     return createNoOpClient();

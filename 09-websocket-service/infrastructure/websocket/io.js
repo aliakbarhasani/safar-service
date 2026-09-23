@@ -42,15 +42,25 @@ function createIo(httpServer, { createRedisClient = null } = {}) {
       // eslint-disable-next-line global-require
       const Redis = require('ioredis');
 
-      adapter = (type) =>
-        new Redis({
+            adapter = (type) => {
+        const client = new Redis({
           host: config.redis.host,
           port: config.redis.port,
           password: config.redis.password,
           keyPrefix: `${config.redis.keyPrefix}${type}:`,
           lazyConnect: false,
-          maxRetriesPerRequest: 3,
+          maxRetriesPerRequest: 2,
+          // bounded retry: stop reconnecting after 5 attempts so a downed Redis
+          // doesn't spam reconnect errors in dev / single-instance mode.
+          retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 1000)),
         });
+        // fail-open: log connection issues instead of letting them throw as
+        // unhandled 'error' events (ECONNREFUSED) and crash the process.
+        client.on('error', (err) => {
+          console.warn(`[WS Redis ${type}] Connection warning — degraded mode:`, err.message);
+        });
+        return client;
+      };
 
       const pubClient = adapter('pub');
       const subClient = adapter('sub');
