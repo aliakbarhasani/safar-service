@@ -9,6 +9,11 @@
 const express = require('express');
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 const { getPool } = require('../01-core-system/database/db');
+// (FIX/P0) پیکربندی مرکزی سرویس — پیش‌تر این فایل از `config.trip` (خط ۳۰۳) و
+// `config.pg` (خطوط ۳۱۴–۳۱۸) استفاده می‌کرد بدون آنکه `config` را import کند؛
+// همین باعث `ReferenceError: config is not defined` و کرش کامل بوت Gateway
+// (و در نتیجه کرش `01-core-system/app.js` که این فایل را require می‌کند) می‌شد.
+const config = require('../14-config-system/server.config');
 const router = express.Router();
 
 // ===== کمک‌تابع‌های پروکسی (اصلاح 404) =====
