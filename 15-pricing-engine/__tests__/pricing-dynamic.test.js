@@ -1,110 +1,99 @@
 /**
  * pricing-dynamic.test.js
  *
- * Unit tests for the dynamic pricing formula (PricingCalculator) and for the
- * PostgresPricingRuleResolver row->rule mapping (no DB required - uses a stub pool).
+ * Unit tests for the DYNAMIC pricing formula (domain/PricingCalculator) and for
+ * the PostgresPricingRuleResolver row -> rule mapping (no DB required - uses a
+ * prototype-only resolver instance and direct `_rowToRule` calls).
  *
- * Verifies: base + distance*perKm formula, traffic multiplier, night multiplier,
- * commission, cargo (barberry) config, and min/max fare clamping â€” all driven by
- * values that come from the pricing_configs table (never hardcoded in code).
+ * Verifies: base + distance*perKm + duration*perMin formula, traffic multiplier,
+ * minimum-fare clamping and the commission/provider split - all driven by values
+ * that come from the `pricing_configs` table (never hardcoded in code).
  */
 
-const PricingCalculator = require('../services/PricingCalculator');
+const PricingCalculator = require('../domain/PricingCalculator');
 const PostgresPricingRuleResolver = require('../infrastructure/repositories/PostgresPricingRuleResolver');
+const { PricingRule } = require('../domain');
+
+/**
+ * A `pricing_configs` row shaped exactly as PricingRepository.getActiveConfig()
+ * hands it to the domain layer:
+ *   price_per_min -> price_per_minute, min_fare -> minimum_fare and
+ *   commission_rate already converted from percent (10) to a factor (0.10).
+ * Defaults below mirror the `Taxi Urban` seed row.
+ */
+function makeConfig(overrides = {}) {
+  return {
+    id: 'cfg-urban-taxi',
+    base_fare: 15000,
+    price_per_km: 5000,
+    price_per_minute: 2000,
+    minimum_fare: 10000,
+    commission_rate: 0.10,
+    ...overrides,
+  };
+}
 
 describe('PricingCalculator - dynamic formula', () => {
-  describe('base fare + per-km (urban taxi config from DB)', () => {
-    // urban_taxi seed: base_fare=15000, price_per_km=5000, price_per_min=2000
-    const cfg = {
-      baseFare: 15000, perKmRate: 5000, perMinuteRate: 2000,
-      trafficMultiplierMin: 1.0, trafficMultiplierMax: 2.5, nightMultiplier: 1.5,
-      commissionRate: 0.10, minFare: 10000, maxFare: 50000,
-    };
-
+  describe('base + per-km + per-minute (urban_taxi seed from pricing_configs)', () => {
     test('calculates base + (distance * perKm) + (duration * perMin) with no modifiers', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 10, durationMin: 15 });
-      // base = 15000 + 5000*10 + 2000*15 = 95000
-      expect(r.base).toBe(95000);
-      // traffic 1.0, time 1 => subtotal = 95000
-      expect(r.subtotal).toBe(95000);
-      // commission 10% => total 104500, but maxFare clamps to 50000
-      expect(r.total).toBe(50000);
-      expect(r.clampedToMax).toBe(true);
+      const r = PricingCalculator.calculateQuote(makeConfig(), 10, 15, 1.0);
+      // 15000 + 5000*10 + 2000*15 = 95000
+      expect(r.amounts.gross.toDisplayFormat()).toBe('95000');
+      expect(r.calculationSteps.baseFare).toBe('15000');
+      expect(r.calculationSteps.distanceCost).toBe('50000');
+      expect(r.calculationSteps.timeCost).toBe('30000');
     });
 
-    test('applies high traffic multiplier (max) when trafficLevel=1', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 10, durationMin: 15, trafficLevel: 1 });
-      expect(r.trafficFactor).toBe(2.5);
-      expect(r.subtotal).toBe(95000 * 2.5);
-    });
-
-    test('applies night multiplier when isNight=true', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 10, durationMin: 15, isNight: true });
-      expect(r.timeFactor).toBe(1.5);
-      expect(r.subtotal).toBe(95000 * 1.5);
-    });
-
-    test('combined: night + high traffic', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 10, durationMin: 15, isNight: true, trafficLevel: 1 });
-      // subtotal = 95000 * 2.5 * 1.5
-      expect(r.subtotal).toBeCloseTo(95000 * 2.5 * 1.5, 6);
-      // +10% commission => rounded/clamped by maxFare
-      expect(r.total).toBe(50000);
+    test('traffic multiplier (max 2.5 from pricing_configs) scales the gross amount', () => {
+      const r = PricingCalculator.calculateQuote(makeConfig(), 10, 15, 2.5);
+      expect(r.amounts.gross.toDisplayFormat()).toBe('237500'); // 95000 * 2.5
+      expect(r.calculationSteps.trafficMultiplier).toBe(2.5);
     });
   });
 
-  describe('cargo (ط¨ط§ط±ط¨ط±غŒ) config', () => {
-    // cargo_light seed: base_fare=5000, price_per_km=2000, price_per_min=1000, commission 5%, max 30000
-    const cfg = {
-      baseFare: 5000, perKmRate: 2000, perMinuteRate: 1000,
-      trafficMultiplierMin: 1.0, trafficMultiplierMax: 3.0, nightMultiplier: 1.5,
-      commissionRate: 0.05, minFare: 5000, maxFare: 30000,
-    };
-
-    test('computes cargo price with commission, no heavy traffic', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 20, durationMin: 60 });
-      const base = 5000 + 2000 * 20 + 1000 * 60; // 105000 -> clamps to maxFare
-      expect(r.base).toBe(105000);
-      expect(r.total).toBe(30000); // clamped to maxFare
+  describe('minimum fare clamp (min_fare from pricing_configs)', () => {
+    test('clamps a very low computed amount up to minimum_fare', () => {
+      const cfg = makeConfig({
+        base_fare: 1000, price_per_km: 0, price_per_minute: 0, minimum_fare: 5000,
+      });
+      const r = PricingCalculator.calculateQuote(cfg, 0, 0, 1.0);
+      expect(r.amounts.gross.toDisplayFormat()).toBe('5000');
+      expect(r.calculationSteps.appliedMinimumFare).toBe(true);
     });
 
-    test('cargo with moderate fare stays within bounds', () => {
-      const r = new PricingCalculator().calculateAsNumber({ ...cfg, distanceKm: 2, durationMin: 5 });
-      const base = 5000 + 2000 * 2 + 1000 * 5; // 14000
-      expect(r.base).toBe(14000);
-      expect(r.subtotal).toBe(14000);
-      expect(r.total).toBeCloseTo(14000 * 1.05, 6); // +5% commission
+    test('does not clamp when the computed amount is above minimum_fare', () => {
+      const r = PricingCalculator.calculateQuote(makeConfig(), 10, 15, 1.0);
+      expect(r.amounts.gross.toDisplayFormat()).toBe('95000');
+      expect(r.calculationSteps.appliedMinimumFare).toBe(false);
     });
   });
 
-  describe('commission & clamping', () => {
-    test('applies commission rate to subtotal', () => {
-      const r = new PricingCalculator().calculateAsNumber({
-        baseFare: 1000, perKmRate: 100, perMinuteRate: 0,
-        trafficMultiplierMin: 1, trafficMultiplierMax: 1, nightMultiplier: 1,
-        commissionRate: 0.10, minFare: 0, maxFare: 0,
-        distanceKm: 10, durationMin: 0,
-      });
-      // base = 1000 + 100*10 = 2000; commission 10% => 2200
-      expect(r.base).toBe(2000);
-      expect(r.total).toBe(2200);
+  describe('commission split (commission_rate from pricing_configs)', () => {
+    test('applies the configured commission and leaves the remainder to the provider', () => {
+      const r = PricingCalculator.calculateQuote(makeConfig(), 10, 15, 1.0);
+      expect(r.amounts.commission.toDisplayFormat()).toBe('9500'); // 95000 * 0.10
+      expect(r.amounts.provider.toDisplayFormat()).toBe('85500');
+      // Provider share + platform commission must exactly equal the gross amount.
+      const reconstructed = r.amounts.provider.add(r.amounts.commission);
+      expect(reconstructed.toDisplayFormat()).toBe(r.amounts.gross.toDisplayFormat());
     });
 
-    test('minFare clamps a very low total upward', () => {
-      const r = new PricingCalculator().calculateAsNumber({
-        baseFare: 1000, perKmRate: 0, perMinuteRate: 0,
-        trafficMultiplierMin: 1, trafficMultiplierMax: 1, nightMultiplier: 1,
-        commissionRate: 0, minFare: 5000, maxFare: 0,
-        distanceKm: 0, durationMin: 0,
+    test('cargo_light seed (5% commission, base 5000 / perKm 2000 / perMin 1000)', () => {
+      const cfg = makeConfig({
+        base_fare: 5000, price_per_km: 2000, price_per_minute: 1000,
+        minimum_fare: 5000, commission_rate: 0.05,
       });
-      expect(r.total).toBe(5000);
-      expect(r.clampedToMin).toBe(true);
+      const r = PricingCalculator.calculateQuote(cfg, 2, 5, 1.0);
+      expect(r.amounts.gross.toDisplayFormat()).toBe('14000');    // 5000 + 4000 + 5000
+      expect(r.amounts.commission.toDisplayFormat()).toBe('700'); // 14000 * 0.05
+      expect(r.amounts.provider.toDisplayFormat()).toBe('13300');
     });
   });
 });
 
 describe('PostgresPricingRuleResolver - row -> rule mapping', () => {
-  // Stub dbPool so that no real DB connection is needed; only tests _rowToRule.
+  // Prototype-only instance so that no real DB connection/pool is created;
+  // the mapping helpers under test never touch the network.
   const resolver = Object.create(PostgresPricingRuleResolver.prototype);
   resolver._cache = new Map();
 
@@ -114,7 +103,7 @@ describe('PostgresPricingRuleResolver - row -> rule mapping', () => {
       price_per_km: '5000', price_per_min: '2000',
     };
     const rule = resolver._rowToRule(row);
-    expect(rule).toBeInstanceOf(require('../domain').PricingRule);
+    expect(rule).toBeInstanceOf(PricingRule);
     expect(rule.baseFare).toBe(15000);
     expect(rule.perKmRate).toBe(5000);
     expect(rule.perMinuteRate).toBe(2000);
@@ -127,5 +116,37 @@ describe('PostgresPricingRuleResolver - row -> rule mapping', () => {
     expect(rule.baseFare).toBe(0);
     expect(rule.perKmRate).toBe(0);
     expect(rule.perMinuteRate).toBe(0);
+  });
+
+  test('maps the dynamic multipliers, percent commission and fare bounds from the DB row', () => {
+    const rule = resolver._rowToRule({
+      id: 'uuid-2', service_type: 'urban_taxi', base_fare: '15000',
+      price_per_km: '5000', price_per_min: '2000',
+      traffic_multiplier_min: '1.0', traffic_multiplier_max: '2.5',
+      night_multiplier: '1.5', commission_rate: '10',
+      min_fare: '10000', max_fare: '50000',
+    });
+
+    expect(rule.trafficMultiplierMin).toBe(1.0);
+    expect(rule.trafficMultiplierMax).toBe(2.5);
+    expect(rule.nightMultiplier).toBe(1.5);
+    // DB stores commission as a percentage (10) -> exposed as a 0..1 factor.
+    expect(rule.commissionRate).toBe(0.10);
+    expect(rule.minFare).toBe(10000);
+    expect(rule.maxFare).toBe(50000);
+  });
+
+  test('falls back to safe multiplier defaults when the optional columns are absent', () => {
+    const rule = resolver._rowToRule({
+      id: 'uuid-3', service_type: 'cargo_light', base_fare: '5000',
+      price_per_km: '2000', price_per_min: '1000',
+    });
+
+    expect(rule.trafficMultiplierMin).toBe(1);
+    expect(rule.trafficMultiplierMax).toBe(1); // mirrors the minimum, never wider
+    expect(rule.nightMultiplier).toBe(1);
+    expect(rule.commissionRate).toBe(0);
+    expect(rule.minFare).toBe(0);
+    expect(rule.maxFare).toBe(0);
   });
 });

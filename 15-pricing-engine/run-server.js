@@ -12,9 +12,17 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
-const PricingRouter = require('./_legacy_archive/presentation/routes/PricingRouter');
+const { Pool } = require('pg');
 
 dotenv.config();
+
+const config = require('../14-config-system/server.config');
+const PricingRepository = require('./infrastructure/PricingRepository');
+const GenerateQuoteUseCase = require('./application/GenerateQuoteUseCase');
+const GetQuoteUseCase = require('./application/GetQuoteUseCase');
+const ConsumeQuoteUseCase = require('./application/ConsumeQuoteUseCase');
+const PricingController = require('./presentation/PricingController');
+const createPricingRouter = require('./presentation/PricingRouter');
 
 const app = express();
 
@@ -23,9 +31,31 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
+// ── Dependency Wiring (Composition Root) ──────────────────────────
+// The service owns its own PostgreSQL pool. `pg.Pool` connects lazily, so
+// loading this module never requires a live database (important for tests and
+// for booting the container before the DB is ready).
+const pricingPool = new Pool({ ...config.pg });
+
+const pricingRepository = new PricingRepository(pricingPool);
+const pricingController = new PricingController({
+  generateQuoteUseCase: new GenerateQuoteUseCase(pricingRepository),
+  getQuoteUseCase: new GetQuoteUseCase(pricingRepository),
+  consumeQuoteUseCase: new ConsumeQuoteUseCase(pricingRepository),
+});
+const pricingRouter = createPricingRouter(pricingController);
+
+// ── Health ────────────────────────────────────────────────────────
+app.get('/health', (req, res) => {
+  res.status(200).json({ success: true, module: 'pricing-engine', status: 'ok' });
+});
+
 // ── Routes ────────────────────────────────────────────────────────
-app.use('/', PricingRouter);
-app.use('/api/v1/pricing', PricingRouter);
+// Mounted twice on purpose: `/api/v1/pricing/*` is the canonical public
+// contract (what the API Gateway forwards) while the bare paths keep the
+// service callable directly during local development.
+app.use('/api/v1/pricing', pricingRouter);
+app.use('/', pricingRouter);
 
 // ── 404 Handler ───────────────────────────────────────────────────
 app.use((req, res) => {

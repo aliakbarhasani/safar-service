@@ -9,5 +9,5 @@ module.exports = {
   infrastructure,
   presentation,
   PricingController: presentation.PricingController,
-  PostgresPricingRepository: infrastructure.PostgresPricingRepository,
+  PricingRepository: infrastructure.PricingRepository,
 };

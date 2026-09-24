@@ -26,7 +26,6 @@ const {
 } = require('../domain');
 
 const { EventContract, PricingEvents } = require('../application/events');
-const { GeneratePriceQuote, RecalculatePrice, ResolvePricingRule } = require('../application/useCases');
 
 function assertApprox(actual, expected, tolerance, msg) {
   const diff = Math.abs(actual - expected);
@@ -382,9 +381,13 @@ test('Domain exports all expected interfaces', () => {
 
 test('Application exports all use cases', () => {
   const mod = require('../application');
-  assert.strictEqual(typeof mod.useCases.GeneratePriceQuote, 'function');
-  assert.strictEqual(typeof mod.useCases.RecalculatePrice, 'function');
-  assert.strictEqual(typeof mod.useCases.ResolvePricingRule, 'function');
+  assert.strictEqual(typeof mod.useCases.GenerateQuoteUseCase, 'function');
+  assert.strictEqual(typeof mod.useCases.GetQuoteUseCase, 'function');
+  assert.strictEqual(typeof mod.useCases.ConsumeQuoteUseCase, 'function');
+  // Flat exports mirror the grouped `useCases` view.
+  assert.strictEqual(mod.GenerateQuoteUseCase, mod.useCases.GenerateQuoteUseCase);
+  assert.strictEqual(mod.GetQuoteUseCase, mod.useCases.GetQuoteUseCase);
+  assert.strictEqual(mod.ConsumeQuoteUseCase, mod.useCases.ConsumeQuoteUseCase);
 });
 
 

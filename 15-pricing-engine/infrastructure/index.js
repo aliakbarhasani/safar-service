@@ -1,5 +1,13 @@
+/**
+ * Infrastructure Layer Index
+ *
+ * Aggregates and exports the infrastructure adapters.
+ *
+ * Architecture: Clean Architecture - Infrastructure Layer
+ */
+
 const DatabasePoolValidator = require("./db-pool-validator");
-const PostgresPricingRepository = require("./repositories/PostgresPricingRepository");
+const PricingRepository = require("./PricingRepository");
 const PostgresPricingRuleResolver = require("./repositories/PostgresPricingRuleResolver");
 const MockRuleResolver = require("./MockRuleResolver");
 const MockCacheProvider = require("./MockCacheProvider");
@@ -7,7 +15,7 @@ const MockEventPublisher = require("./MockEventPublisher");
 
 module.exports = {
   DatabasePoolValidator,
-  PostgresPricingRepository,
+  PricingRepository,
   PostgresPricingRuleResolver,
   MockRuleResolver,
   MockCacheProvider,

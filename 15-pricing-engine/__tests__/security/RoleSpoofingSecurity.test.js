@@ -1,68 +1,122 @@
 /**
  * Security Tests - Role Spoofing Prevention (PricingController)
+ *
+ * A caller's role may ONLY be derived from the authenticated JWT payload
+ * (`req.user`). Every client-controllable source (headers, query string, body)
+ * must be ignored, otherwise an attacker could read the platform commission /
+ * provider payout breakdown of a quote.
+ *
+ * Converted from a standalone `console.log` + `process.exit()` script into a
+ * real Jest suite so it reports results without killing the Jest worker.
  */
+
 const PricingController = require('../../presentation/PricingController');
+const CustomerQuoteResponseDTO = require('../../presentation/dtos/CustomerQuoteResponseDTO');
+const ProviderQuoteResponseDTO = require('../../presentation/dtos/ProviderQuoteResponseDTO');
+
 const controller = new PricingController();
 
-console.log('\n=== ROLE SPOOFING SECURITY TESTS ===\n');
-let pass = 0, fail = 0;
-function check(cond, msg) { if (cond) { console.log('  [PASS] ' + msg); pass++; } else { console.log('  [FAIL] ' + msg); fail++; } }
+/** Internal (superset) quote payload produced by GenerateQuoteUseCase. */
+const INTERNAL_QUOTE = {
+  quoteId: 'quote-1',
+  status: 'CREATED',
+  customerFinalAmount: '95000',
+  grossAmount: '95000',
+  commissionAmount: '9500',
+  providerAmount: '85500',
+  taxAmount: '0',
+  currency: 'IRT',
+  expiresAt: '2030-01-01T00:00:00.000Z',
+};
 
-// Test 1: req.user.role=provider is respected
-{
-  const req = { user: { role: 'provider' }, headers: { 'x-caller-role': 'customer' }, query: { role: 'customer' }, body: { role: 'customer' } };
-  const role = controller._callerRole(req);
-  check(role === 'provider', 'req.user.role=provider is respected (ignores header spoofing)');
-}
+describe('RoleSpoofingSecurity - _callerRole resolution', () => {
+  test('req.user.role=provider is respected even when every client input says customer', () => {
+    const req = {
+      user: { role: 'provider' },
+      headers: { 'x-caller-role': 'customer', 'x-role': 'customer' },
+      query: { role: 'customer' },
+      body: { role: 'customer' },
+    };
 
-// Test 2: req.user.role=customer is respected
-{
-  const req = { user: { role: 'customer' }, headers: { 'x-caller-role': 'provider' }, query: { role: 'provider' }, body: { role: 'provider' } };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'req.user.role=customer is respected (ignores header spoofing)');
-}
+    expect(controller._callerRole(req)).toBe('provider');
+  });
 
-// Test 3: Header X-Caller-Role is IGNORED
-{
-  const req = { headers: { 'x-caller-role': 'provider' }, query: {}, body: {} };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'X-Caller-Role header is IGNORED');
-}
+  test('req.user.role=customer is respected even when every client input says provider', () => {
+    const req = {
+      user: { role: 'customer' },
+      headers: { 'x-caller-role': 'provider', 'x-role': 'provider' },
+      query: { role: 'provider' },
+      body: { role: 'provider' },
+    };
 
-// Test 4: Query role is IGNORED
-{
-  const req = { headers: {}, query: { role: 'provider' }, body: {} };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'Query role is IGNORED');
-}
+    expect(controller._callerRole(req)).toBe('customer');
+  });
 
-// Test 5: Body role is IGNORED
-{
-  const req = { headers: {}, query: {}, body: { role: 'provider' } };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'Body role is IGNORED');
-}
+  test('the X-Caller-Role header is ignored', () => {
+    const req = { headers: { 'x-caller-role': 'provider' }, query: {}, body: {} };
+    expect(controller._callerRole(req)).toBe('customer');
+  });
 
-// Test 6: X-Role header is IGNORED
-{
-  const req = { headers: { 'x-role': 'provider' }, query: {}, body: {} };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'X-Role header is IGNORED');
-}
+  test('the X-Role header is ignored', () => {
+    const req = { headers: { 'x-role': 'provider' }, query: {}, body: {} };
+    expect(controller._callerRole(req)).toBe('customer');
+  });
 
-// Test 7: No user defaults to customer
-{
-  const req = { headers: {}, query: {}, body: {} };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'No user defaults to customer');
-}
+  test('the query string role is ignored', () => {
+    const req = { headers: {}, query: { role: 'provider' }, body: {} };
+    expect(controller._callerRole(req)).toBe('customer');
+  });
 
-// Test 8: Admin role maps to customer (data-hiding)
-{
-  const req = { user: { role: 'admin' }, headers: {}, query: {}, body: {} };
-  const role = controller._callerRole(req);
-  check(role === 'customer', 'Admin role maps to customer (data-hiding default)');
-}
+  test('the body role is ignored', () => {
+    const req = { headers: {}, query: {}, body: { role: 'provider' } };
+    expect(controller._callerRole(req)).toBe('customer');
+  });
 
-console.log('\n=== RESULT: ' + pass + ' passed, ' + fail + ' failed ===\n');
-process.exit(fail > 0 ? 1 : 0);
+  test('an unauthenticated request defaults to customer', () => {
+    expect(controller._callerRole({ headers: {}, query: {}, body: {} })).toBe('customer');
+  });
+
+  test('an unknown/privileged role (admin) still maps to the data-hiding customer view', () => {
+    const req = { user: { role: 'admin' }, headers: {}, query: {}, body: {} };
+    expect(controller._callerRole(req)).toBe('customer');
+  });
+
+  test('role matching is case tolerant, but a missing user is never elevated', () => {
+    expect(controller._callerRole({ user: { role: 'PROVIDER' }, headers: {}, query: {}, body: {} })).toBe('provider');
+    expect(controller._callerRole({ user: { role: 'Provider' }, headers: {}, query: {}, body: {} })).toBe('provider');
+    expect(controller._callerRole({ user: {}, headers: {}, query: {}, body: {} })).toBe('customer');
+    expect(controller._callerRole({ user: null, headers: {}, query: { role: 'provider' }, body: {} })).toBe('customer');
+  });
+});
+
+describe('RoleSpoofingSecurity - DTO output boundaries', () => {
+  test('the customer DTO never carries the fee breakdown', () => {
+    const out = CustomerQuoteResponseDTO.fromQuote(INTERNAL_QUOTE);
+
+    expect(out.quote_id).toBe('quote-1');
+    expect(out.final_amount).toBe(95000);
+    expect(out.currency).toBe('IRT');
+
+    const forbidden = [
+      'gross_amount', 'commission_amount', 'tax_amount',
+      'provider_amount', 'net_provider_amount',
+      'calculation_snapshot', 'rule_snapshot', 'input_snapshot',
+    ];
+    forbidden.forEach((key) => expect(out[key]).toBeUndefined());
+  });
+
+  test('the provider DTO exposes the transparent breakdown but not the customer-only field', () => {
+    const out = ProviderQuoteResponseDTO.fromQuote(INTERNAL_QUOTE);
+
+    expect(out.gross_amount).toBe(95000);
+    expect(out.commission_amount).toBe(9500);
+    expect(out.tax_amount).toBe(0);
+    expect(out.net_provider_amount).toBe(85500);
+    expect(out.final_amount).toBeUndefined();
+  });
+
+  test('both DTOs are null-safe on an empty payload', () => {
+    expect(CustomerQuoteResponseDTO.fromQuote()).toMatchObject({ quote_id: null, final_amount: null });
+    expect(ProviderQuoteResponseDTO.fromQuote()).toMatchObject({ quote_id: null, gross_amount: null });
+  });
+});

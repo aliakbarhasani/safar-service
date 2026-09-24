@@ -98,14 +98,17 @@ describe('PricingController - role-based DTO at the API boundary', () => {
     },
   };
 
-  test('default (no role) renders the CUSTOMER DTO and hides fees', async () => {
-    const controller = new PricingController({
+  function buildController() {
+    return new PricingController({
       getQuoteUseCase: fakeGetQuoteUseCase,
       generateQuoteUseCase: null,
       consumeQuoteUseCase: null,
     });
+  }
+
+  test('default (no role) renders the CUSTOMER DTO and hides fees', async () => {
     const res = captureRes();
-    await controller.getQuote(
+    await buildController().getQuote(
       { params: { quoteId: 'q-1' }, headers: {}, body: {}, query: {} },
       res,
     );
@@ -119,15 +122,10 @@ describe('PricingController - role-based DTO at the API boundary', () => {
     expect(data.provider_amount).toBeUndefined();
   });
 
-  test('X-Caller-Role: provider renders the PROVIDER DTO with full fees', async () => {
-    const controller = new PricingController({
-      getQuoteUseCase: fakeGetQuoteUseCase,
-      generateQuoteUseCase: null,
-      consumeQuoteUseCase: null,
-    });
+  test('an authenticated provider (req.user.role) renders the PROVIDER DTO with full fees', async () => {
     const res = captureRes();
-    await controller.getQuote(
-      { params: { quoteId: 'q-1' }, headers: { 'x-caller-role': 'provider' }, body: {}, query: {} },
+    await buildController().getQuote(
+      { params: { quoteId: 'q-1' }, user: { role: 'provider' }, headers: {}, body: {}, query: {} },
       res,
     );
 
@@ -137,5 +135,21 @@ describe('PricingController - role-based DTO at the API boundary', () => {
     expect(data.commission_amount).toBe(9500);
     expect(data.tax_amount).toBe(0);
     expect(data.net_provider_amount).toBe(85500);
+  });
+
+  test('SECURITY: the X-Caller-Role header is IGNORED - it can never unlock provider fees', async () => {
+    const res = captureRes();
+    await buildController().getQuote(
+      { params: { quoteId: 'q-1' }, headers: { 'x-caller-role': 'provider' }, body: {}, query: {} },
+      res,
+    );
+
+    const data = res.jsonBody.data;
+    expect(data.quote_id).toBe('q-1');
+    // Role spoofing via header must NOT elevate the caller.
+    expect(data.final_amount).toBe(95000);
+    expect(data.gross_amount).toBeUndefined();
+    expect(data.commission_amount).toBeUndefined();
+    expect(data.net_provider_amount).toBeUndefined();
   });
 });

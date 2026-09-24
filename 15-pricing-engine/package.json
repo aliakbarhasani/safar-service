@@ -5,7 +5,7 @@
   "main": "run-server.js",
   "scripts": {
     "start": "node run-server.js",
-    "test": "jest --runInBand --testTimeout=30000 __tests__/pricing-engine.test.js __tests__/infrastructure-api.test.js __tests__/pricing-integration.test.js tests/integration/PricingIntegration.test.js"
+    "test": "jest --runInBand --testTimeout=30000 __tests__/pricing-engine.test.js __tests__/pricing-dynamic.test.js __tests__/infrastructure-api.test.js __tests__/security/RoleSpoofingSecurity.test.js tests/unit tests/pricing-integration.test.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
