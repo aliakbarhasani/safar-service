@@ -12,6 +12,7 @@ const logger = require('./13-logging-system/logger.service');
 const { initAllDatabases } = require('./00-infrastructure/database/init-all-databases');
 const { registerUserRegisteredHandler } = require('./01-core-system/handlers/UserRegisteredHandler');
 
+const isProduction = process.env.NODE_ENV === 'production';
 const PORT = config.port;
 
 // راه‌اندازی سیستم لاگ مرکزی (طبق بند ۱۳ سند مادر)
@@ -29,8 +30,16 @@ connectDB()
       logger.log(logger.LOG_LEVELS.INFO, `Server is running on port ${PORT}`);
     });
   })
-  .catch(err => {
+    .catch(err => {
     logger.log(logger.LOG_LEVELS.ERROR, 'PostgreSQL connection error', { message: err.message });
+    // (P0) Fail-Fast in production: serving traffic without a working database
+    // yields half-functional endpoints. In dev/test we keep the degraded
+    // read-only listen so local development without a DB still boots.
+    if (isProduction) {
+      logger.log(logger.LOG_LEVELS.ERROR, 'Production startup aborted: database connection is required');
+      process.exit(1);
+      return;
+    }
     logger.log(logger.LOG_LEVELS.WARNING, 'Starting server without DB connection (read-only mode)');
     app.listen(PORT, () => {
       logger.log(logger.LOG_LEVELS.INFO, `Server is running on port ${PORT} (DB not connected)`);

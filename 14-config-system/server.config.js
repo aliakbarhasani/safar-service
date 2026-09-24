@@ -23,6 +23,11 @@ try {
   );
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction && (!process.env.PG_USER || !process.env.PG_PASSWORD)) {
+  throw new Error('[config-system] FATAL: PG_USER and PG_PASSWORD are required in production');
+}
+
 const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
   env: process.env.NODE_ENV || 'development',
@@ -37,8 +42,12 @@ const config = {
     host: process.env.PG_HOST || '127.0.0.1',
     port: parseInt(process.env.PG_PORT, 10) || 5432,
     database: process.env.PG_DATABASE || 'safar_service',
-    user: process.env.PG_USER || 'postgres',
-    password: process.env.PG_PASSWORD || 'postgres',
+    // (P0 امنيتي) Fallbacks ثابت 'postgres' صرفاً براي dev/test. در
+    // production بايد envهای PG_USER/PG_PASSWORD صریحاً تنظيم شوند؛ در غير
+    // اين سرور راه‌اندازي نمي‌شود (Fail-Fast) تا از ورود به حساب superuser
+    // پيش‌فرض جلوگيري شود.
+    user: process.env.PG_USER || (isProduction ? undefined : 'postgres'),
+    password: process.env.PG_PASSWORD || (isProduction ? undefined : 'postgres'),
     max: parseInt(process.env.PG_POOL_MAX, 10) || 20,
     idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT, 10) || 30000,
     connectionTimeoutMillis: parseInt(process.env.PG_CONNECTION_TIMEOUT, 10) || 5000,

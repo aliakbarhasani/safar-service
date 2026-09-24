@@ -164,10 +164,24 @@ async function runAllMigrations() {
     console.log(`  ✓ ${fileOk} ok, ${fileFail} errors`);
   }
 
-  console.log('\n==============================================');
+    console.log('\n==============================================');
   console.log(`  Total: ${totalSuccess} ok, ${totalFail} errors`);
   console.log('==============================================');
   await client.end();
+
+  // (P0) Fail-Fast: a migration run that produced uncategorized errors must
+  // surface a non-zero exit code so CI actually FAILS on real failures.
+  // NOTE: idempotent "already exists"/"duplicate" errors are counted as OK
+  // above (the ignoreList), so they deliberately do NOT trigger this path.
+  if (totalFail > 0) {
+    console.error(`\n✗ Migration run ABORTED — ${totalFail} uncategorized error(s).`);
+    process.exitCode = 1;
+  }
 }
 
-runAllMigrations();
+// Wrap the invocation so a rejection (e.g. PostgreSQL unreachable on connect)
+// does not surface as an unhandled promise rejection with exit code 0.
+runAllMigrations().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
