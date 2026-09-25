@@ -1,0 +1,7 @@
+# EOL policy for the files touched by this change only.
+# infra test is committed as CRLF -> -text keeps it CRLF (no EOL churn) and
+# -whitespace prevents CRLF lines from being reported as trailing whitespace.
+15-pricing-engine/__tests__/infrastructure-api.test.js   -text -whitespace
+13-auth-management/infrastructure/repositories/OtpRepository.js   text eol=lf
+13-auth-management/tests/otp-repository.test.js   text eol=lf
+15-pricing-engine/presentation/PricingController.js   text eol=lf

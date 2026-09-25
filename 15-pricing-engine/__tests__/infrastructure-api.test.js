@@ -309,7 +309,7 @@ describe('PricingRepository (infrastructure)', () => {
         input_snapshot: '{}', calculation_snapshot: '{}', expires_at: futureIso(),
       }),
     };
-
+
     await expect(repo.saveQuoteAndAudit(quote)).rejects.toThrow('audit insert failed');
     expect(pool._state.rolledBack).toBe(1);
   });
@@ -420,6 +420,36 @@ describe('PricingController (presentation)', () => {
     expect(res.body.data.gross_amount).toBeUndefined();
     expect(res.body.data.commission_amount).toBeUndefined();
     expect(res.body.data.net_provider_amount).toBeUndefined();
+  });
+
+  test('SECURITY: trafficMultiplier in the request body is ignored (client cannot tamper with the price)', async () => {
+    const controller = buildController();
+    const res = mockRes();
+
+    await controller.calculateQuote(
+      { body: { serviceType: 'urban_taxi', distanceKm: 10, durationMin: 15, trafficMultiplier: 99 }, user: null },
+      res,
+    );
+
+    expect(res.statusCode).toBe(201);
+    // The controller must never forward the client-supplied multiplier to the use case.
+    const passedInput = controller.generateQuoteUseCase.execute.mock.calls[0][0];
+    expect(passedInput.trafficMultiplier).toBeUndefined();
+    // 'trafficMultiplier' key must not be present at all in the input payload.
+    expect(Object.prototype.hasOwnProperty.call(passedInput, 'trafficMultiplier')).toBe(false);
+  });
+
+  test('calculateQuote works without trafficMultiplier in the body (safe default, no unexpected error)', async () => {
+    const controller = buildController();
+    const res = mockRes();
+
+    await controller.calculateQuote(
+      { body: { serviceType: 'urban_taxi', distanceKm: 10, durationMin: 15 }, user: null },
+      res,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.data.final_amount).toBe(95000);
   });
 
 
@@ -616,6 +646,33 @@ describe('Pricing HTTP API - create -> read -> consume (in-memory DB)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
+  });
+
+  test('SECURITY: POST /calculate with trafficMultiplier=99 keeps the price unchanged (client cannot tamper)', async () => {
+    const { pool, app } = build();
+
+    const base = await request(app)
+      .post(CALCULATE)
+      .send({ serviceType: 'urban_taxi', distanceKm: 10, durationMin: 15, referenceId: 'ref-base' });
+    expect(base.status).toBe(201);
+    expect(base.body.data.final_amount).toBe(95000);
+
+    const tampered = await request(app).post(CALCULATE).send({
+      serviceType: 'urban_taxi',
+      distanceKm: 10,
+      durationMin: 15,
+      trafficMultiplier: 99,
+      referenceId: 'ref-tampered',
+    });
+    expect(tampered.status).toBe(201);
+
+    // Identical inputs must yield an identical price regardless of client multiplier.
+    expect(tampered.body.data.final_amount).toBe(base.body.data.final_amount);
+    expect(tampered.body.data.final_amount).toBe(95000);
+
+    // Stored snapshot must not be influenced by the tampered value either.
+    const storedTampered = pool._state.quotes.get(tampered.body.data.quote_id);
+    expect(String(storedTampered.customer_final_amount)).toBe('95000');
   });
 
   test('POST /calculate -> 404 when the service type has no active config', async () => {

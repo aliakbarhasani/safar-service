@@ -143,6 +143,10 @@ class OtpRepository {
   }
 
   async markUsed(phoneNumber, type = 'login') {
+    // همان فرمت کلید save/findByPhoneNumber/incrementAttempt/delete:
+    // `${phoneNumber}:${type}` — قبلاً تعریف نشده بود و ReferenceError می‌داد.
+    const key = `${phoneNumber}:${type}`;
+
     if (await this._isDBReady()) {
       try {
         await this.pool.query(

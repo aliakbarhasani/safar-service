@@ -15,7 +15,7 @@ class PricingController {
 
     async calculateQuote(req, res) {
         try {
-            const { serviceType, distanceKm, durationMin, trafficMultiplier, referenceId } = req.body;
+            const { serviceType, distanceKm, durationMin, referenceId } = req.body;
 
             // اعتبارسنجی اولیه ورودی‌ها
             if (!serviceType || distanceKm === undefined || durationMin === undefined) {
@@ -25,11 +25,13 @@ class PricingController {
                 });
             }
 
+            // SECURITY: trafficMultiplier عمداً از body خوانده نمی‌شود تا مشتری
+            // نتواند ضریب قیمت را دستکاری کند. غیاب آن → رفتار پیش‌فرض امن (1.0)
+            // در GenerateQuoteUseCase/PricingCalculator اعمال می‌شود.
             const inputData = {
                 serviceType,
                 distanceKm: Number(distanceKm),
                 durationMin: Number(durationMin),
-                trafficMultiplier: trafficMultiplier ? Number(trafficMultiplier) : 1.0,
                 referenceId: referenceId || null
             };
 
