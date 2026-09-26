@@ -2,11 +2,16 @@ const userService = require('../services/user.service');
 
 async function createUser(req, res) {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, role, password } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ error: 'name and phone are required' });
     }
-    const user = await userService.createUser({ name, phone });
+    const requestedRole = String(role || 'passenger').trim().toLowerCase();
+    const callerRole = String(req.user?.role || '').trim().toLowerCase();
+    if (['admin', 'super_admin'].includes(requestedRole) && callerRole !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super_admin can create privileged users' });
+    }
+    const user = await userService.createUser({ name, phone, role: requestedRole, password });
     res.status(201).json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
