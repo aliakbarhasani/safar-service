@@ -106,8 +106,12 @@ router.use('/api/v1/profile', createProfileRoutes());
 // ===== IAM: صدور و چرخش توکن (24-iam-service, P11-1) =====
 // ساخت AuthService (کلید خصوصی RSA) — redis در time of use دوباره تنظیم می‌شود
 const { AuthService } = require('../24-iam-service/application/AuthService');
+// IAM mock issuer is disabled by default. Avoid loading its private key during normal Gateway boot.
+const iamAuthService = process.env.ALLOW_MOCK_IAM_LOGIN === 'true'
+  ? new AuthService({ issuer: 'safar-iam' })
+  : null;
 const iamAuthRoutes = createIamAuthRoutes({
-  authService: new AuthService({ issuer: 'safar-iam' }),
+  authService: iamAuthService,
   logger: console,
 });
 router.use('/api/v1/auth', iamAuthRoutes);
