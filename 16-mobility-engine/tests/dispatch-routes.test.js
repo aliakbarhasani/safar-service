@@ -20,7 +20,7 @@ const { createDispatchRoutes, requireDriverRole, isDriver } = require('../routes
 const { authenticate: iamAuthenticate } = require('../../02-api-gateway/middlewares/auth.middleware');
 
 const PRIVATE_KEY = fs.readFileSync(
-  path.join(__dirname, '..', '..', '24-iam-service', 'infrastructure', 'keys', 'private.pem'),
+  path.join(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem'),
   'utf8',
 );
 
