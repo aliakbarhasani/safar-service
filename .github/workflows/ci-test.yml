@@ -24,6 +24,16 @@ jobs:
       - name: Generate ephemeral RS256 test keys
         run: node 00-infrastructure/keys/generate-keys.js
 
+      - name: Run test database migrations
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          NODE_ENV: test
+        run: node 00-infrastructure/database/migrations/run-all-migrations.js
+
       - name: Install Dependencies & Run Tests (RBAC Module)
         env:
           DATABASE_URL: postgres://test_user:test_password@localhost:5433/safar_test_db
