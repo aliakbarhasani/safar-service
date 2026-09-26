@@ -68,7 +68,7 @@ node 15-pricing-engine/__tests__/pricing-engine.test.js
 ## نحوه اجرای میگریشن دیتابیس
 
 ```bash
-node 00-infrastructure/database/migrations/run-migration.js
+node 00-infrastructure/database/migrations/run-all-migrations.js
 ```
 
 ## وابستگی‌ها
