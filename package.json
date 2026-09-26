@@ -6,7 +6,9 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "jest --runInBand --testTimeout=30000",
-    "generate:keys": "node 00-infrastructure/keys/generate-keys.js"
+    "generate:keys": "node 00-infrastructure/keys/generate-keys.js",
+    "prestart": "node 00-infrastructure/keys/generate-keys.js",
+    "pretest": "node 00-infrastructure/keys/generate-keys.js"
   },
   "dependencies": {
     "axios": "^1.19.0",
