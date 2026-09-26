@@ -1,7 +1,7 @@
 /**
- * driver.route.js - „”Ì—Â«Ì „” ﬁ· —«‰‰œê«‰ (”—ÊÌ” 07)
+ * driver.route.js - √£√ì√≠√ë√•√á√≠ √£√ì√ä√û√° √ë√á√§√§√è¬ê√á√§ (√ì√ë√¶√≠√ì 07)
  * 
- *  „«„ „”Ì—Â«  Ê”ÿ „Ìœ·Ê— authenticate „Õ«›Ÿ  „Ìù‘Ê‰œ
+ * √ä√£√á√£ √£√ì√≠√ë√•√á √ä√¶√ì√ò √£√≠√è√°√¶√ë authenticate √£√ç√á√ù√ô√ä √£√≠¬ù√î√¶√§√è
  */
 
 const express = require('express');
@@ -16,22 +16,22 @@ const {
 } = require('../controllers/driver.controller');
 const { authenticate, authorize } = require('../../13-auth-management/presentation/middleware/auth.middleware');
 
-// À» ù‰«„ —«‰‰œÂ ÃœÌœ
+// √ã√à√ä¬ù√§√á√£ √ë√á√§√§√è√• √å√è√≠√è
 router.post('/', authenticate, registerDriver);
 
-//  €ÌÌ— Ê÷⁄Ì  Õ”«»  Ê”ÿ «œ„Ì‰ (‰Ì«“ »Â „ÃÊ“ drivers.manage)
+// √ä√õ√≠√≠√ë √¶√ñ√ö√≠√ä √ç√ì√á√à √ä√¶√ì√ò √á√è√£√≠√§ (√§√≠√á√í √à√• √£√å√¶√í drivers.manage)
 router.patch('/:id/account-status', authenticate, authorize('drivers.manage'), updateDriverAccountStatus);
 
-//  €ÌÌ— Ê÷⁄Ì  ⁄„·Ì« Ì (¬‰·«Ì‰/¬›·«Ì‰)
-router.patch('/:id/operational-status', authenticate, updateOperationalStatus);
+// √ä√õ√≠√≠√ë √¶√ñ√ö√≠√ä √ö√£√°√≠√á√ä√≠ (√Ç√§√°√á√≠√§/√Ç√ù√°√á√≠√§)
+router.patch('/:id/operational-status', authenticate, authorize('driver', 'admin', 'super_admin'), updateOperationalStatus);
 
-// »Âù—Ê“—”«‰Ì „Êﬁ⁄Ì  „ò«‰Ì
-router.patch('/:id/location', authenticate, updateLocation);
+// √à√•¬ù√ë√¶√í√ë√ì√á√§√≠ √£√¶√û√ö√≠√ä √£Àú√á√§√≠
+router.patch('/:id/location', authenticate, authorize('driver', 'admin', 'super_admin'), updateLocation);
 
-// œ—Ì«›  «ÿ·«⁄«  —«‰‰œÂ
+// √è√ë√≠√á√ù√ä √á√ò√°√á√ö√á√ä √ë√á√§√§√è√•
 router.get('/:id', authenticate, getDriverById);
 
-// œ—Ì«›  ·Ì”  —«‰‰œê«‰
+// √è√ë√≠√á√ù√ä √°√≠√ì√ä √ë√á√§√§√è¬ê√á√§
 router.get('/', authenticate, getAllDrivers);
 
 module.exports = router;
