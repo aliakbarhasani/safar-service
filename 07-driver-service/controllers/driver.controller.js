@@ -50,6 +50,11 @@ async function updateOperationalStatus(req, res) {
     const { id } = req.params;
     const { status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'driverId and status are required' });
+    const callerRole = String(req.user?.role || '').toLowerCase();
+    if (callerRole === 'driver') {
+      const owner = await driverService.getDriverByUserId(req.user.userId || req.user.id);
+      if (!owner || String(owner.id) !== String(id)) return res.status(403).json({ error: 'Driver may only change their own operational status' });
+    }
     const result = await driverService.updateOperationalStatus(id, status);
     if (result && result.error) return res.status(400).json({ error: result.error });
     // P3-1: اگر راننده آفلاین شد، موقعیتش را از Redis حذف کن
@@ -70,6 +75,11 @@ async function updateLocation(req, res) {
       return res.status(400).json({ error: 'driverId, latitude and longitude are required' });
     }
     // P3-1: به‌روزرسانی موقعیت در PostgreSQL (دائمی) و Redis (بلادرنگ) — موازی
+    const callerRole = String(req.user?.role || '').toLowerCase();
+    if (callerRole === 'driver') {
+      const owner = await driverService.getDriverByUserId(req.user.userId || req.user.id);
+      if (!owner || String(owner.id) !== String(id)) return res.status(403).json({ error: 'Driver may only update their own location' });
+    }
     const [pgResult, redisResult] = await Promise.allSettled([
       driverService.updateLocation(id, latitude, longitude),
       locationService.updateDriverLocation(id, longitude, latitude).catch(() => null),
