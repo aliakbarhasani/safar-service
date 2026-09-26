@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 
-const PUBLIC_KEY_PATH = path.join(__dirname, '..', 'infrastructure', 'keys', 'public.pem');
+const PUBLIC_KEY_PATH = path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_public.pem');
 
 // کش‌کردن کلید عمومی در حافظه (جلوگیری از خواندن فایل در هر درخواست)
 let publicKey = null;
