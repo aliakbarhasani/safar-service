@@ -94,6 +94,15 @@ router.use('/api/auth', authRoutes);
 const registrationRoutes = require('../13-auth-management/presentation/routes/RegistrationRouter');
 router.use('/api/auth', registrationRoutes);
 
+// Canonical v1 browser/mobile auth surface: keep Auth Management and IAM on one Gateway prefix.
+// AuthRouter owns request-otp/verify-otp/logout; RegistrationRouter owns register; IAM owns login/refresh.
+router.use('/api/v1/auth', authRoutes);
+router.use('/api/v1/auth', registrationRoutes);
+
+// Canonical profile surface through the Gateway (the auth service remains the implementation owner).
+const createProfileRoutes = require('../13-auth-management/routes/profile.routes');
+router.use('/api/v1/profile', createProfileRoutes());
+
 // ===== IAM: صدور و چرخش توکن (24-iam-service, P11-1) =====
 // ساخت AuthService (کلید خصوصی RSA) — redis در time of use دوباره تنظیم می‌شود
 const { AuthService } = require('../24-iam-service/application/AuthService');
