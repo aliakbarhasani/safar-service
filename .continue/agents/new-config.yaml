@@ -11,7 +11,7 @@ models:
   - name: my gpt-5
     provider: openai
     model: gpt-5
-    apiKey: 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
+    apiKey: YOUR_OPENAI_API_KEY_HERE
   - name: qwen2.5-coder 7b
     provider: ollama
     model: qwen2.5-coder:7b
