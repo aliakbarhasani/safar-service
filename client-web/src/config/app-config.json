@@ -11,11 +11,9 @@
       "requestOtp": "/api/v1/auth/request-otp",
       "verifyOtp": "/api/v1/auth/verify-otp",
       "register": "/api/v1/auth/register",
-      "login": "/api/v1/auth/login",
       "profile": "/api/v1/profile",
       "profileUpdate": "/api/v1/profile/profile",
       "settings": "/api/v1/profile/settings",
-      "refreshToken": "/api/v1/auth/refresh",
       "marketplaceProducts": "/api/v1/marketplace/products",
       "marketplaceProduct": "/api/v1/marketplace/products/:id",
       "marketplaceSellers": "/api/v1/marketplace/sellers",
@@ -117,28 +115,102 @@
       "clicks": "کلیک‌ها",
       "conversions": "تبدیل‌ها"
     }
-  }
-  ,
+  },
   "i18n": {
     "defaultLocale": "fa",
-    "supportedLocales": ["fa", "en"],
-    "rtlLocales": ["fa"]
+    "supportedLocales": [
+      "fa",
+      "en"
+    ],
+    "rtlLocales": [
+      "fa"
+    ]
   },
   "modules": [
-    { "id": "urban-taxi", "path": "/modules/urban-taxi", "enabled": true, "titleKey": "urbanTaxi" },
-    { "id": "intercity-taxi", "path": "/modules/intercity-taxi", "enabled": false, "titleKey": "intercityTaxi" },
-    { "id": "out-of-city", "path": "/modules/out-of-city", "enabled": false, "titleKey": "outOfCity" },
-    { "id": "cross-border", "path": "/modules/cross-border", "enabled": false, "titleKey": "crossBorder" },
-    { "id": "cargo", "path": "/modules/cargo", "enabled": false, "titleKey": "cargo" },
-    { "id": "store", "path": "/modules/store", "enabled": false, "titleKey": "store" },
-    { "id": "marketplace", "path": "/modules/marketplace", "enabled": false, "titleKey": "marketplace" },
-    { "id": "ads", "path": "/modules/ads", "enabled": false, "titleKey": "ads" },
-    { "id": "weather", "path": "/modules/weather", "enabled": false, "titleKey": "weather" },
-    { "id": "wallet", "path": "/modules/wallet", "enabled": true, "titleKey": "wallet" },
-    { "id": "support", "path": "/modules/support", "enabled": true, "titleKey": "support" },
-    { "id": "profile", "path": "/profile", "enabled": true, "titleKey": "profile" },
-    { "id": "admin", "path": "/modules/admin", "enabled": false, "titleKey": "admin" },
-    { "id": "future-services", "path": "/modules/future-services", "enabled": false, "titleKey": "futureServices" }
+    {
+      "id": "urban-taxi",
+      "path": "/modules/urban-taxi",
+      "enabled": true,
+      "titleKey": "urbanTaxi"
+    },
+    {
+      "id": "intercity-taxi",
+      "path": "/modules/intercity-taxi",
+      "enabled": false,
+      "titleKey": "intercityTaxi"
+    },
+    {
+      "id": "out-of-city",
+      "path": "/modules/out-of-city",
+      "enabled": false,
+      "titleKey": "outOfCity"
+    },
+    {
+      "id": "cross-border",
+      "path": "/modules/cross-border",
+      "enabled": false,
+      "titleKey": "crossBorder"
+    },
+    {
+      "id": "cargo",
+      "path": "/modules/cargo",
+      "enabled": false,
+      "titleKey": "cargo"
+    },
+    {
+      "id": "store",
+      "path": "/modules/store",
+      "enabled": false,
+      "titleKey": "store"
+    },
+    {
+      "id": "marketplace",
+      "path": "/modules/marketplace",
+      "enabled": false,
+      "titleKey": "marketplace"
+    },
+    {
+      "id": "ads",
+      "path": "/modules/ads",
+      "enabled": false,
+      "titleKey": "ads"
+    },
+    {
+      "id": "weather",
+      "path": "/modules/weather",
+      "enabled": false,
+      "titleKey": "weather"
+    },
+    {
+      "id": "wallet",
+      "path": "/modules/wallet",
+      "enabled": true,
+      "titleKey": "wallet"
+    },
+    {
+      "id": "support",
+      "path": "/modules/support",
+      "enabled": true,
+      "titleKey": "support"
+    },
+    {
+      "id": "profile",
+      "path": "/profile",
+      "enabled": true,
+      "titleKey": "profile"
+    },
+    {
+      "id": "admin",
+      "path": "/modules/admin",
+      "enabled": false,
+      "titleKey": "admin"
+    },
+    {
+      "id": "future-services",
+      "path": "/modules/future-services",
+      "enabled": false,
+      "titleKey": "futureServices"
+    }
   ],
   "moduleTexts": {
     "urbanTaxi": "تاکسی شهری",
