@@ -114,6 +114,15 @@ class DriverRepository {
     return mapRow(rows[0]);
   }
 
+  /** یافتن راننده بر اساس شناسه کاربر مالک */
+  async findByUserId(userId) {
+    const { rows } = await this.pool.query(
+      `${SELECT_DRIVER_SQL} AND user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    return mapRow(rows[0]);
+  }
+
   /** یافتن راننده بر اساس شناسه UUID */
   async findById(driverId) {
     const { rows } = await this.pool.query(
