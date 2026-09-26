@@ -83,7 +83,7 @@ describe('RBAC Audit Trail - PostgreSQL Integration', () => {
       `INSERT INTO users (first_name, last_name, phone_number, password_hash, role, status)
        VALUES ('RBAC', 'IntegrationTest', $1, 'test-only-hash', 'passenger', 'active')
        RETURNING id`,
-      [`+test-rbac-${Date.now()}@`],
+      [`09${String(Date.now()).slice(-10)}`],
     );
     testUserId = inserted.rows[0].id;
   });
