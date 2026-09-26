@@ -62,6 +62,11 @@ function createDriverService(repository = new DriverRepository()) {
     });
   }
 
+  /** یافتن پروفایل راننده بر اساس کاربر مالک */
+  async function getDriverByUserId(userId) {
+    return repository.findByUserId(userId);
+  }
+
   /** تغییر وضعیت حساب راننده توسط ادمین */
   async function updateDriverAccountStatus(driverId, newStatus, adminId) {
     if (!ACCOUNT_STATUSES.includes(newStatus)) {
@@ -143,6 +148,7 @@ function createDriverService(repository = new DriverRepository()) {
     updateOperationalStatus,
     updateLocation,
     getDriverById,
+    getDriverByUserId,
     getAllDrivers,
   };
 }
