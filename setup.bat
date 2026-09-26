@@ -24,8 +24,8 @@ pause
 
 :: Step 2: Install npm dependencies
 echo.
-echo [2/5] Installing npm dependencies...
-call npm install
+echo [2/6] Installing npm dependencies...
+call npm ci
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: npm install failed!
     pause
@@ -33,9 +33,19 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo ✓ npm dependencies installed
 
-:: Step 3: Create database
+:: Step 3: Generate local RS256 keys
 echo.
-echo [3/5] Creating database...
+node 00-infrastructure/keys/generate-keys.js
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: RSA key generation failed!
+    pause
+    exit /b 1
+)
+echo ✓ Local RSA keys generated (ignored by Git)
+
+:: Step 4: Create database
+echo.
+echo [4/6] Creating database...
 echo.
 echo Please ensure PostgreSQL is running, then:
 echo 1. Open pgAdmin or psql
@@ -44,9 +54,9 @@ echo 3. Run: node 00-infrastructure/database/migrations/run-all-migrations.js
 echo.
 pause
 
-:: Step 4: Run migrations
+:: Step 5: Run migrations
 echo.
-echo [4/5] Running database migrations...
+echo [5/6] Running database migrations...
 node 00-infrastructure/database/migrations/run-all-migrations.js
 if %ERRORLEVEL% NEQ 0 (
     echo WARNING: Migration failed. Check PostgreSQL connection.
@@ -54,9 +64,9 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo ✓ Migrations completed
 
-:: Step 5: Run tests
+:: Step 6: Run tests
 echo.
-echo [5/5] Running tests...
+echo [6/6] Running tests...
 npx jest --runInBand --testTimeout=30000 --forceExit 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo WARNING: Some tests failed. Check the output above.
