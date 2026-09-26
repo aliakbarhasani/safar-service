@@ -6,7 +6,7 @@
     "version": "1.0.0"
   },
   "api": {
-    "baseUrl": "http://localhost:3001",
+    "baseUrl": "http://localhost:3000",
     "endpoints": {
       "requestOtp": "/api/v1/auth/request-otp",
       "verifyOtp": "/api/v1/auth/verify-otp",
