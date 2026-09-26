@@ -5,8 +5,8 @@ const config = require('../../../14-config-system/server.config');
 
 class JwtService {
   constructor() {
-    this.privateKeyPath = path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_private.pem');
-    this.publicKeyPath = path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_public.pem');
+    this.privateKeyPath = process.env.JWT_PRIVATE_KEY_PATH || path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_private.pem');
+    this.publicKeyPath = process.env.JWT_PUBLIC_KEY_PATH || path.resolve(__dirname, '../../../00-infrastructure/keys/jwt_public.pem');
     this.privateKey = null;
     this.publicKey = null;
     this._loadKeys();
