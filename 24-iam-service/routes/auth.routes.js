@@ -36,6 +36,9 @@ function createAuthRoutes({ authService, logger }) {
 
   // چرخش Refresh Token
   router.post('/refresh', async (req, res) => {
+    if (process.env.ALLOW_MOCK_IAM_LOGIN !== 'true') {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
     const { refreshToken } = req.body || {};
     try {
       const result = await authService.refreshToken(refreshToken);
