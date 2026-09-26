@@ -10,6 +10,17 @@ const publicKeyPath = path.join(keysDir, 'jwt_public.pem');
 // در صورت نبود JWT_PRIVATE_KEY_PASSPHRASE کلید بدون رمز (PKCS#8) تولید می‌شود
 // تا سرویس‌هایی که passphrase را پشتیبانی نمی‌کنند (AuthService) درست کار کنند.
 const passphrase = (process.env.JWT_PRIVATE_KEY_PASSPHRASE || '').trim();
+const forceRegenerate = process.env.FORCE_KEY_REGEN === 'true';
+const keysAlreadyExist = fs.existsSync(privateKeyPath) && fs.existsSync(publicKeyPath);
+
+if (keysAlreadyExist && !forceRegenerate) {
+  console.log('RSA key pair already exists; keeping the current pair.');
+  process.exit(0);
+}
+
+if (process.env.NODE_ENV === 'production' && !keysAlreadyExist) {
+  throw new Error('Refusing to generate production JWT keys automatically. Provide the production key through the configured secret/volume.');
+}
 
 // Generate RSA key pair
 const privateKeyEncoding = {
