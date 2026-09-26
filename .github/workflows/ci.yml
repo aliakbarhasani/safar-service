@@ -25,6 +25,9 @@ jobs:
           cache: npm
           cache-dependency-path: 16-mobility-engine/package-lock.json
 
+      - name: Generate ephemeral RS256 test keys
+        run: node 00-infrastructure/keys/generate-keys.js
+
       - name: Install dependencies
         run: |
           cd 16-mobility-engine
