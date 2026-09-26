@@ -85,12 +85,36 @@ async function updateLocation(req, res) {
   }
 }
 
+function publicDriverView(driver) {
+  if (!driver) return driver;
+  return {
+    id: driver.id,
+    firstName: driver.firstName,
+    lastName: driver.lastName,
+    accountStatus: driver.accountStatus,
+    operationalStatus: driver.operationalStatus,
+    rating: driver.rating,
+    ratingCount: driver.ratingCount,
+    completedTrips: driver.completedTrips,
+    cancelledTrips: driver.cancelledTrips,
+    currentLocation: driver.currentLocation,
+    vehicleType: driver.vehicleType,
+    createdAt: driver.createdAt,
+    updatedAt: driver.updatedAt,
+  };
+}
+
+function canViewSensitiveDriverData(req) {
+  const role = String(req.user?.role || '').toLowerCase();
+  return role === 'admin' || role === 'super_admin';
+}
+
 async function getDriverById(req, res) {
   try {
     const { id } = req.params;
     const driver = await driverService.getDriverById(id);
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
-    res.json(driver);
+    res.json(canViewSensitiveDriverData(req) ? driver : publicDriverView(driver));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -99,7 +123,7 @@ async function getDriverById(req, res) {
 async function getAllDrivers(req, res) {
   try {
     const drivers = await driverService.getAllDrivers();
-    res.json(drivers);
+    res.json(canViewSensitiveDriverData(req) ? drivers : drivers.map(publicDriverView));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
