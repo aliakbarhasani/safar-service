@@ -16,6 +16,11 @@ function createAuthRoutes({ authService, logger }) {
 
   // (Mock) ورودن — در فازهای بعدی با Password/RBAC واقعی تکمیل می‌شود
   router.post('/login', async (req, res) => {
+    // This endpoint is a development/test issuer only. It must never be a public
+    // privilege-escalation path in production because it does not authenticate a user.
+    if (process.env.ALLOW_MOCK_IAM_LOGIN !== 'true') {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
     const { userId, role } = req.body || {};
     try {
       if (!userId) {
