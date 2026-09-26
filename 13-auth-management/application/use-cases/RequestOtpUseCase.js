@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const ConsoleSmsProvider = require('../../domain/strategies/ConsoleSmsProvider');
@@ -23,7 +24,9 @@ class RequestOtpUseCase {
     // The save() method resets attempts to 0 when generating a new OTP.
     // Rate limiting middleware (strictRateLimit) handles request-side throttling.
 
-    const otpCode = String(Math.floor(10000 + Math.random() * 90000)).slice(0, this.config.codeLength);
+    const maxExclusive = 10 ** this.config.codeLength;
+    const minInclusive = 10 ** (this.config.codeLength - 1);
+    const otpCode = String(crypto.randomInt(minInclusive, maxExclusive));
     const codeHash = await bcrypt.hash(otpCode, 10);
     const expiresAt = new Date(Date.now() + this.config.ttlSeconds * 1000).toISOString();
 
