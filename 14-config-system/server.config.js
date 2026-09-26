@@ -31,13 +31,6 @@ if (isProduction && (!process.env.PG_USER || !process.env.PG_PASSWORD)) {
 const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
   env: process.env.NODE_ENV || 'development',
-  db: {
-    uri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/safar-service',
-    options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    },
-  },
   pg: {
     host: process.env.PG_HOST || '127.0.0.1',
     port: parseInt(process.env.PG_PORT, 10) || 5432,
