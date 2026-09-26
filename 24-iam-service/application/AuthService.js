@@ -8,7 +8,7 @@
  *   - Refresh Token : رشته‌ی اتفاقی (crypto.randomBytes) — بدون امضا؛ در Redis
  *                     همراه userId با انقضای ۷ روز ذخیره می‌شود.
  *
- * وریفای Stateless در Gateway با کلید عمومی انجام می‌شود (فایل public.pem).
+ * وریفای Stateless در Gateway با کلید عمومی انجام می‌شود (فایل jwt_public.pem).
  */
 
 const crypto = require('crypto');
@@ -35,7 +35,7 @@ class AuthService {
     this.refreshTtl = refreshTtl;
     this.redis = redis;
 
-    const resolvedKeyPath = privateKeyPath || path.join(__dirname, '..', 'infrastructure', 'keys', 'private.pem');
+    const resolvedKeyPath = privateKeyPath || path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem');
     this.privateKey = fs.readFileSync(resolvedKeyPath, 'utf8');
   }
 
@@ -106,7 +106,7 @@ class AuthService {
 
   /** البته کلید عمومی را برای وریفای در Gateway (متد کمکی). */
   static getPublicKeyPath() {
-    return path.join(__dirname, '..', 'infrastructure', 'keys', 'public.pem');
+    return path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_public.pem');
   }
 
   // ---- داخلی‌ها ----
