@@ -21,11 +21,14 @@ jobs:
       - name: Start Test Database (Isolated in Cloud)
         run: docker compose -f docker-compose.test.yml up -d
 
+      - name: Generate ephemeral RS256 test keys
+        run: node 00-infrastructure/keys/generate-keys.js
+
       - name: Install Dependencies & Run Tests (RBAC Module)
         env:
           DATABASE_URL: postgres://test_user:test_password@localhost:5433/safar_test_db
           NODE_ENV: test
         run: |
           cd 17-rbac-service
-          npm install
+          npm ci
           npm test
