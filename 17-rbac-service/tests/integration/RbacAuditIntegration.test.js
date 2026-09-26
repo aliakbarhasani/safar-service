@@ -48,6 +48,7 @@ describe('RBAC Audit Trail - PostgreSQL Integration', () => {
   let pool;
   let useCases;
   let controller;
+  let testUserId;
 
   // Unique probe slug per run -> idempotent across repeats.
   // Must satisfy Permission.isValidSlug: ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$
@@ -75,10 +76,26 @@ describe('RBAC Audit Trail - PostgreSQL Integration', () => {
     });
 
     controller = new RbacController({ useCases });
+
+    // The isolated CI database is intentionally empty. Create one disposable
+    // user for the user_roles FK instead of assuming seed data exists.
+    const inserted = await pool.query(
+      `INSERT INTO users (first_name, last_name, phone_number, password_hash, role, status)
+       VALUES ('RBAC', 'IntegrationTest', $1, 'test-only-hash', 'passenger', 'active')
+       RETURNING id`,
+      [`+test-rbac-${Date.now()}@`],
+    );
+    testUserId = inserted.rows[0].id;
   });
 
   afterAll(async () => {
-    if (pool) await pool.end();
+    if (pool) {
+      if (testUserId) {
+        await pool.query('DELETE FROM user_roles WHERE user_id = $1', [testUserId]);
+        await pool.query('DELETE FROM users WHERE id = $1', [testUserId]);
+      }
+      await pool.end();
+    }
   });
 
   test('chain persists rbac.permission.created via Real repository/PostgreSQL', async () => {
@@ -111,10 +128,8 @@ describe('RBAC Audit Trail - PostgreSQL Integration', () => {
   });
 
   test('chain persists rbac.user_role.assigned via Real repository/PostgreSQL', async () => {
-    // Pick an existing user to satisfy user_roles.user_id FK (migration 002)
-    const u = await pool.query('SELECT id FROM users ORDER BY created_at LIMIT 1');
-    expect(u.rows.length).toBeGreaterThan(0);
-    const userId = u.rows[0].id;
+    const userId = testUserId;
+    expect(userId).toBeTruthy();
 
     const res = makeRes();
     await controller.assignUserRole(
