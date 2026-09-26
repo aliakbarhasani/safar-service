@@ -13,5 +13,5 @@
 ## Files
 - `controllers/user.controller.js` - User controller
 - `services/user.service.js` - User service
-- `models/user.model.js` - User model
+- `PostgreSQL users table` - Canonical user persistence
 - `routes/user.route.js` - User routes
