@@ -37,6 +37,10 @@ class AuthService {
 
     const resolvedKeyPath = privateKeyPath || path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem');
     this.privateKey = fs.readFileSync(resolvedKeyPath, 'utf8');
+    this.privateKeyPassphrase = (process.env.JWT_PRIVATE_KEY_PASSPHRASE || '').trim();
+    this.signingKey = this.privateKeyPassphrase
+      ? { key: this.privateKey, passphrase: this.privateKeyPassphrase }
+      : this.privateKey;
   }
 
   /**
@@ -121,7 +125,7 @@ class AuthService {
       iss: this.issuer,
       type: 'access',
     };
-    return jwt.sign(payload, this.privateKey, { algorithm: 'RS256' });
+    return jwt.sign(payload, this.signingKey, { algorithm: 'RS256' });
   }
 
   _generateRefreshToken() {
