@@ -124,7 +124,7 @@ router.use('/api/wallets', walletRoutes);
 const driverRoutes = require('../07-driver-service/routes/driver.route');
 // محافظت‌شده در سطح Gateway (قبل از mount): تغییر وضعیت حساب راننده و لیست رانندگان فقط برای مدیران
 // SECURITY: ترتیب صحیح میان‌افزارها — ابتدا authenticate (ساخت req.user) و سپس authorize
-router.patch('/api/drivers/:id/account-status', authenticate, authorize('drivers.update_status', 'admin', 'super_admin'));
+router.patch('/api/drivers/:id/account-status', authenticate, authorize('drivers.manage', 'admin', 'super_admin'));
 router.get('/api/drivers', authenticate, authorize('drivers.read', 'admin', 'super_admin'));
 router.use('/api/drivers', driverRoutes);
 
