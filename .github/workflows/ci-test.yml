@@ -24,6 +24,9 @@ jobs:
       - name: Generate ephemeral RS256 test keys
         run: node 00-infrastructure/keys/generate-keys.js
 
+      - name: Install root dependencies for migration runner
+        run: npm ci
+
       - name: Run test database migrations
         env:
           PG_HOST: 127.0.0.1
