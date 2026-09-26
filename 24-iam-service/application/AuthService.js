@@ -35,7 +35,7 @@ class AuthService {
     this.refreshTtl = refreshTtl;
     this.redis = redis;
 
-    const resolvedKeyPath = privateKeyPath || path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem');
+    const resolvedKeyPath = privateKeyPath || process.env.JWT_PRIVATE_KEY_PATH || path.resolve(__dirname, '..', '..', '00-infrastructure', 'keys', 'jwt_private.pem');
     this.privateKey = fs.readFileSync(resolvedKeyPath, 'utf8');
     this.privateKeyPassphrase = (process.env.JWT_PRIVATE_KEY_PASSPHRASE || '').trim();
     this.signingKey = this.privateKeyPassphrase
