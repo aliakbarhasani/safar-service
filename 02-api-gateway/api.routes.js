@@ -226,7 +226,7 @@ const tripController = new TripController({
 const tripRouter = createTripRouter(tripController);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
 // (P11-1) لایه‌ی احراز هویت Stateless (IAM) پیش از RBAC — توکن Bearer با public.pem وریفای می‌شود
-router.use('/api/v1/trips', iamAuthenticate, authenticate, tripRouter);
+router.use('/api/v1/trips', iamAuthenticate, tripRouter);
 
 // (P11-2) خواندن یک سفر با سیاست ABAC (trip:read:own)
 // fetchTripById منبع را از دیتابیس می‌خواند تا سیاست مالکیت مسافر/راننده اعمال شود.
