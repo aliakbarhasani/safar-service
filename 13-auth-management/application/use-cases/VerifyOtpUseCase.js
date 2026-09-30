@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const JwtService = require('../../domain/services/JwtService');
@@ -44,7 +45,7 @@ class VerifyOtpUseCase {
 
     let user = await this.userRepository.findByPhoneNumber(phoneNumber);
     if (!user) {
-      const randomPassword = `otp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const randomPassword = `otp-${crypto.randomBytes(24).toString('base64url')}`;
       const passwordHash = await bcrypt.hash(randomPassword, 10);
       user = await this.userRepository.create({
         phoneNumber,
