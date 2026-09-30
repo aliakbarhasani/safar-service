@@ -52,5 +52,5 @@ jobs:
           NODE_ENV: test
         run: |
           cd 17-rbac-service
-          npm ci
+          npm install
           npm test
