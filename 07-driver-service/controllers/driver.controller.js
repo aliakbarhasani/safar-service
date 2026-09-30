@@ -35,8 +35,14 @@ async function updateDriverAccountStatus(req, res) {
     const { id } = req.params;
     const { status } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'driverId and status are required' });
-    // SECURITY: adminId MUST come from authenticated JWT, never from request body (prevents Admin ID Spoofing)
-    const adminId = req.user && (req.user.userId || req.user.id) ? (req.user.userId || req.user.id) : 'system';
+
+    // SECURITY: identity MUST come from the authenticated JWT.
+    // Never fall back to a fabricated/system administrator id.
+    const adminId = req.user && (req.user.userId || req.user.id);
+    if (!adminId) {
+      return res.status(401).json({ error: 'Authenticated administrator identity is required' });
+    }
+
     const result = await driverService.updateDriverAccountStatus(id, status, adminId);
     if (result && result.error) return res.status(400).json({ error: result.error });
     res.json(result);
@@ -52,7 +58,6 @@ async function updateOperationalStatus(req, res) {
     if (!id || !status) return res.status(400).json({ error: 'driverId and status are required' });
     const result = await driverService.updateOperationalStatus(id, status);
     if (result && result.error) return res.status(400).json({ error: result.error });
-    // P3-1: اگر راننده آفلاین شد، موقعیتش را از Redis حذف کن
     if (status === 'offline') {
       locationService.removeDriverLocation(id).catch(() => null);
     }
@@ -69,7 +74,6 @@ async function updateLocation(req, res) {
     if (!id || latitude == null || longitude == null) {
       return res.status(400).json({ error: 'driverId, latitude and longitude are required' });
     }
-    // P3-1: به‌روزرسانی موقعیت در PostgreSQL (دائمی) و Redis (بلادرنگ) — موازی
     const [pgResult, redisResult] = await Promise.allSettled([
       driverService.updateLocation(id, latitude, longitude),
       locationService.updateDriverLocation(id, longitude, latitude).catch(() => null),

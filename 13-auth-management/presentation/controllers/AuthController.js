@@ -12,9 +12,6 @@ const sharedOtpRepository = new OtpRepository();
 const sharedLoginHistoryRepository = new LoginHistoryRepository();
 const sharedAuditLogRepository = new AuditLogRepository();
 
-/**
- * Extract IP and user agent from request.
- */
 function getRequestMeta(req) {
   return {
     ipAddress: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null,
@@ -37,13 +34,6 @@ class AuthController {
     this.logoutUseCase = logoutUseCase || new LogoutUseCase();
   }
 
-  /**
-   * POST /api/v1/auth/logout
-   * - Access Token از هدر Bearer یا کوکی HttpOnly خوانده می‌شود.
-   * - نشست متناظر در user_sessions غیرفعال (is_active=false) می‌شود.
-   * - کوکی access_token پاک‌سازی می‌شود.
-   * - پاسخ JSON برای کلاینت‌های موبایل.
-   */
   async logout(req, res) {
     const token = extractAccessToken(req);
 
@@ -62,7 +52,6 @@ class AuthController {
         userAgent: meta.userAgent,
       });
 
-      // پاک‌سازی کوکی وب (با همان path تنظیم‌شده هنگام صدور)
       res.clearCookie('access_token', { path: '/' });
 
       return res.status(200).json({
@@ -75,7 +64,6 @@ class AuthController {
         },
       });
     } catch (error) {
-      // حتی در خطا، کوکی سمت کلاینت پاک شود
       res.clearCookie('access_token', { path: '/' });
       return res.status(200).json({
         success: true,
@@ -93,7 +81,6 @@ class AuthController {
     try {
       const result = await this.requestOtpUseCase.execute(phoneNumber);
 
-      // Record login history (OTP request = info-level entry)
       await this.loginHistoryUseCase.execute({
         phoneNumber,
         loginType: 'otp_request',
@@ -102,7 +89,6 @@ class AuthController {
         userAgent: meta.userAgent,
       });
 
-      // Audit log
       await this.auditLogUseCase.execute({
         action: 'OTP_REQUEST',
         moduleName: 'auth',
@@ -124,7 +110,6 @@ class AuthController {
         },
       });
     } catch (error) {
-      // Record failed attempt
       await this.loginHistoryUseCase.execute({
         phoneNumber: phoneNumber || 'unknown',
         loginType: 'otp_request',
@@ -152,7 +137,6 @@ class AuthController {
         ipAddress: meta.ipAddress,
       });
 
-      // Record successful login
       await this.loginHistoryUseCase.execute({
         userId: result.user?.id || null,
         phoneNumber,
@@ -162,7 +146,6 @@ class AuthController {
         userAgent: meta.userAgent,
       });
 
-      // Audit log
       await this.auditLogUseCase.execute({
         userId: result.user?.id || null,
         action: 'LOGIN_SUCCESS',
@@ -174,14 +157,12 @@ class AuthController {
         userAgent: meta.userAgent,
       });
 
-      // کوکی HttpOnly برای کلاینت وب (همراه با بدنه JSON برای کلاینت‌های موبایل).
-      // res.cookie از خود Express است — هیچ پکیج اضافه‌ای لازم نیست.
       res.cookie('access_token', result.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 15 * 60 * 1000, // ۱۵ دقیقه — هم‌تراز با عمر Access Token
+        maxAge: 15 * 60 * 1000,
       });
 
       return res.status(200).json({
@@ -194,7 +175,6 @@ class AuthController {
         },
       });
     } catch (error) {
-      // Record failed login attempt
       await this.loginHistoryUseCase.execute({
         phoneNumber: phoneNumber || 'unknown',
         loginType: 'otp_verify',
@@ -204,7 +184,6 @@ class AuthController {
         failureReason: error.message,
       });
 
-      // Audit log for failed login
       await this.auditLogUseCase.execute({
         action: 'LOGIN_FAILED',
         moduleName: 'auth',
@@ -215,9 +194,10 @@ class AuthController {
         userAgent: meta.userAgent,
       });
 
-      return res.status(401).json({
+      const statusCode = error.code === 'AUTH_SESSION_UNAVAILABLE' ? 503 : 401;
+      return res.status(statusCode).json({
         success: false,
-        status_code: 401,
+        status_code: statusCode,
         message: error.message || 'Invalid or expired OTP',
       });
     }

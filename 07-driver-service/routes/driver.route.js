@@ -1,7 +1,8 @@
 /**
- * driver.route.js - ãÓíÑåÇí ãÓÊŞá ÑÇääÏÇä (ÓÑæíÓ 07)
- * 
- * ÊãÇã ãÓíÑåÇ ÊæÓØ ãíÏáæÑ authenticate ãÍÇİÙÊ ãíÔæäÏ
+ * driver.route.js - Ù…Ø³ÛŒØ±Ù‡Ø§ÛŒ Ù…Ø³ØªÙ‚Ù„ Ø±Ø§Ù†Ù†Ø¯Ú¯Ø§Ù† (Ø³Ø±ÙˆÛŒØ³ 07)
+ *
+ * ØªÙ…Ø§Ù… Ù…Ø³ÛŒØ±Ù‡Ø§ Ø§Ø­Ø±Ø§Ø² Ù‡ÙˆÛŒØª Ù…ÛŒâ€ŒØ´ÙˆÙ†Ø¯.
+ * Ú©Ù†ØªØ±Ù„ Ù…Ø¬ÙˆØ²Ù‡Ø§ÛŒ Ù…Ø¯ÛŒØ±ÛŒØªÛŒ Ø§Ø² RBAC Ù…Ø±Ú©Ø²ÛŒ (17-rbac-service) Ø§Ù†Ø¬Ø§Ù… Ù…ÛŒâ€ŒØ´ÙˆØ¯.
  */
 
 const express = require('express');
@@ -14,24 +15,21 @@ const {
   getDriverById,
   getAllDrivers
 } = require('../controllers/driver.controller');
-const { authenticate, authorize } = require('../../13-auth-management/presentation/middleware/auth.middleware');
+const { authenticate } = require('../../13-auth-management/presentation/middleware/auth.middleware');
+const { authorize: authorizePermission } = require('../../17-rbac-service/presentation/middleware/rbac.middleware');
 
-// ËÈÊäÇã ÑÇääÏå ÌÏíÏ
 router.post('/', authenticate, registerDriver);
 
-// ÊÛííÑ æÖÚíÊ ÍÓÇÈ ÊæÓØ ÇÏãíä (äíÇÒ Èå ãÌæÒ drivers.manage)
-router.patch('/:id/account-status', authenticate, authorize('drivers.manage'), updateDriverAccountStatus);
+router.patch(
+  '/:id/account-status',
+  authenticate,
+  authorizePermission('drivers.update_status'),
+  updateDriverAccountStatus
+);
 
-// ÊÛííÑ æÖÚíÊ ÚãáíÇÊí (ÂäáÇíä/ÂİáÇíä)
 router.patch('/:id/operational-status', authenticate, updateOperationalStatus);
-
-// ÈåÑæÒÑÓÇäí ãæŞÚíÊ ã˜Çäí
 router.patch('/:id/location', authenticate, updateLocation);
-
-// ÏÑíÇİÊ ÇØáÇÚÇÊ ÑÇääÏå
 router.get('/:id', authenticate, getDriverById);
-
-// ÏÑíÇİÊ áíÓÊ ÑÇääÏÇä
 router.get('/', authenticate, getAllDrivers);
 
 module.exports = router;
