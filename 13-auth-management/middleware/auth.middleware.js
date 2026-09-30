@@ -19,7 +19,7 @@ function extractAccessToken(req) {
 }
 
 // بررسی فعال بودن نشست در user_sessions برای jti توکن (Logout revocation).
-// true = فعال، false = ابطال شده، null = دیتابیس در دسترس نیست (fail-open)
+// true = فعال، false = ابطال شده، null = دیتابیس در دسترس نیست.
 let _sessionRepo = null;
 async function checkSessionActive(jti) {
   try {
@@ -30,6 +30,7 @@ async function checkSessionActive(jti) {
     const sessionId = await _sessionRepo.findActiveByAccessTokenJti(jti);
     return sessionId ? true : false;
   } catch {
+    // Database/session infrastructure failure must fail closed.
     return null;
   }
 }
@@ -49,11 +50,17 @@ class AuthMiddleware {
 
         const decoded = this.jwtService.verifyAccessToken(token);
 
-        // بررسی ابطال نشست (Logout) در user_sessions — fail-open در نبود دیتابیس
         if (decoded.jti) {
           const active = await checkSessionActive(decoded.jti);
+
           if (active === false) {
             return res.status(401).json({ error: 'Session has been revoked. Please authenticate again.' });
+          }
+
+          if (active === null) {
+            return res.status(503).json({
+              error: 'Authentication service temporarily unavailable. Please try again later.',
+            });
           }
         }
 
@@ -63,7 +70,7 @@ class AuthMiddleware {
           role: decoded.role,
         };
 
-        next();
+        return next();
       } catch (err) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
