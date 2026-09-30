@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const config = require('../../../14-config-system/server.config');
@@ -20,8 +21,8 @@ class JwtService {
 
   _loadKeys() {
     try {
-      this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf-8');
-      this.publicKey = fs.readFileSync(this.publicKeyPath, 'utf-8');
+      this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf8');
+      this.publicKey = fs.readFileSync(this.publicKeyPath, 'utf8');
     } catch (err) {
       console.error('[JwtService] Failed to load RSA keys:', err.message);
       throw new Error('JWT keys not found. Please generate them first.');
@@ -39,8 +40,7 @@ class JwtService {
     return jwt.sign(payload, this.signingKey, {
       algorithm: 'RS256',
       expiresIn: '15m',
-      // jti یکتا برای ابطال نشست (Logout) از طریق user_sessions.token
-      jwtid: `access-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      jwtid: `access-${crypto.randomUUID()}`,
     });
   }
 
@@ -50,7 +50,7 @@ class JwtService {
       phoneNumber: user.phoneNumber || user.phone_number,
       role: user.role,
       type: 'refresh',
-      jti: `refresh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      jti: `refresh-${crypto.randomUUID()}`,
     };
 
     return jwt.sign(payload, this.signingKey, {
