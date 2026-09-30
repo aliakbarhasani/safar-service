@@ -60,11 +60,14 @@ export default function RegisterPage() {
       // قرارداد بک‌اند پسورد را الزامی می‌داند؛ ورود واقعی از مسیر OTP است،
       // پس یک رمز تصادفی تولید می‌کنیم (فقط hash آن در DB ذخیره می‌شود).
       const generatedPassword =
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
+        typeof globalThis.crypto?.randomUUID === "function"
+          ? globalThis.crypto.randomUUID()
           : (() => {
+              if (typeof globalThis.crypto?.getRandomValues !== "function") {
+                throw new Error("Secure random generator is unavailable");
+              }
               const bytes = new Uint8Array(24);
-              crypto.getRandomValues(bytes);
+              globalThis.crypto.getRandomValues(bytes);
               return `pw-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
             })();
       await registerUser({
