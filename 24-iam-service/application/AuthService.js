@@ -6,7 +6,7 @@
  * صادرکننده‌ی توکن (Token Issuer) با الگوی Access+Refresh:
  *   - Access Token  : JWT امضاشده با RSA-2048 / RS256، انقضای ۱۵ دقیقه.
  *   - Refresh Token : رشته‌ی اتفاقی (crypto.randomBytes) — بدون امضا؛ در Redis
- *                     همراه userId با انقضای ۷ روز ذخیره می‌شود.
+ *                     همراه userId و role با انقضای ۷ روز ذخیره می‌شود.
  *
  * وریفای Stateless در Gateway با کلید عمومی انجام می‌شود (فایل public.pem).
  */
@@ -56,8 +56,8 @@ class AuthService {
     const accessToken = this._issueAccessToken(userId, role);
     const refreshToken = this._generateRefreshToken();
 
-    // ذخیره Refresh Token همراه userId (انقضای ۷ روز)
-    await this._storeRefreshToken(userId, refreshToken);
+    // ذخیره Refresh Token همراه userId و role (انقضای ۷ روز)
+    await this._storeRefreshToken(userId, role, refreshToken);
 
     return {
       accessToken,
@@ -93,7 +93,7 @@ class AuthService {
 
     const accessToken = this._issueAccessToken(record.userId, record.role);
     const newRefreshToken = this._generateRefreshToken();
-    await this._storeRefreshToken(record.userId, newRefreshToken);
+    await this._storeRefreshToken(record.userId, record.role, newRefreshToken);
 
     return {
       accessToken,
@@ -128,9 +128,9 @@ class AuthService {
     return crypto.randomBytes(48).toString('base64url');
   }
 
-  async _storeRefreshToken(userId, refreshToken) {
+  async _storeRefreshToken(userId, role, refreshToken) {
     if (!this.redis) return; // در نبود Redis، عدم ذخیره (فاز تست)
-    const record = JSON.stringify({ userId, role: 'passenger' });
+    const record = JSON.stringify({ userId, role: role || 'user' });
     await this.redis.set(`${REFRESH_PREFIX}${refreshToken}`, record, 'EX', this.refreshTtl);
   }
 
