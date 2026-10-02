@@ -6,6 +6,7 @@
  * احراز هویت Stateless برای توکن‌های Access امضاشده با RS256.
  * - هدر:  Authorization: Bearer <token>
  * - وریفای: jsonwebtoken با الگوریتم RS256 و کلید عمومی (public.pem)
+ * - وریفای امنیتی: issuer=safar-iam و type=access
  * - موفقیت → افزودن `req.user = { userId, role, ... }` و فراخوانی next()
  * - انقضا/نا‌معتبری/فقدان توکن → 401 Unauthorized
  */
@@ -15,6 +16,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 
 const PUBLIC_KEY_PATH = path.join(__dirname, '..', 'infrastructure', 'keys', 'public.pem');
+const IAM_ISSUER = 'safar-iam';
 
 // کش‌کردن کلید عمومی در حافظه (جلوگیری از خواندن فایل در هر درخواست)
 let publicKey = null;
@@ -35,7 +37,7 @@ function extractBearerToken(header) {
 }
 
 /**
- * میدلور Express برای وریفای Access Token.
+ * میدلور Express برای وریفای Access Token صادرشده توسط IAM.
  */
 function authenticate(req, res, next) {
   const token = extractBearerToken(req.headers && req.headers.authorization);
@@ -53,11 +55,18 @@ function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(token, publicKeyPem, {
       algorithms: ['RS256'],
+      issuer: IAM_ISSUER,
     });
-    const userId = payload && (payload.sub || payload.userId);
+
+    if (!payload || payload.type !== 'access') {
+      return res.status(401).json({ success: false, error: 'Unauthorized: invalid access token type' });
+    }
+
+    const userId = payload.sub || payload.userId;
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized: token missing subject' });
     }
+
     // اطلاعات کاربر به درخواست افزوده می‌شود
     req.user = {
       userId,
@@ -74,4 +83,4 @@ function authenticate(req, res, next) {
   }
 }
 
-module.exports = { authenticate, extractBearerToken, PUBLIC_KEY_PATH, getPublicKey };
+module.exports = { authenticate, extractBearerToken, PUBLIC_KEY_PATH, getPublicKey, IAM_ISSUER };
