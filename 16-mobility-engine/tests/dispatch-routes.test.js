@@ -25,7 +25,11 @@ const PRIVATE_KEY = fs.readFileSync(
 );
 
 function issueToken({ sub, role }) {
-  return jwt.sign({ sub, role }, PRIVATE_KEY, { algorithm: 'RS256', issuer: 'safar-iam', expiresIn: '5m' });
+  return jwt.sign(
+    { sub, role, type: 'access' },
+    PRIVATE_KEY,
+    { algorithm: 'RS256', issuer: 'safar-iam', expiresIn: '5m' },
+  );
 }
 
 const ACCEPTED = {
