@@ -34,7 +34,7 @@ async function runMiddlewareWith(middleware, req) {
   return { statusCode: res.statusCode, body: res.body, nextCalled };
 }
 
-test('valid RS256 token -> sets req.user and calls next()', async () => {
+test('valid RS256 IAM access token -> sets req.user and calls next()', async () => {
   const { accessToken } = await authService.login('user-42', 'passenger');
   const req = { headers: { authorization: `Bearer ${accessToken}` } };
   const { statusCode, nextCalled } = await runMiddlewareWith(authenticate, req);
@@ -66,11 +66,37 @@ test('tampered token -> 401', async () => {
 
 test('token signed with wrong algorithm (HS256) -> 401', async () => {
   const hs256Token = jwt.sign(
-    { sub: 'user-42', role: 'passenger' },
+    { sub: 'user-42', role: 'passenger', type: 'access' },
     'safara-wrong-secret',
-    { algorithm: 'HS256', expiresIn: 600 }
+    { algorithm: 'HS256', expiresIn: 600, issuer: 'safar-iam' }
   );
   const req = { headers: { authorization: `Bearer ${hs256Token}` } };
+  const { statusCode, nextCalled } = await runMiddlewareWith(authenticate, req);
+  assert(statusCode === 401, `expected 401, got ${statusCode}`);
+  assert(nextCalled === false, 'next() should not be called');
+  passed++;
+});
+
+test('valid signature with wrong issuer -> 401', async () => {
+  const token = jwt.sign(
+    { sub: 'user-42', role: 'passenger', type: 'access' },
+    authService.privateKey,
+    { algorithm: 'RS256', issuer: 'not-safar-iam', expiresIn: 600 }
+  );
+  const req = { headers: { authorization: `Bearer ${token}` } };
+  const { statusCode, nextCalled } = await runMiddlewareWith(authenticate, req);
+  assert(statusCode === 401, `expected 401, got ${statusCode}`);
+  assert(nextCalled === false, 'next() should not be called');
+  passed++;
+});
+
+test('valid signature and issuer with wrong token type -> 401', async () => {
+  const token = jwt.sign(
+    { sub: 'user-42', role: 'passenger', type: 'refresh' },
+    authService.privateKey,
+    { algorithm: 'RS256', issuer: 'safar-iam', expiresIn: 600 }
+  );
+  const req = { headers: { authorization: `Bearer ${token}` } };
   const { statusCode, nextCalled } = await runMiddlewareWith(authenticate, req);
   assert(statusCode === 401, `expected 401, got ${statusCode}`);
   assert(nextCalled === false, 'next() should not be called');
