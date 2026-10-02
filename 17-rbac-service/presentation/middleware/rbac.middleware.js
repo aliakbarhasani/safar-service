@@ -30,7 +30,6 @@ try {
 }
 
 // --- نمونه‌های اشتراکی (Dependency Injection - DIP) ---
-// Pool با پیکربندی صریح از env (سازگار با هر دو قالب PG_* و DB_*)
 const rbacPool = new Pool({
   host: process.env.PG_HOST || process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.PG_PORT || process.env.DB_PORT || 5432),
@@ -51,20 +50,23 @@ function extractToken(req) {
   return cookies.access_token || null;
 }
 
-/** احراز هویت: توکن معتبر → req.user */
+/** احراز هویت: فقط Access Token معتبر → req.user */
 function authenticate(req, res, next) {
   const token = extractToken(req);
   if (!token) {
     return res.status(401).json({ success: false, status_code: 401, message: 'No token provided.' });
   }
-  // SECURITY: Only RS256 with a valid public key is accepted.
-  // No fallback to HS256, no default secret. If the public key is missing or
-  // the token is not a valid RS256 token, the request is rejected immediately.
   if (!PUBLIC_KEY) {
     return res.status(500).json({ success: false, status_code: 500, message: 'Authentication service unavailable: public key not loaded.' });
   }
   try {
-    req.user = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
+    const payload = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
+    // SECURITY: RBAC endpoints must never accept a refresh/non-access token.
+    // Legacy Auth Management access tokens are required to carry type=access.
+    if (!payload || payload.type !== 'access') {
+      return res.status(401).json({ success: false, status_code: 401, message: 'Invalid or unsupported token type.' });
+    }
+    req.user = payload;
     return next();
   } catch {
     return res.status(401).json({ success: false, status_code: 401, message: 'Invalid or expired token.' });
@@ -82,7 +84,6 @@ function authorize(...requirements) {
       return res.status(401).json({ success: false, status_code: 401, message: 'Authentication required.' });
     }
     try {
-      // نقش مؤثر = نقش داخل توکن + نقش‌های داینامیک منتسب در user_roles
       const userId = req.user.userId || req.user.id || req.user.sub || null;
       let effectiveRoles = req.user.role ? [req.user.role] : [];
       if (userId) {
