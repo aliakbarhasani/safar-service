@@ -51,11 +51,9 @@ app.get('/health', (req, res) => {
 });
 
 // ── Routes ────────────────────────────────────────────────────────
-// Mounted twice on purpose: `/api/v1/pricing/*` is the canonical public
-// contract (what the API Gateway forwards) while the bare paths keep the
-// service callable directly during local development.
+// Single canonical route contract. The API Gateway uses the same prefix
+// when composing the pricing module into the unified API.
 app.use('/api/v1/pricing', pricingRouter);
-app.use('/', pricingRouter);
 
 // ── 404 Handler ───────────────────────────────────────────────────
 app.use((req, res) => {
