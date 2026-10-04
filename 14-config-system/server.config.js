@@ -28,6 +28,11 @@ if (isProduction && (!process.env.PG_USER || !process.env.PG_PASSWORD)) {
   throw new Error('[config-system] FATAL: PG_USER and PG_PASSWORD are required in production');
 }
 
+const corsOrigin = process.env.CORS_ORIGIN || (isProduction ? null : '*');
+if (isProduction && !corsOrigin) {
+  throw new Error('[config-system] FATAL: CORS_ORIGIN is required in production');
+}
+
 const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
   env: process.env.NODE_ENV || 'development',
@@ -66,7 +71,7 @@ const config = {
     prefix: '/api/v1',
   },
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: corsOrigin,
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
