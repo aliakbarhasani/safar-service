@@ -37,15 +37,17 @@ class RequestOtpUseCase {
     const message = `Your ${type} OTP code is: ${otpCode}. Valid for ${this.config.ttlSeconds} seconds.`;
     await this.smsProvider.send(phoneNumber, message);
 
+    const exposeOtpCode = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
     return {
       success: true,
       message: 'OTP sent successfully',
       phoneNumber,
       expiresAt,
       ttl: this.config.ttlSeconds,
-      // کد OTP فقط در محیط‌های غیرproduction برگردانده می‌شود (تست/توسعه).
-      // در production مقدار undefined است و در JSON سریالایز نمی‌شود.
-      otpCode: process.env.NODE_ENV === 'production' ? undefined : otpCode,
+      // کد OTP فقط در محیط‌های توسعه و تست برگردانده می‌شود.
+      // در production یا وقتی NODE_ENV تنظیم نشده باشد، کد هرگز در پاسخ API قرار نمی‌گیرد.
+      otpCode: exposeOtpCode ? otpCode : undefined,
     };
   }
 }
