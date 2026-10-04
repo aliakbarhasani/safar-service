@@ -1,9 +1,8 @@
 /**
- * pg.js - PostgreSQL Connection Pool with In-Memory Fallback
- * 
- * این ماژول ابتدا سعی می‌کند به PostgreSQL متصل شود.
- * اگر دیتابیس در دسترس نباشد، به صورت خودکار به حافظه داخلی (In-Memory Fallback)
- * سوئیچ می‌کند تا سرویس و تست‌ها بدون وقفه کار کنند.
+ * pg.js - PostgreSQL Connection Pool
+ *
+ * PostgreSQL منبع اصلی و قابل اعتماد داده‌های کیف پول است.
+ * In-Memory Fallback فقط برای تست‌های صریح یا محیطی که عمداً فعال شده باشد مجاز است.
  */
 
 const { Pool } = require('pg');
@@ -14,7 +13,7 @@ let connected = false;
 let useFallback = false;
 let fallbackPool = null;
 
-// In-memory fallback storage
+// In-memory fallback storage (test/explicit opt-in only)
 const fallbackTables = {
   wallets: new Map(),
   transactions: new Map(),
@@ -23,7 +22,14 @@ const fallbackTables = {
 
 let fallbackIdCounter = 1;
 
+function fallbackAllowed() {
+  return process.env.NODE_ENV === 'test' || process.env.SAFAR_ALLOW_IN_MEMORY_FALLBACK === 'true';
+}
+
 function initFallback() {
+  if (!fallbackAllowed()) {
+    throw new Error('PostgreSQL is required. In-memory wallet fallback is disabled. Set NODE_ENV=test or SAFAR_ALLOW_IN_MEMORY_FALLBACK=true only for controlled non-production use.');
+  }
   if (fallbackPool) return;
   fallbackPool = {
     wallets: new Map(),
@@ -52,11 +58,12 @@ function createPool() {
       connectionTimeoutMillis: config.pg.connectionTimeoutMillis || 2000,
     });
 
-    // Event handlers
     pool.on('error', (err) => {
-      console.warn('PostgreSQL pool error (will use fallback):', err.message);
+      console.warn('PostgreSQL pool error:', err.message);
       connected = false;
-      useFallback = true;
+      if (fallbackAllowed()) {
+        useFallback = true;
+      }
     });
 
     pool.on('connect', () => {
@@ -66,9 +73,12 @@ function createPool() {
 
     return pool;
   } catch (err) {
-    console.warn('PostgreSQL pool creation failed, using in-memory fallback:', err.message);
-    initFallback();
-    return null;
+    if (fallbackAllowed()) {
+      console.warn('PostgreSQL pool creation failed, using explicit in-memory fallback:', err.message);
+      initFallback();
+      return null;
+    }
+    throw new Error(`PostgreSQL pool creation failed and fallback is disabled: ${err.message}`);
   }
 }
 
@@ -90,19 +100,25 @@ async function connectPG() {
     useFallback = false;
     return true;
   } catch (err) {
-    console.warn('PostgreSQL not available, using in-memory fallback:', err.message);
-    initFallback();
+    if (fallbackAllowed()) {
+      console.warn('PostgreSQL not available, using explicit in-memory fallback:', err.message);
+      initFallback();
+      return false;
+    }
+    console.error('PostgreSQL unavailable and wallet fallback is disabled:', err.message);
     return false;
   }
 }
 
 /**
- * دریافت Pool (create if not exists)
+ * دریافت Pool
  */
 function getPool() {
-  if (useFallback || !pool) {
-    if (!useFallback) initFallback();
-    return null; // Return null to signal fallback mode
+  if (useFallback) {
+    return null;
+  }
+  if (!pool) {
+    return createPool();
   }
   return pool;
 }
@@ -113,6 +129,9 @@ function getPool() {
 async function query(text, params = []) {
   const p = getPool();
   if (useFallback || !p) {
+    if (!fallbackAllowed()) {
+      throw new Error('PostgreSQL is unavailable and in-memory wallet fallback is disabled.');
+    }
     return { rows: [], rowCount: 0, command: 'FALLBACK' };
   }
   const start = Date.now();
@@ -124,23 +143,21 @@ async function query(text, params = []) {
 
 /**
  * اجرای یک تراکنش با callback
- * در حالت Fallback، مستقیماً callback را اجرا می‌کند
  */
 async function transaction(callback) {
   if (useFallback || !pool) {
-    try {
-      return await callback({
-        query: async (text, params) => {
-          console.log(`[Fallback] Query: ${text.substring(0, 50)}...`);
-          return { rows: [], rowCount: 0 };
-        },
-        release: () => {},
-      });
-    } catch (error) {
-      throw error;
+    if (!fallbackAllowed()) {
+      throw new Error('PostgreSQL is required for wallet transactions. In-memory fallback is disabled.');
     }
+    return callback({
+      query: async (text) => {
+        console.log(`[Fallback] Query: ${text.substring(0, 50)}...`);
+        return { rows: [], rowCount: 0 };
+      },
+      release: () => {},
+    });
   }
-  
+
   const p = pool;
   const client = await p.connect();
 
@@ -157,16 +174,10 @@ async function transaction(callback) {
   }
 }
 
-/**
- * بررسی وضعیت اتصال
- */
 function isConnected() {
   return connected && !useFallback;
 }
 
-/**
- * بستن Pool
- */
 async function closePool() {
   if (pool) {
     try {
@@ -181,9 +192,6 @@ async function closePool() {
   fallbackPool = null;
 }
 
-/**
- * بررسی آیا در حالت Fallback هستیم
- */
 function isFallbackMode() {
   return useFallback;
 }
@@ -197,4 +205,5 @@ module.exports = {
   closePool,
   createPool,
   isFallbackMode,
+  fallbackAllowed,
 };
