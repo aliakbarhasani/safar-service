@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireDriverRole } = require('../routes/dispatch.routes');
 
 /**
  * creates the Mobility Engine Express router (unified trips API).
@@ -7,22 +8,16 @@ const express = require('express');
 function createTripRouter(tripController) {
     const router = express.Router();
 
-    // ساخت سفر جدید (مسیر عمومی، در صورت نیاز احراز هویت در Gateway اعمال می‌شود)
+    // ساخت سفر جدید (احراز هویت در API Gateway اعمال می‌شود)
     router.post('/', tripController.createTrip.bind(tripController));
 
-    // پذیرش سفر توسط راننده (با کنترل همزمانی)
-    router.post('/:tripId/accept', tripController.acceptTrip.bind(tripController));
+    // عملیات چرخه سفر که فقط راننده (یا super_admin) مجاز به انجام آن است.
+    router.post('/:tripId/accept', requireDriverRole, tripController.acceptTrip.bind(tripController));
+    router.post('/:tripId/arrived', requireDriverRole, tripController.driverArrived.bind(tripController));
+    router.post('/:tripId/start', requireDriverRole, tripController.startTrip.bind(tripController));
+    router.post('/:tripId/complete', requireDriverRole, tripController.completeTrip.bind(tripController));
 
-    // راننده به مبدأ رسید
-    router.post('/:tripId/arrived', tripController.driverArrived.bind(tripController));
-
-    // شروع سفر
-    router.post('/:tripId/start', tripController.startTrip.bind(tripController));
-
-    // تکمیل سفر
-    router.post('/:tripId/complete', tripController.completeTrip.bind(tripController));
-
-    // لغو سفر
+    // لغو سفر می‌تواند توسط مسافر یا راننده انجام شود؛ مالکیت در UseCase بررسی می‌شود.
     router.post('/:tripId/cancel', tripController.cancelTrip.bind(tripController));
 
     return router;
