@@ -141,8 +141,9 @@ class TripController {
             const { tripId } = req.params;
             const changedByUserId = (req.user && (req.user.userId || req.user.id)) || null;
 
-            const finalFare = (req.body && req.body.finalFare != null) ? Number(req.body.finalFare) : null;
-            const result = await this.endTripUseCase.execute({ tripId, changedByUserId, finalFare });
+            // SECURITY: کرایه نهایی از کلاینت پذیرفته نمی‌شود؛ مبلغ معتبر از quote
+            // ذخیره‌شده در سفر یا محاسبه سمت سرور تعیین می‌شود.
+            const result = await this.endTripUseCase.execute({ tripId, changedByUserId });
             return res.status(200).json({
                 success: true,
                 message: 'سفر با موفقیت تکمیل شد.',
