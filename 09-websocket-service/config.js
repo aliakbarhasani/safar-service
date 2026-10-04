@@ -32,6 +32,11 @@ try {
   );
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction && !process.env.WS_CORS_ORIGIN) {
+  throw new Error('[websocket-service] FATAL: WS_CORS_ORIGIN is required in production');
+}
+
 const config = {
   port: parseInt(process.env.WS_PORT, 10) || 3020,
   env: process.env.NODE_ENV || 'development',
