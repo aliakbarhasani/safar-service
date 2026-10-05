@@ -6,6 +6,7 @@ class OtpRepository {
   constructor() {
     this.pool = null;
     this.inMemoryStore = new Map();
+    this.allowInMemoryFallback = process.env.NODE_ENV === 'test' || process.env.SAFAR_ALLOW_IN_MEMORY_FALLBACK === 'true';
     this._initPool();
   }
 
@@ -37,6 +38,12 @@ class OtpRepository {
     }
   }
 
+  _assertFallbackAllowed() {
+    if (!this.allowInMemoryFallback) {
+      throw new Error('OTP persistence is unavailable');
+    }
+  }
+
   async hashCode(plainCode) {
     return bcrypt.hash(plainCode, 10);
   }
@@ -56,10 +63,11 @@ class OtpRepository {
         );
         return { phoneNumber, type };
       } catch (err) {
-        console.warn('[OtpRepository] DB save failed, using memory:', err.message);
+        console.warn('[OtpRepository] DB save failed:', err.message);
       }
     }
 
+    this._assertFallbackAllowed();
     this.inMemoryStore.set(key, {
       phoneNumber,
       codeHash,
@@ -102,11 +110,11 @@ class OtpRepository {
           });
         }
       } catch (err) {
-        console.warn('[OtpRepository] DB lookup failed, using memory:', err.message);
+        console.warn('[OtpRepository] DB lookup failed:', err.message);
       }
     }
 
-    // Fallback to in-memory store
+    this._assertFallbackAllowed();
     const entry = this.inMemoryStore.get(key);
     if (!entry) return null;
     return new OtpCode({
@@ -125,45 +133,72 @@ class OtpRepository {
 
     if (await this._isDBReady()) {
       try {
-        await this.pool.query(
-          `UPDATE otp_codes SET attempts = attempts + 1, updated_at = NOW()
-           WHERE phone_number = $1 AND type = $2`,
+        const result = await this.pool.query(
+          `UPDATE otp_codes
+           SET attempts = attempts + 1, updated_at = NOW()
+           WHERE phone_number = $1 AND type = $2
+             AND is_used = FALSE
+             AND expires_at > NOW()
+             AND attempts < max_attempts
+           RETURNING attempts, max_attempts`,
           [phoneNumber, type]
         );
-        return;
+        if (result.rows.length === 0) {
+          return { accepted: false };
+        }
+        return {
+          accepted: true,
+          attempts: result.rows[0].attempts,
+          maxAttempts: result.rows[0].max_attempts,
+        };
       } catch (err) {
         console.warn('[OtpRepository] DB increment failed:', err.message);
       }
     }
 
+    this._assertFallbackAllowed();
     const entry = this.inMemoryStore.get(key);
-    if (entry) {
-      entry.attempts = (entry.attempts || 0) + 1;
+    if (!entry || entry.isUsed || new Date(entry.expiresAt).getTime() <= Date.now()) {
+      return { accepted: false };
     }
+    if ((entry.attempts || 0) >= (entry.maxAttempts || 5)) {
+      return { accepted: false, attempts: entry.attempts, maxAttempts: entry.maxAttempts || 5 };
+    }
+    entry.attempts = (entry.attempts || 0) + 1;
+    return { accepted: true, attempts: entry.attempts, maxAttempts: entry.maxAttempts || 5 };
   }
 
   async markUsed(phoneNumber, type = 'login') {
-    // همان فرمت کلید save/findByPhoneNumber/incrementAttempt/delete:
-    // `${phoneNumber}:${type}` — قبلاً تعریف نشده بود و ReferenceError می‌داد.
     const key = `${phoneNumber}:${type}`;
 
     if (await this._isDBReady()) {
       try {
-        await this.pool.query(
-          `UPDATE otp_codes SET is_used = TRUE, verified_at = NOW(), updated_at = NOW()
-           WHERE phone_number = $1 AND type = $2`,
+        const result = await this.pool.query(
+          `UPDATE otp_codes
+           SET is_used = TRUE, verified_at = NOW(), updated_at = NOW()
+           WHERE phone_number = $1 AND type = $2
+             AND is_used = FALSE
+             AND expires_at > NOW()
+             AND attempts < max_attempts
+           RETURNING id`,
           [phoneNumber, type]
         );
-        return;
+        return { accepted: result.rows.length > 0 };
       } catch (err) {
         console.warn('[OtpRepository] DB markUsed failed:', err.message);
       }
     }
 
+    this._assertFallbackAllowed();
     const entry = this.inMemoryStore.get(key);
-    if (entry) {
-      entry.isUsed = true;
+    if (!entry || entry.isUsed || new Date(entry.expiresAt).getTime() <= Date.now()) {
+      return { accepted: false };
     }
+    if ((entry.attempts || 0) >= (entry.maxAttempts || 5)) {
+      return { accepted: false };
+    }
+    entry.isUsed = true;
+    return { accepted: true };
   }
 
   async delete(phoneNumber, type = 'login') {
@@ -181,11 +216,11 @@ class OtpRepository {
       }
     }
 
+    this._assertFallbackAllowed();
     this.inMemoryStore.delete(key);
   }
 
   async getAttemptCount(phoneNumber, type = 'login') {
-    const key = `${phoneNumber}:${type}`;
     const otp = await this.findByPhoneNumber(phoneNumber, type);
     return otp ? otp.attempts : 0;
   }
