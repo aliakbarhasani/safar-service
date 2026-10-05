@@ -37,11 +37,20 @@ class VerifyOtpUseCase {
 
     const isCodeValid = await bcrypt.compare(otpCode, otpEntry.codeHash);
     if (!isCodeValid) {
-      await this.otpRepository.incrementAttempt(phoneNumber, type);
+      const attempt = await this.otpRepository.incrementAttempt(phoneNumber, type);
+      if (!attempt.accepted || attempt.attempts >= attempt.maxAttempts) {
+        await this.otpRepository.delete(phoneNumber, type);
+        throw new Error('Maximum OTP attempts exceeded. Please request a new one.');
+      }
       throw new Error('Invalid OTP');
     }
 
-    await this.otpRepository.markUsed(phoneNumber, type);
+    // Atomically consume the OTP so concurrent requests cannot both authenticate
+    // with the same code. The repository performs the final state check in the DB.
+    const marked = await this.otpRepository.markUsed(phoneNumber, type);
+    if (!marked.accepted) {
+      throw new Error('OTP has already been used or is no longer valid. Please request a new one.');
+    }
 
     let user = await this.userRepository.findByPhoneNumber(phoneNumber);
     if (!user) {
