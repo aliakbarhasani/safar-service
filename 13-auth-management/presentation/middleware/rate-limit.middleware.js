@@ -1,31 +1,25 @@
 /**
  * RateLimitMiddleware
  *
- * Provides two rate-limiting strategies:
- *   1. globalRateLimit  – 100 requests / minute / IP (applied to all routes)
- *   2. strictRateLimit  – 5 requests / 3 minutes / key (applied to OTP & login)
+ * Provides:
+ *   1. globalRateLimit – 100 requests / minute / client IP
+ *   2. strictRateLimit – 5 requests / 3 minutes / phone+IP
+ *   3. phoneRateLimit – 5 requests / 3 minutes / phone number
  *
- * Uses an in-memory sliding-window store. No external dependencies.
+ * The phone-only limiter is important for OTP because an attacker must not
+ * be able to bypass the OTP/SMS limit simply by changing IP addresses.
+ *
+ * This store is process-local. A shared Redis-backed limiter remains the
+ * correct production solution for multi-instance deployments.
  */
 
-/**
- * In-memory sliding window store.
- * Each key maps to an array of timestamps.
- */
 class RateLimitStore {
   constructor() {
     this._store = new Map();
-    // Periodic cleanup every 5 minutes
     this._cleanupInterval = setInterval(() => this._cleanup(), 5 * 60 * 1000);
     this._cleanupInterval.unref();
   }
 
-  /**
-   * Record a hit and return the count of hits within the window.
-   * @param {string} key   – identifier (IP or phone+IP)
-   * @param {number} windowMs – window size in milliseconds
-   * @returns {number} count of hits in the current window
-   */
   hit(key, windowMs) {
     const now = Date.now();
     const cutoff = now - windowMs;
@@ -35,7 +29,6 @@ class RateLimitStore {
     }
 
     const timestamps = this._store.get(key);
-    // Remove expired entries
     while (timestamps.length > 0 && timestamps[0] < cutoff) {
       timestamps.shift();
     }
@@ -44,9 +37,6 @@ class RateLimitStore {
     return timestamps.length;
   }
 
-  /**
-   * Get current count without recording a hit.
-   */
   count(key, windowMs) {
     const now = Date.now();
     const cutoff = now - windowMs;
@@ -57,7 +47,6 @@ class RateLimitStore {
 
   _cleanup() {
     const now = Date.now();
-    // Clean entries older than 10 minutes
     const cutoff = now - 10 * 60 * 1000;
     for (const [key, timestamps] of this._store.entries()) {
       while (timestamps.length > 0 && timestamps[0] < cutoff) {
@@ -70,90 +59,104 @@ class RateLimitStore {
   }
 }
 
-// Shared store instance
 const sharedStore = new RateLimitStore();
 
 /**
- * Get client IP from request.
+ * Return the socket IP unless the deployment explicitly declares that it
+ * trusts a reverse proxy. This prevents clients from spoofing X-Forwarded-For
+ * and bypassing IP-based limits.
  */
 function getClientIp(req) {
-  return (
-    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
-    req.socket?.remoteAddress ||
-    req.ip ||
-    'unknown'
-  );
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+  if (trustProxy) {
+    const forwarded = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (forwarded) return forwarded;
+  }
+
+  return req.socket?.remoteAddress || req.ip || 'unknown';
 }
 
-/**
- * Global rate limiter: 100 requests per minute per IP.
- */
-function globalRateLimit(req, res, next) {
-  const ip = getClientIp(req);
-  const windowMs = 60 * 1000; // 1 minute
-  const maxRequests = 100;
+function normalizePhone(req) {
+  const phone = req.body?.phoneNumber;
+  if (phone === undefined || phone === null) return 'unknown';
+  const normalized = String(phone).trim();
+  return normalized || 'unknown';
+}
 
-  const count = sharedStore.hit(`global:${ip}`, windowMs);
+function applyLimit({ req, res, next, key, maxRequests, windowMs }) {
+  const count = sharedStore.hit(key, windowMs);
   const remaining = Math.max(0, maxRequests - count);
 
   res.setHeader('X-RateLimit-Limit', maxRequests);
   res.setHeader('X-RateLimit-Remaining', remaining);
-  res.setHeader('X-RateLimit-Window', '60s');
+  res.setHeader('X-RateLimit-Window', `${Math.round(windowMs / 1000)}s`);
 
   if (count > maxRequests) {
+    res.setHeader('Retry-After', String(Math.round(windowMs / 1000)));
     return res.status(429).json({
       success: false,
       status_code: 429,
-      message: 'Too many requests. Please slow down.',
+      message: 'Too many requests. Please try again later.',
       error: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: Math.round(windowMs / 1000),
     });
   }
 
-  next();
+  return next();
+}
+
+function globalRateLimit(req, res, next) {
+  return applyLimit({
+    req,
+    res,
+    next,
+    key: `global:${getClientIp(req)}`,
+    maxRequests: 100,
+    windowMs: 60 * 1000,
+  });
+}
+
+function strictRateLimit(options = {}) {
+  const maxRequests = options.maxRequests || 5;
+  const windowMs = options.windowMs || 3 * 60 * 1000;
+  const keyFn = options.keyFn || ((req) => `strict:${normalizePhone(req)}:${getClientIp(req)}`);
+
+  return (req, res, next) =>
+    applyLimit({
+      req,
+      res,
+      next,
+      key: keyFn(req),
+      maxRequests,
+      windowMs,
+    });
 }
 
 /**
- * Strict rate limiter: 5 requests per 3 minutes.
- * Key can be based on phone number (from body) or IP.
- * @param {Object} options - { keyFn: (req) => string, maxRequests, windowMs }
+ * OTP-specific limiter keyed by phone number, independent of IP.
+ * This prevents SMS flooding and OTP brute-force attempts through IP rotation.
  */
-function strictRateLimit(options = {}) {
+function phoneRateLimit(options = {}) {
   const maxRequests = options.maxRequests || 5;
-  const windowMs = options.windowMs || 3 * 60 * 1000; // 3 minutes
-  const keyFn =
-    options.keyFn ||
-    ((req) => {
-      const ip = getClientIp(req);
-      const phone = req.body?.phoneNumber || 'unknown';
-      return `strict:${phone}:${ip}`;
+  const windowMs = options.windowMs || 3 * 60 * 1000;
+  const keyFn = options.keyFn || ((req) => `phone:${normalizePhone(req)}`);
+
+  return (req, res, next) =>
+    applyLimit({
+      req,
+      res,
+      next,
+      key: keyFn(req),
+      maxRequests,
+      windowMs,
     });
-
-  return (req, res, next) => {
-    const key = keyFn(req);
-    const count = sharedStore.hit(key, windowMs);
-    const remaining = Math.max(0, maxRequests - count);
-
-    res.setHeader('X-RateLimit-Limit', maxRequests);
-    res.setHeader('X-RateLimit-Remaining', remaining);
-    res.setHeader('X-RateLimit-Window', `${Math.round(windowMs / 1000)}s`);
-
-    if (count > maxRequests) {
-      return res.status(429).json({
-        success: false,
-        status_code: 429,
-        message: 'Too many requests. Please try again later.',
-        error: 'RATE_LIMIT_EXCEEDED',
-        retryAfter: Math.round(windowMs / 1000),
-      });
-    }
-
-    next();
-  };
 }
 
 module.exports = {
   globalRateLimit,
   strictRateLimit,
+  phoneRateLimit,
   RateLimitStore,
   sharedStore,
+  getClientIp,
 };
