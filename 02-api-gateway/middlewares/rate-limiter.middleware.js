@@ -15,7 +15,7 @@ const config = require('../../14-config-system/server.config');
  * @param {string} options.keyPrefix — پیشوند کلید Redis (مثلاً 'rl:general')
  * @param {number} options.windowMs — اندازه پنجره زمانی (ms)
  * @param {number} options.maxRequests — حداکثر تعداد درخواست در هر پنجره
- * @param {Function} options.keyGenerator — تابع استخراج کلید یکتای کاربر
+ * @param {Function} options.keyGenerator — تابع استخراج کلید یکتا
  * @param {Object} options.redisClient — کلاینت ioredis
  */
 function createRateLimiter(options = {}) {
@@ -28,12 +28,18 @@ function createRateLimiter(options = {}) {
   } = options;
 
   return async function rateLimiterMiddleware(req, res, next) {
-    // در صورت عدم وجود Redis، میدلور را غیرفعال کن (fail-open)
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // در production محدودکننده نباید در نبود Redis خاموش شود؛
+    // در محیط توسعه/تست برای اجرای محلی بدون Redis عبور مجاز است.
     if (!redisClient) {
-      return next();
+      if (!isProduction) return next();
+      return res.status(503).json({
+        success: false,
+        error: 'Rate limiting service unavailable',
+      });
     }
 
-    // استخراج کلید یکتا
     let identifier;
     if (keyGenerator && typeof keyGenerator === 'function') {
       identifier = keyGenerator(req);
@@ -50,26 +56,20 @@ function createRateLimiter(options = {}) {
     const key = `${keyPrefix}:${identifier}`;
 
     try {
-      // الگوی Sliding Window با Redis Sorted Set + MULTI/EXEC (اتمیک):
-      // 1. حذف رکوردهای قدیمی‌تر از پنجره زمانی
-      // 2. افزودن رکورد جدید (timestamp به عنوان score و member)
-      // 3. شمارش تعداد رکوردهای موجود در پنجره
-      // 4. تنظیم TTL برای جلوگیری از انباشت کلیدها
+      // Sliding Window با Redis Sorted Set + MULTI/EXEC (اتمیک)
       const multi = redisClient.multi();
       multi.zremrangebyscore(key, 0, windowStart);
-      multi.zadd(key, now, `${now}-${Math.random().toString(36).substr(2, 9)}`);
+      multi.zadd(key, now, `${now}-${Math.random().toString(36).slice(2, 11)}`);
       multi.zcard(key);
       multi.pexpire(key, windowMs);
 
       const results = await multi.exec();
-      const currentCount = results[2][1]; // نتیجه ZCARD
+      const currentCount = results[2][1];
 
-      // تنظیم هدرهای استاندارد Rate Limit
       res.set('X-RateLimit-Limit', String(maxRequests));
       res.set('X-RateLimit-Remaining', String(Math.max(0, maxRequests - currentCount)));
       res.set('X-RateLimit-Reset', String(Math.ceil((now + windowMs) / 1000)));
 
-      // بررسی عبور از لیمیت
       if (currentCount > maxRequests) {
         res.set('Retry-After', String(Math.ceil(windowMs / 1000)));
         return res.status(429).json({
@@ -81,8 +81,14 @@ function createRateLimiter(options = {}) {
 
       return next();
     } catch (error) {
-      // در خطا، درخواست را عبور بده (fail-open) اما لاگ بگیر
-      console.warn('[RateLimiter] Redis error, allowing request:', error.message);
+      console.warn('[RateLimiter] Redis error:', error.message);
+      // Fail-closed فقط در production؛ در توسعه/تست Redis اختیاری است.
+      if (isProduction) {
+        return res.status(503).json({
+          success: false,
+          error: 'Rate limiting service unavailable',
+        });
+      }
       return next();
     }
   };
