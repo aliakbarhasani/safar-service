@@ -111,7 +111,7 @@ class SessionRepository {
 
   /**
    * بررسی فعال بودن نشست بر اساس jti توکن دسترسی.
-   * در نبود دیتابیس null برمی‌گرداند (تماس‌دهنده باید fail-open باشد).
+   * در نبود دیتابیس null برمی‌گرداند (تماس‌دهنده باید fail-closed باشد).
    */
   async findActiveByAccessTokenJti(jti) {
     const dbReady = await this._isDBReady();
@@ -125,16 +125,26 @@ class SessionRepository {
     return result.rows.length > 0 ? result.rows[0].id : null;
   }
 
-  async rotateRefreshToken(sessionId, newRefreshToken, newAccessTokenJti) {
+  async rotateRefreshToken(sessionId, currentRefreshToken, newRefreshToken, newAccessTokenJti) {
     const dbReady = await this._isDBReady();
     if (!dbReady) throw new Error('Database not available');
 
-    await this.pool.query(
+    const result = await this.pool.query(
       `UPDATE user_sessions
        SET token = $1, refresh_token = $2, updated_at = NOW()
-       WHERE id = $3`,
-      [newAccessTokenJti, newRefreshToken, sessionId]
+       WHERE id = $3
+         AND refresh_token = $4
+         AND is_active = TRUE
+         AND expires_at > NOW()
+       RETURNING id`,
+      [newAccessTokenJti, newRefreshToken, sessionId, currentRefreshToken]
     );
+
+    if (result.rows.length === 0) {
+      throw new Error('Refresh token rotation failed: token is no longer active');
+    }
+
+    return result.rows[0].id;
   }
 
   close() {
