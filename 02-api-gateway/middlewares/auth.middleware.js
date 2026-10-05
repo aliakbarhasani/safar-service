@@ -4,18 +4,18 @@
  * auth.middleware.js - API Gateway (P11-1)
  *
  * احراز هویت Stateless برای توکن‌های Access امضاشده با RS256.
- * - هدر:  Authorization: Bearer <token>
- * - وریفای: jsonwebtoken با الگوریتم RS256 و کلید عمومی (public.pem)
- * - وریفای امنیتی: issuer=safar-iam و type=access
- * - موفقیت → افزودن `req.user = { userId, role, ... }` و فراخوانی next()
- * - انقضا/نا‌معتبری/فقدان توکن → 401 Unauthorized
+ * SECURITY: وریفای با همان کلید عمومی مرکزی انجام می‌شود که IAM برای صدور
+ * توکن استفاده می‌کند؛ بنابراین Gateway و سایر سرویس‌ها یک Trust Boundary دارند.
+ * - هدر: Authorization: Bearer <token>
+ * - issuer: safar-iam
+ * - type: access
  */
 
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 
-const PUBLIC_KEY_PATH = path.join(__dirname, '..', 'infrastructure', 'keys', 'public.pem');
+const PUBLIC_KEY_PATH = path.resolve(__dirname, '../../00-infrastructure/keys/jwt_public.pem');
 const IAM_ISSUER = 'safar-iam';
 
 // کش‌کردن کلید عمومی در حافظه (جلوگیری از خواندن فایل در هر درخواست)
@@ -36,9 +36,7 @@ function extractBearerToken(header) {
   return null;
 }
 
-/**
- * میدلور Express برای وریفای Access Token صادرشده توسط IAM.
- */
+/** میدلور Express برای وریفای Access Token صادرشده توسط IAM. */
 function authenticate(req, res, next) {
   const token = extractBearerToken(req.headers && req.headers.authorization);
   if (!token) {
@@ -67,7 +65,6 @@ function authenticate(req, res, next) {
       return res.status(401).json({ success: false, error: 'Unauthorized: token missing subject' });
     }
 
-    // اطلاعات کاربر به درخواست افزوده می‌شود
     req.user = {
       userId,
       id: userId,
@@ -83,4 +80,10 @@ function authenticate(req, res, next) {
   }
 }
 
-module.exports = { authenticate, extractBearerToken, PUBLIC_KEY_PATH, getPublicKey, IAM_ISSUER };
+module.exports = {
+  authenticate,
+  extractBearerToken,
+  PUBLIC_KEY_PATH,
+  getPublicKey,
+  IAM_ISSUER,
+};
