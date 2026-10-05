@@ -33,13 +33,16 @@ function extractToken(handshake) {
 
 /**
  * Verify a JWT and return the decoded payload (or null on failure).
- * SECURITY: فقط الگوریتم RS256 با کلید عمومی معتبر (config.jwt.publicKey).
+ * SECURITY: فقط الگوریتم RS256 با کلید عمومی معتبر (config.jwt.publicKey)
+ * و فقط access token پذیرفته می‌شود.
  * @param {string} token
  * @returns {Object|null}
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, config.jwt.publicKey, { algorithms: ['RS256'] });
+    const decoded = jwt.verify(token, config.jwt.publicKey, { algorithms: ['RS256'] });
+    if (!decoded || decoded.type !== 'access') return null;
+    return decoded;
   } catch (_) {
     return null;
   }
@@ -60,7 +63,7 @@ function authMiddleware(socket, next) {
 
   const decoded = verifyToken(token);
   if (!decoded) {
-    return next(new Error('Authentication error: invalid or expired token'));
+    return next(new Error('Authentication error: invalid or expired access token'));
   }
 
   // Normalise user identity (supports both {id} and {userId} payloads)
