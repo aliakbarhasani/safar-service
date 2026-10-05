@@ -5,10 +5,12 @@
  *
  * صادرکننده‌ی توکن (Token Issuer) با الگوی Access+Refresh:
  *   - Access Token  : JWT امضاشده با RSA-2048 / RS256، انقضای ۱۵ دقیقه.
- *   - Refresh Token : رشته‌ی اتفاقی (crypto.randomBytes) — بدون امضا؛ در Redis
+ *   - Refresh Token : رشته‌ی اتفاقی (crypto.randomBytes) — در Redis
  *                     همراه userId و role با انقضای ۷ روز ذخیره می‌شود.
  *
- * وریفای Stateless در Gateway با کلید عمومی انجام می‌شود (فایل public.pem).
+ * SECURITY: IAM و همه‌ی مصرف‌کنندگان داخلی باید از زوج کلید مرکزی پروژه
+ * در 00-infrastructure/keys استفاده کنند تا یک Access Token در سرویس‌های
+ * مختلف با کلیدهای متفاوت رد نشود.
  */
 
 const crypto = require('crypto');
@@ -19,24 +21,26 @@ const jwt = require('jsonwebtoken');
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 دقیقه
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 روز
 const REFRESH_PREFIX = 'iam:refresh:';
+const CENTRAL_KEYS_DIR = path.resolve(__dirname, '../../00-infrastructure/keys');
+const DEFAULT_PRIVATE_KEY_PATH = path.join(CENTRAL_KEYS_DIR, 'jwt_private.pem');
+const DEFAULT_PUBLIC_KEY_PATH = path.join(CENTRAL_KEYS_DIR, 'jwt_public.pem');
 
 class AuthService {
   /**
    * @param {Object} deps
-   * @param {string} [deps.privateKeyPath] - مسیر کلید خصوصی (RSA PKCS8 PEM)
+   * @param {string} [deps.privateKeyPath] - مسیر کلید خصوصی RSA PKCS8؛ پیش‌فرض کلید مرکزی پروژه
    * @param {Object} [deps.redis]          - کلاینت Redis (set/get/del با الگوی ioredis)
    * @param {string} [deps.issuer]         - ایسیویی (پیش‌فرض safar-iam)
    * @param {number} [deps.accessTtl]      - انقضای Access (ثانیه)
    * @param {number} [deps.refreshTtl]     - انقضای Refresh (ثانیه)
    */
-  constructor({ privateKeyPath = null, redis = null, issuer = 'safar-iam', accessTtl = ACCESS_TOKEN_TTL_SECONDS, refreshTtl = REFRESH_TOKEN_TTL_SECONDS } = {}) {
+  constructor({ privateKeyPath = DEFAULT_PRIVATE_KEY_PATH, redis = null, issuer = 'safar-iam', accessTtl = ACCESS_TOKEN_TTL_SECONDS, refreshTtl = REFRESH_TOKEN_TTL_SECONDS } = {}) {
     this.issuer = issuer;
     this.accessTtl = accessTtl;
     this.refreshTtl = refreshTtl;
     this.redis = redis;
-
-    const resolvedKeyPath = privateKeyPath || path.join(__dirname, '..', 'infrastructure', 'keys', 'private.pem');
-    this.privateKey = fs.readFileSync(resolvedKeyPath, 'utf8');
+    this.privateKeyPath = privateKeyPath;
+    this.privateKey = fs.readFileSync(this.privateKeyPath, 'utf8');
   }
 
   /**
@@ -56,7 +60,6 @@ class AuthService {
     const accessToken = this._issueAccessToken(userId, role);
     const refreshToken = this._generateRefreshToken();
 
-    // ذخیره Refresh Token همراه userId و role (انقضای ۷ روز)
     await this._storeRefreshToken(userId, role, refreshToken);
 
     return {
@@ -88,7 +91,6 @@ class AuthService {
       throw err;
     }
 
-    // باطل‌کردن توکن قدیمی (حلقه چرخش محدود نیست در این فاز؛ حذف صورت ساده)
     await this._revokeRefreshToken(oldRefreshToken);
 
     const accessToken = this._issueAccessToken(record.userId, record.role);
@@ -104,9 +106,9 @@ class AuthService {
     };
   }
 
-  /** البته کلید عمومی را برای وریفای در Gateway (متد کمکی). */
+  /** کلید عمومی مرکزی برای وریفای Stateless در سرویس‌های مصرف‌کننده. */
   static getPublicKeyPath() {
-    return path.join(__dirname, '..', 'infrastructure', 'keys', 'public.pem');
+    return DEFAULT_PUBLIC_KEY_PATH;
   }
 
   // ---- داخلی‌ها ----
@@ -129,7 +131,7 @@ class AuthService {
   }
 
   async _storeRefreshToken(userId, role, refreshToken) {
-    if (!this.redis) return; // در نبود Redis، عدم ذخیره (فاز تست)
+    if (!this.redis) return;
     const record = JSON.stringify({ userId, role: role || 'user' });
     await this.redis.set(`${REFRESH_PREFIX}${refreshToken}`, record, 'EX', this.refreshTtl);
   }
@@ -146,4 +148,11 @@ class AuthService {
   }
 }
 
-module.exports = { AuthService, ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS, REFRESH_PREFIX };
+module.exports = {
+  AuthService,
+  ACCESS_TOKEN_TTL_SECONDS,
+  REFRESH_TOKEN_TTL_SECONDS,
+  REFRESH_PREFIX,
+  DEFAULT_PRIVATE_KEY_PATH,
+  DEFAULT_PUBLIC_KEY_PATH,
+};
