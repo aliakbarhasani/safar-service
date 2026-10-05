@@ -61,7 +61,12 @@ class SessionManager {
     const newAccessToken = this.jwtService.generateAccessToken(user);
     const newAccessTokenJti = require('jsonwebtoken').decode(newAccessToken, { complete: true }).payload.jti || `access-${Date.now()}`;
 
-    await this.sessionRepository.rotateRefreshToken(session.id, newRefreshToken, newAccessTokenJti);
+    await this.sessionRepository.rotateRefreshToken(
+      session.id,
+      refreshToken,
+      newRefreshToken,
+      newAccessTokenJti
+    );
 
     return {
       accessToken: newAccessToken,
