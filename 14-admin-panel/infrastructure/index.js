@@ -115,7 +115,7 @@ class TripServiceClient {
  * Auth token (admin) is forwarded so gateway-level authorize() passes.
  */
 class RbacServiceClient {
-  constructor(baseUrl = process.env.GATEWAY_URL || 'http://localhost:3010') {
+  constructor(baseUrl = process.env.GATEWAY_URL || 'http://localhost:3000') {
     this.baseUrl = baseUrl;
     this.token = process.env.ADMIN_SERVICE_TOKEN || null;
   }
