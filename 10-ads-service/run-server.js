@@ -22,7 +22,7 @@ app.use((req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, process.env.ADS_HOST || '127.0.0.1', () => {
     console.log(`[AdsService] Live on http://localhost:${port}`);
   });
 }
