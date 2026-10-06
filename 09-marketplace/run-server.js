@@ -22,7 +22,7 @@ app.use((req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, process.env.MARKETPLACE_HOST || '127.0.0.1', () => {
     console.log(`[MarketplaceService] Live on http://localhost:${port}`);
   });
 }
