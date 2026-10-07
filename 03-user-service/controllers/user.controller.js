@@ -7,7 +7,14 @@ async function createUser(req, res) {
       return res.status(400).json({ error: 'name and phone are required' });
     }
     const user = await userService.createUser({ name, phone });
-    res.status(201).json(user);
+    if (user && typeof user.toObject === 'function') {
+      const safeUser = user.toObject();
+      delete safeUser.password;
+      return res.status(201).json(safeUser);
+    }
+    const safeUser = { ...user };
+    delete safeUser.password;
+    res.status(201).json(safeUser);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
