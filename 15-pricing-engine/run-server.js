@@ -82,7 +82,7 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3005;
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, process.env.PRICING_HOST || '127.0.0.1', () => {
     console.log(`[PricingEngine] Live on http://localhost:${port}`);
   });
 }
