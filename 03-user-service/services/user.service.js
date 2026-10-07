@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const User = require('../models/user.model');
 const { isDBConnected } = require('../../01-core-system/database/db');
 
@@ -9,7 +10,7 @@ async function createUser(data) {
     const user = new User({ 
       name: data.name, 
       phone: data.phone,
-      password: data.password || 'default123',
+      password: data.password || crypto.randomBytes(32).toString('hex'),
       role: data.role || 'user'
     });
     return await user.save();
@@ -19,7 +20,7 @@ async function createUser(data) {
     _id: new mongoose.Types.ObjectId(),
     name: data.name,
     phone: data.phone,
-    password: data.password || 'default123',
+    password: data.password || crypto.randomBytes(32).toString('hex'),
     role: data.role || 'user',
     createdAt: new Date()
   };
