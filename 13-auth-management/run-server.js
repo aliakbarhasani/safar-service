@@ -58,7 +58,7 @@ app.use('/api/v1/profile', createProfileRoutes());
 const port = process.env.PORT || 3001;
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, process.env.AUTH_HOST || '127.0.0.1', () => {
     console.log(`Auth management API is live on http://localhost:${port}`);
   });
 }
