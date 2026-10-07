@@ -34,8 +34,8 @@ const rbacPool = new Pool({
   host: process.env.PG_HOST || process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.PG_PORT || process.env.DB_PORT || 5432),
   database: process.env.PG_DATABASE || process.env.DB_NAME || 'safar_service',
-  user: process.env.PG_USER || process.env.DB_USER || 'postgres',
-  password: process.env.PG_PASSWORD || process.env.DB_PASSWORD,
+  user: process.env.PG_USER || process.env.DB_USER || (process.env.NODE_ENV === 'production' ? undefined : 'postgres'),
+  password: process.env.PG_PASSWORD || process.env.DB_PASSWORD || (process.env.NODE_ENV === 'production' ? undefined : undefined),
 });
 const useCases = new PermissionUseCases({
   permissionRepository: new PermissionRepository(rbacPool),
