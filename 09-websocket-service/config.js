@@ -33,7 +33,8 @@ try {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
-if (isProduction && !process.env.WS_CORS_ORIGIN) {
+const wsCorsOrigin = process.env.WS_CORS_ORIGIN || (isProduction ? null : '*');
+if (isProduction && !wsCorsOrigin) {
   throw new Error('[websocket-service] FATAL: WS_CORS_ORIGIN is required in production');
 }
 
@@ -57,7 +58,7 @@ const config = {
   },
 
   cors: {
-    origin: process.env.WS_CORS_ORIGIN || '*',
+    origin: wsCorsOrigin,
     methods: ['GET', 'POST'],
   },
 
