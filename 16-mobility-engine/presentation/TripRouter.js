@@ -5,11 +5,15 @@ const { requireDriverRole } = require('../routes/dispatch.routes');
  * creates the Mobility Engine Express router (unified trips API).
  * @param {Object} tripController - instance of TripController
  */
-function createTripRouter(tripController) {
+function createTripRouter(tripController, authorize = null) {
     const router = express.Router();
 
-    // ساخت سفر جدید (احراز هویت در API Gateway اعمال می‌شود)
-    router.post('/', tripController.createTrip.bind(tripController));
+    // ایجاد سفر فقط برای نقش‌هایی مجاز است که مجوز trip:create دارند (مانند PASSENGER).
+    // احراز هویت در API Gateway انجام می‌شود؛ این middleware مجوز را هم در سمت سرور بررسی می‌کند.
+    const createTripAuthorization = typeof authorize === 'function'
+        ? authorize('trip:create')
+        : (req, res, next) => next();
+    router.post('/', createTripAuthorization, tripController.createTrip.bind(tripController));
 
     // عملیات چرخه سفر که فقط راننده (یا super_admin) مجاز به انجام آن است.
     router.post('/:tripId/accept', requireDriverRole, tripController.acceptTrip.bind(tripController));
