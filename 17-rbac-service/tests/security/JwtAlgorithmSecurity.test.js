@@ -49,10 +49,10 @@ describe('JWT Algorithm and Token-Type Security', () => {
     mockCurrentUserRole = 'admin';
     mockCurrentUserStatus = 'active';
   });
-  test('Valid RS256 access token is accepted', () => {
+  test('Valid RS256 access token is accepted', async () => {
     const token = issueAccessToken({ userId: 'u1', role: 'admin' });
     const req = mockReq(token), res = mockRes(), next = mockNext();
-    authenticate(req, res, next.call);
+    await authenticate(req, res, next.call);
     expect(next.wasCalled()).toBe(true);
     expect(req.user.role).toBe('admin');
     expect(req.user.type).toBe('access');
