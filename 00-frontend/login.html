@@ -143,11 +143,8 @@
       if (!password) { showToast('لطفاً رمز عبور خود را وارد کنید'); return; }
       if (password.length < 4) { showToast('رمز عبور باید حداقل ۴ کاراکتر باشد'); return; }
 
-      showToast('در حال ورود به سفر سرویس...');
-      // Simulate login - will connect to backend in Phase 2
-      setTimeout(() => {
-        showToast('✅ ورود موفقیت‌آمیز (درگاه API در فاز بعدی فعال می‌شود)');
-      }, 1500);
+      // این صفحه هنوز به API احراز هویت متصل نیست؛ ورود موفق را شبیه‌سازی نکن.
+      showToast('ورود انجام نشد؛ این صفحه هنوز به سامانه واقعی احراز هویت متصل نیست.');
     }
   </script>
 </body>
