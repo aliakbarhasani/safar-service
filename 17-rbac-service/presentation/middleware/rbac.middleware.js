@@ -19,6 +19,7 @@ const PermissionRepository = require('../../infrastructure/repositories/Permissi
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const AuthorizationService = require('../../domain/services/AuthorizationService');
 const PermissionUseCases = require('../../application/use-cases/PermissionUseCases');
+const SessionRepository = require('../../../13-auth-management/infrastructure/repositories/SessionRepository');
 
 // --- بارگذاری یک‌باره کلید عمومی RS256 (منبع: 00-infrastructure/keys) ---
 // SECURITY: No fallback to HS256 or default secret. RS256 with valid public key is mandatory.
@@ -43,6 +44,8 @@ const useCases = new PermissionUseCases({
   authorizationService: new AuthorizationService(),
 });
 
+const sessionRepository = new SessionRepository();
+
 function extractToken(req) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.split(' ')[1];
@@ -51,7 +54,7 @@ function extractToken(req) {
 }
 
 /** احراز هویت: فقط Access Token معتبر → req.user */
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const token = extractToken(req);
   if (!token) {
     return res.status(401).json({ success: false, status_code: 401, message: 'No token provided.' });
@@ -62,13 +65,37 @@ function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });
     // SECURITY: RBAC endpoints must never accept a refresh/non-access token.
-    // Legacy Auth Management access tokens are required to carry type=access.
     if (!payload || payload.type !== 'access') {
       return res.status(401).json({ success: false, status_code: 401, message: 'Invalid or unsupported token type.' });
     }
-    req.user = payload;
+    // SECURITY: every real access token must remain bound to an active server-side session.
+    // This makes logout/revocation effective immediately instead of waiting for JWT expiry.
+    if (!payload.jti || !payload.userId) {
+      return res.status(401).json({ success: false, status_code: 401, message: 'Invalid access token session binding.' });
+    }
+    const sessionId = await sessionRepository.findActiveByAccessTokenJti(payload.jti);
+    if (!sessionId) {
+      return res.status(401).json({ success: false, status_code: 401, message: 'Session has been revoked or is no longer active.' });
+    }
+
+    // SECURITY: status and role are read from the current user record.
+    // Never trust a stale role embedded in an access token after an admin changes it.
+    const currentUser = await useCases.userRepository.findById(payload.userId);
+    if (!currentUser || currentUser.status !== 'active') {
+      return res.status(401).json({ success: false, status_code: 401, message: 'User is inactive or no longer exists.' });
+    }
+
+    req.user = {
+      ...payload,
+      phoneNumber: currentUser.phone_number || payload.phoneNumber,
+      role: currentUser.role,
+    };
     return next();
-  } catch {
+  } catch (error) {
+    // Database/session-store failures must fail closed rather than accepting a stale JWT.
+    if (error && /database|postgres|connection|timeout|connect/i.test(String(error.message || ''))) {
+      return res.status(503).json({ success: false, status_code: 503, message: 'Authentication session store is temporarily unavailable.' });
+    }
     return res.status(401).json({ success: false, status_code: 401, message: 'Invalid or expired token.' });
   }
 }
