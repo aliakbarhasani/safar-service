@@ -7,16 +7,20 @@
  */
 const jwt = require('jsonwebtoken');
 
+let mockSessionId = 'session-1';
+let mockCurrentUserRole = 'admin';
+let mockCurrentUserStatus = 'active';
+
 jest.mock('../../infrastructure/repositories/SessionRepository', () => jest.fn().mockImplementation(() => ({
-  findActiveByAccessTokenJti: jest.fn().mockResolvedValue('session-1'),
+  findActiveByAccessTokenJti: jest.fn().mockImplementation(() => Promise.resolve(mockSessionId)),
 })));
 
 jest.mock('../../infrastructure/repositories/UserRepository', () => jest.fn().mockImplementation(() => ({
   findById: jest.fn().mockResolvedValue({
     id: 'u1',
     phone_number: '09000000000',
-    role: 'admin',
-    status: 'active',
+    role: mockCurrentUserRole,
+    status: mockCurrentUserStatus,
   }),
 })));
 const fs = require('fs');
@@ -40,6 +44,11 @@ function issueAccessToken(payload = {}) {
 }
 
 describe('JWT Algorithm and Token-Type Security', () => {
+  beforeEach(() => {
+    mockSessionId = 'session-1';
+    mockCurrentUserRole = 'admin';
+    mockCurrentUserStatus = 'active';
+  });
   test('Valid RS256 access token is accepted', () => {
     const token = issueAccessToken({ userId: 'u1', role: 'admin' });
     const req = mockReq(token), res = mockRes(), next = mockNext();
@@ -47,6 +56,33 @@ describe('JWT Algorithm and Token-Type Security', () => {
     expect(next.wasCalled()).toBe(true);
     expect(req.user.role).toBe('admin');
     expect(req.user.type).toBe('access');
+  });
+
+  test('Current database role replaces a stale JWT role', async () => {
+    mockCurrentUserRole = 'passenger';
+    const token = issueAccessToken({ userId: 'u1', role: 'admin' });
+    const req = mockReq(token), res = mockRes(), next = mockNext();
+    await authenticate(req, res, next.call);
+    expect(next.wasCalled()).toBe(true);
+    expect(req.user.role).toBe('passenger');
+  });
+
+  test('Revoked access session is REJECTED', async () => {
+    mockSessionId = null;
+    const token = issueAccessToken({ userId: 'u1', role: 'admin' });
+    const req = mockReq(token), res = mockRes(), next = mockNext();
+    await authenticate(req, res, next.call);
+    expect(next.wasCalled()).toBe(false);
+    expect(res.getCode()).toBe(401);
+  });
+
+  test('Inactive user is REJECTED', async () => {
+    mockCurrentUserStatus = 'suspended';
+    const token = issueAccessToken({ userId: 'u1', role: 'admin' });
+    const req = mockReq(token), res = mockRes(), next = mockNext();
+    await authenticate(req, res, next.call);
+    expect(next.wasCalled()).toBe(false);
+    expect(res.getCode()).toBe(401);
   });
 
   test('RS256 token without access type is REJECTED', () => {
