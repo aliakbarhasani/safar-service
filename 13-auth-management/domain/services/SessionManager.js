@@ -1,10 +1,12 @@
 const JwtService = require('./JwtService');
 const SessionRepository = require('../../infrastructure/repositories/SessionRepository');
+const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
 class SessionManager {
-  constructor({ jwtService = null, sessionRepository = null } = {}) {
+  constructor({ jwtService = null, sessionRepository = null, userRepository = null } = {}) {
     this.jwtService = jwtService || new JwtService();
     this.sessionRepository = sessionRepository || new SessionRepository();
+    this.userRepository = userRepository || new UserRepository();
   }
 
   async createSession(user, deviceInfo = {}) {
@@ -51,10 +53,17 @@ class SessionManager {
       throw new Error('Session has been revoked');
     }
 
+    // نقش و وضعیت کاربر را هنگام Refresh دوباره از PostgreSQL می‌خوانیم.
+    // بنابراین تغییر نقش یا غیرفعال شدن حساب، با Refresh Token قدیمی دور زده نمی‌شود.
+    const currentUser = await this.userRepository.findById(decoded.userId);
+    if (!currentUser || currentUser.status !== 'active') {
+      throw new Error('User is not active');
+    }
+
     const user = {
-      id: decoded.userId,
-      phoneNumber: decoded.phoneNumber,
-      role: decoded.role,
+      id: currentUser.id,
+      phoneNumber: currentUser.phone_number || decoded.phoneNumber,
+      role: currentUser.role,
     };
 
     const newRefreshToken = this.jwtService.generateRefreshToken(user);
