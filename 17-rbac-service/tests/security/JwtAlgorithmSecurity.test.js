@@ -11,7 +11,7 @@ let mockSessionId = 'session-1';
 let mockCurrentUserRole = 'admin';
 let mockCurrentUserStatus = 'active';
 
-jest.mock('../../infrastructure/repositories/SessionRepository', () => jest.fn().mockImplementation(() => ({
+jest.mock('../../../13-auth-management/infrastructure/repositories/SessionRepository', () => jest.fn().mockImplementation(() => ({
   findActiveByAccessTokenJti: jest.fn().mockImplementation(() => Promise.resolve(mockSessionId)),
 })));
 
