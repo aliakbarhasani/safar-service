@@ -249,11 +249,17 @@ router.get(
   iamAuthenticate,
   iamAuthorize('trip:read:own', async (req) => fetchTripById(req.params.id)),
   async (req, res) => {
-    // پس از عبور authorize، منبع در req.resource موجود است
+    // پس از عبور authorize، منبع در req.resource موجود است.
     const resource = req.resource;
     if (!resource) return res.status(404).json({ success: false, error: 'trip not found' });
-    // در فاز حاضر فقط ابرداری مجوز (شاذنه) گزارش می‌شود؛ هندلر کامل خواندن در فاز بعدی.
-    return res.status(200).json({ success: true, data: { tripId: resource.id } });
+
+    // این مسیر هنوز DTO کامل و امنِ جزئیات سفر را پیاده‌سازی نکرده است.
+    // به‌جای پاسخ 200 گمراه‌کننده با تنها یک شناسه، عدم آماده‌بودن قابلیت را صریح اعلام می‌کنیم.
+    return res.status(501).json({
+      success: false,
+      code: 'TRIP_READ_NOT_IMPLEMENTED',
+      error: 'خواندن جزئیات سفر هنوز پیاده‌سازی نشده است.',
+    });
   }
 );
 
