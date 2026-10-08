@@ -16,12 +16,12 @@ jest.mock('../../../13-auth-management/infrastructure/repositories/SessionReposi
 })));
 
 jest.mock('../../infrastructure/repositories/UserRepository', () => jest.fn().mockImplementation(() => ({
-  findById: jest.fn().mockResolvedValue({
+  findById: jest.fn().mockImplementation(() => Promise.resolve({
     id: 'u1',
     phone_number: '09000000000',
     role: mockCurrentUserRole,
     status: mockCurrentUserStatus,
-  }),
+  })),
 })));
 const fs = require('fs');
 const path = require('path');
