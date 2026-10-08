@@ -6,6 +6,19 @@
  * committed to the repository.
  */
 const jwt = require('jsonwebtoken');
+
+jest.mock('../../infrastructure/repositories/SessionRepository', () => jest.fn().mockImplementation(() => ({
+  findActiveByAccessTokenJti: jest.fn().mockResolvedValue('session-1'),
+})));
+
+jest.mock('../../infrastructure/repositories/UserRepository', () => jest.fn().mockImplementation(() => ({
+  findById: jest.fn().mockResolvedValue({
+    id: 'u1',
+    phone_number: '09000000000',
+    role: 'admin',
+    status: 'active',
+  }),
+})));
 const fs = require('fs');
 const path = require('path');
 const { authenticate } = require('../../presentation/middleware/rbac.middleware');
@@ -23,7 +36,7 @@ function mockRes() {
 function mockNext() { let called = false; return { call: () => { called = true; }, wasCalled: () => called }; }
 
 function issueAccessToken(payload = {}) {
-  return jwt.sign({ ...payload, type: 'access' }, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '1h' });
+  return jwt.sign({ ...payload, type: 'access', jti: 'access-test-1' }, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '1h' });
 }
 
 describe('JWT Algorithm and Token-Type Security', () => {
