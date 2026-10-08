@@ -74,7 +74,8 @@ class SessionManager {
       session.id,
       refreshToken,
       newRefreshToken,
-      newAccessTokenJti
+      newAccessTokenJti,
+      user.role
     );
 
     return {
