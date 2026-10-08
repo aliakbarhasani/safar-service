@@ -223,7 +223,7 @@ const tripController = new TripController({
     endTripUseCase,
     cancelTripUseCase,
 });
-const tripRouter = createTripRouter(tripController);
+const tripRouter = createTripRouter(tripController, iamAuthorize);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
 // (P11-1) لایه‌ی احراز هویت Stateless (IAM) پیش از RBAC — توکن Bearer با public.pem وریفای می‌شود
 router.use('/api/v1/trips', iamAuthenticate, tripRouter);
