@@ -54,3 +54,8 @@ jobs:
           cd 17-rbac-service
           npm install
           npm test
+      - name: Run trip creation authorization regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 16-mobility-engine/tests/trip-router-auth.test.js
+
