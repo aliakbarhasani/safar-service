@@ -97,9 +97,15 @@ function authorize(...requirements) {
       for (const req_ of requirements) {
         const isPermission = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(req_);
         if (isPermission) {
-          const allowed = effectiveRoles.some((role) => (map[role] || []).includes(req_));
+          const allowed = effectiveRoles.some((role) =>
+            useCases.authorizationService.isAllowed({
+              role,
+              permission: req_,
+              rolePermissions: map[role] || [],
+            }),
+          );
           if (allowed) return next();
-        } else if (effectiveRoles.some((role) => useCases.authorizationService.isAdminRole(role) || role === req_)) {
+        } else if (effectiveRoles.some((role) => role === req_)) {
           return next();
         }
       }
