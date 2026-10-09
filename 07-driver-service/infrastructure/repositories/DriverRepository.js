@@ -123,6 +123,16 @@ class DriverRepository {
     return mapRow(rows[0]);
   }
 
+  /** یافتن پروفایل راننده بر اساس شناسه حساب کاربری احرازشده. */
+  async findByUserId(userId) {
+    if (!userId) return null;
+    const { rows } = await this.pool.query(
+      `${SELECT_DRIVER_SQL} AND user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    return mapRow(rows[0]);
+  }
+
   /** درج راننده جدید. `data.userId` الزامی است (FK به users). */
   async create(data) {
     if (!data.userId) {
