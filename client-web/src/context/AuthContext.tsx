@@ -8,12 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import config from "@/config/app-config.json";
 import {
-  clearAuthToken,
   clearStoredUser,
-  getAuthToken,
   getStoredUser,
-  setAuthToken,
   setStoredUser,
 } from "@/lib/auth";
 
@@ -28,31 +26,40 @@ export interface AuthUser {
 }
 
 interface AuthContextValue {
+  /** In-memory marker only; the real access token stays in an HttpOnly cookie. */
   token: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
-  /** Persist token+user and update in-memory state (cookie + display storage). */
-  setAuth: (token: string, user: AuthUser | null) => void;
+  /** Persist display user data and update client state; never accepts a JWT. */
+  setAuth: (user: AuthUser | null) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || config.api?.baseUrl || "http://localhost:8000";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Initial state reads from cookie (not localStorage) on first render so the
-  // UI never gates layout behind synchronous localStorage access.
-  const [token, setToken] = useState<string | null>(() => getAuthToken());
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser<AuthUser>());
+  // This marker is only for client-side UI. Server middleware and APIs validate the HttpOnly cookie.
+  const [token, setToken] = useState<string | null>(() =>
+    getStoredUser<AuthUser>() ? "httpOnly-session" : null
+  );
 
-  const setAuth = useCallback((t: string, u: AuthUser | null) => {
-    setAuthToken(t);
+  const setAuth = useCallback((u: AuthUser | null) => {
     setStoredUser(u);
-    setToken(t);
+    setToken(u ? "httpOnly-session" : null);
     setUser(u);
   }, []);
 
   const logout = useCallback(() => {
-    clearAuthToken();
+    // Only the server can clear an HttpOnly cookie. Revoke the session there,
+    // then clear non-sensitive client display state immediately.
+    void fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    }).catch(() => undefined);
     clearStoredUser();
     setToken(null);
     setUser(null);
