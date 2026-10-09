@@ -28,6 +28,32 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
     return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+function assertQuoteMatchesInput(quote, { originLat, originLng, destLat, destLng, serviceType }) {
+    if (quote.serviceType && quote.serviceType !== serviceType) {
+        const error = new Error('نوع سرویس با پیش‌فاکتور مطابقت ندارد.');
+        error.code = 'INVALID_QUOTE';
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const quoteCoordinates = [quote.originLat, quote.originLng, quote.destLat, quote.destLng].map(Number);
+    if (quoteCoordinates.some((value) => !Number.isFinite(value))) {
+        const error = new Error('پیش‌فاکتور فاقد مختصات معتبر است.');
+        error.code = 'INVALID_QUOTE';
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const originDelta = haversineMeters(originLat, originLng, quoteCoordinates[0], quoteCoordinates[1]);
+    const destinationDelta = haversineMeters(destLat, destLng, quoteCoordinates[2], quoteCoordinates[3]);
+    if (originDelta > QUOTE_COORD_TOLERANCE_METERS || destinationDelta > QUOTE_COORD_TOLERANCE_METERS) {
+        const error = new Error('مختصات درخواست با Quote همخوانی ندارد.');
+        error.code = 'INVALID_QUOTE';
+        error.statusCode = 400;
+        throw error;
+    }
+}
+
 class CreateTripUseCase {
     /**
      * @param {Object} deps
@@ -76,31 +102,40 @@ class CreateTripUseCase {
             throw error;
         }
 
-        // (P6-2) گارد Quote ضد-دستکاری: قیمت فقط از Quote سرور خوانده میشود.
+        const coordinates = [originLat, originLng, destLat, destLng].map(Number);
+        if (coordinates.some((value) => !Number.isFinite(value))
+            || coordinates[0] < -90 || coordinates[0] > 90
+            || coordinates[2] < -90 || coordinates[2] > 90
+            || coordinates[1] < -180 || coordinates[1] > 180
+            || coordinates[3] < -180 || coordinates[3] > 180) {
+            const error = new Error('مختصات مبدأ و مقصد معتبر نیستند.');
+            error.code = 'TRIP_COORDINATES_INVALID';
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // قیمت فقط از پیش‌فاکتور ذخیره‌شده در سرور خوانده می‌شود.
         let quoteFare = null;
+        let fareQuote = null;
         if (this.fareQuoteStore) {
-            const quote = await this.fareQuoteStore.get(quoteId);
-            if (!quote) {
+            fareQuote = await this.fareQuoteStore.get(quoteId);
+            if (!fareQuote) {
                 const error = new Error('قیمت منقضی شده است، لطفاً دوباره تلاش کنید.');
                 error.code = 'QUOTE_EXPIRED';
                 error.statusCode = 410;
                 throw error;
             }
-            if (
-                Number.isFinite(originLat) && Number.isFinite(originLng) &&
-                Number.isFinite(destLat) && Number.isFinite(destLng) &&
-                Number.isFinite(quote.originLat)
-            ) {
-                const oDelta = haversineMeters(originLat, originLng, quote.originLat, quote.originLng);
-                const dDelta = haversineMeters(destLat, destLng, quote.destLat, quote.destLng);
-                if (oDelta > QUOTE_COORD_TOLERANCE_METERS || dDelta > QUOTE_COORD_TOLERANCE_METERS) {
-                    const error = new Error('مختصات درخواست با Quote همخوانی ندارد.');
-                    error.code = 'INVALID_QUOTE';
-                    error.statusCode = 400;
-                    throw error;
-                }
+            assertQuoteMatchesInput(fareQuote, {
+                originLat: coordinates[0], originLng: coordinates[1],
+                destLat: coordinates[2], destLng: coordinates[3], serviceType,
+            });
+            quoteFare = Number(fareQuote.estimatedFare);
+            if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
+                const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
+                error.code = 'INVALID_QUOTE';
+                error.statusCode = 400;
+                throw error;
             }
-            quoteFare = Number(quote.estimatedFare) || null;
         }
 
         const db = this.tripRepository.db;
@@ -108,13 +143,47 @@ class CreateTripUseCase {
         try {
             await client.query('BEGIN');
 
-            // الف) مصرف Quote (با قفل همزمانی) در همان تراکنش جاری
+            // مصرف یک‌باره پیش‌فاکتور: Quote مختصات‌دار از Redis و Quote قدیمی از SQL.
             const tripReferenceId = referenceId || `trip:${quoteId}`;
-            const consumed = await this.pricingRepository.consumeQuote(
-                quoteId,
-                tripReferenceId,
-                client, // join the outer transaction
-            );
+            if (this.fareQuoteStore) {
+                if (typeof this.fareQuoteStore.consume !== 'function') {
+                    const error = new Error('مصرف اتمیک پیش‌فاکتور در دسترس نیست.');
+                    error.code = 'FARE_QUOTE_CONSUME_UNAVAILABLE';
+                    error.statusCode = 503;
+                    throw error;
+                }
+                const consumedFareQuote = await this.fareQuoteStore.consume(quoteId);
+                if (!consumedFareQuote) {
+                    const error = new Error('قیمت منقضی شده است یا قبلاً استفاده شده است.');
+                    error.code = 'QUOTE_EXPIRED';
+                    error.statusCode = 410;
+                    throw error;
+                }
+                assertQuoteMatchesInput(consumedFareQuote, {
+                    originLat: coordinates[0], originLng: coordinates[1],
+                    destLat: coordinates[2], destLng: coordinates[3], serviceType,
+                });
+                quoteFare = Number(consumedFareQuote.estimatedFare);
+                if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
+                    const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
+                    error.code = 'INVALID_QUOTE';
+                    error.statusCode = 400;
+                    throw error;
+                }
+            } else {
+                const consumed = await this.pricingRepository.consumeQuote(
+                    quoteId,
+                    tripReferenceId,
+                    client,
+                );
+                quoteFare = Number(consumed.customer_final_amount);
+                if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
+                    const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
+                    error.code = 'INVALID_QUOTE';
+                    error.statusCode = 400;
+                    throw error;
+                }
+            }
 
             // ب) ساخت انتیتی غنی Trip — قیمت فقط از Quote سرور (P6-2)
             const trip = new Trip({
