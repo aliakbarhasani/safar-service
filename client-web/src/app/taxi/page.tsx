@@ -6,6 +6,9 @@ import dynamic from "next/dynamic";
 import { ArrowRight, MapPin, Navigation, CheckCircle2, Loader2 } from "lucide-react";
 import { requestTaxiRide } from "@/services/taxiService";
 
+type Coordinates = { lat: number; lng: number };
+type StatusMessage = { type: "success" | "error"; text: string } | null;
+
 // Dynamic import for Leaflet map to avoid SSR issues
 const InteractiveMap = dynamic(
   () => import("@/components/map/InteractiveMap"),
@@ -22,15 +25,15 @@ const InteractiveMap = dynamic(
 export default function TaxiPage() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
-  const [pickupCoords, setPickupCoords] = useState(null);
-  const [dropoffCoords, setDropoffCoords] = useState(null);
-  const [locationTarget, setLocationTarget] = useState("pickup");
+  const [pickupCoords, setPickupCoords] = useState<Coordinates | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<Coordinates | null>(null);
+  const [locationTarget, setLocationTarget] = useState<"pickup" | "dropoff">("pickup");
 
   // States for API integration
   const [isLoading, setIsLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(null);
+  const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
 
-  const handleLocationSelect = (lat, lng) => {
+  const handleLocationSelect = (lat: number, lng: number) => {
     const coords = { lat, lng };
     const label = `موقعیت انتخابی (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
     if (locationTarget === "pickup") {
