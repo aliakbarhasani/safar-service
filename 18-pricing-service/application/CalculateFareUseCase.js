@@ -15,6 +15,7 @@
 const ngeohash = require('ngeohash');
 const crypto = require('crypto');
 const config = require('../../14-config-system/server.config');
+const { isValidServiceType } = require('../../01-core-system/constants/ServiceTypes');
 
 const GEOHASH_PRECISION = 5;
 const MAX_SURGE = 2.0;
@@ -91,7 +92,7 @@ class CalculateFareUseCase {
    * @param {string} [input.promoCode] - optional promo code for discount (P10-2)
    * @returns {Promise<{ estimatedFare:number, distance:number, surgeMultiplier:number, geohash:string, discountAmount?:number, finalFare?:number, promoCode?:string }>}
    */
-  async execute({ originLat, originLng, destLat, destLng, perKmRate = null, baseFare = null, supply = null, promoCode = null }) {
+  async execute({ originLat, originLng, destLat, destLng, serviceType = 'urban_taxi', perKmRate = null, baseFare = null, supply = null, promoCode = null }) {
     const oLat = Number(originLat);
     const oLng = Number(originLng);
     const dLat = Number(destLat);
@@ -116,6 +117,13 @@ class CalculateFareUseCase {
       throw err;
     }
 
+    if (!isValidServiceType(serviceType)) {
+      const err = new Error('نوع سرویس برای محاسبه قیمت نامعتبر است.');
+      err.code = 'FARE_INVALID_SERVICE_TYPE';
+      err.statusCode = 400;
+      throw err;
+    }
+
     const distance = round2(haversineKm(oLat, oLng, dLat, dLng));
 
     // (P10-1) خواندن تنظیمات پویا از DynamicConfigStore (با fallback به config استاتیک)
@@ -135,7 +143,7 @@ class CalculateFareUseCase {
     const basePrice = distance * rate + base;
     const estimatedFare = Math.round(basePrice * surgeMultiplier);
 
-    const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio };
+    const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio, serviceType };
 
     // (P10-2) Promo code validation — if promoCode provided and promoService injected
     if (promoCode && this.promoService) {
@@ -163,6 +171,7 @@ class CalculateFareUseCase {
       const expiresAt = new Date(createdAt.getTime() + this.fareQuoteStore.ttlSeconds * 1000);
       const quote = {
         quoteId,
+        serviceType,
         estimatedFare,
         distance,
         surgeMultiplier,
