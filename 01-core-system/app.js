@@ -10,7 +10,24 @@ const notFound = require('./middleware/notFound');
 const app = express();
 
 // Global middleware
-app.use(cors({ origin: config.cors.origin }));
+const configuredCorsOrigins = String(config.cors.origin || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+// HttpOnly session cookies are used by the web client. In development, reflect
+// the requesting origin when CORS_ORIGIN is '*'; wildcard + credentials is invalid.
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (configuredCorsOrigins.includes('*') && config.env !== 'production') {
+      return callback(null, origin);
+    }
+    if (configuredCorsOrigins.includes(origin)) return callback(null, origin);
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Global API rate limit — تمام درخواست‌های ورودی قبل از Gateway کنترل می‌شوند.
