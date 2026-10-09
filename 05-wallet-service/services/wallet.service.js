@@ -1115,7 +1115,7 @@ async function createEscrow({ payerId, payeeId, amount, currencyId = 'IRT', plat
 async function releaseEscrowFull(escrowId) {
   if (!escrowId) throw new Error('Escrow ID is required');
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
@@ -1192,18 +1192,23 @@ async function releaseEscrowFull(escrowId) {
       destination_wallet_id: payeeWallet.id
     }, client);
 
-    // 8. انتشار رویداد
-    eventBus.publish('EscrowReleased', {
-      escrowId: escrow.id, payerId: escrow.payer_id, payeeId: escrow.payee_id,
-      amount, netAmount, platformCommission, currencyId,
-      timestamp: new Date().toISOString()
-    });
-
     return { success: true, message: 'Escrow released successfully',
       escrowId: escrow.id, status: 'released',
       payee: { walletId: payeeWallet.id, amount: netAmount, balance: payeeAvailableAfter },
-      platformCommission };
+      platformCommission,
+      event: {
+        escrowId: escrow.id, payerId: escrow.payer_id, payeeId: escrow.payee_id,
+        amount, netAmount, platformCommission, currencyId,
+      } };
   });
+
+  try {
+    eventBus.publish('EscrowReleased', { ...result.event, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[WalletService] Failed to publish EscrowReleased after commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
@@ -1214,7 +1219,7 @@ async function releaseEscrowFull(escrowId) {
 async function refundEscrow(escrowId, reason = '') {
   if (!escrowId) throw new Error('Escrow ID is required');
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
@@ -1245,14 +1250,18 @@ async function refundEscrow(escrowId, reason = '') {
 
     const updatedEscrow = await Escrow.updateStatus(escrow.id, 'refunded', {}, client);
 
-    eventBus.publish('EscrowRefunded', {
-      escrowId: escrow.id, payerId: escrow.payer_id, amount, currencyId, reason,
-      timestamp: new Date().toISOString()
-    });
-
     return { success: true, message: 'Escrow refunded successfully',
-      escrowId: escrow.id, status: 'refunded', amount };
+      escrowId: escrow.id, status: 'refunded', amount,
+      event: { escrowId: escrow.id, payerId: escrow.payer_id, amount, currencyId, reason } };
   });
+
+  try {
+    eventBus.publish('EscrowRefunded', { ...result.event, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[WalletService] Failed to publish EscrowRefunded after commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
@@ -1263,7 +1272,7 @@ async function refundEscrow(escrowId, reason = '') {
 async function expireEscrow(escrowId) {
   if (!escrowId) throw new Error('Escrow ID is required');
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
@@ -1292,14 +1301,18 @@ async function expireEscrow(escrowId) {
 
     const updatedEscrow = await Escrow.updateStatus(escrow.id, 'expired', {}, client);
 
-    eventBus.publish('EscrowExpired', {
-      escrowId: escrow.id, payerId: escrow.payer_id, amount, currencyId,
-      timestamp: new Date().toISOString()
-    });
-
     return { success: true, message: 'Escrow expired, funds returned to payer',
-      escrowId: escrow.id, status: 'expired', amount };
+      escrowId: escrow.id, status: 'expired', amount,
+      event: { escrowId: escrow.id, payerId: escrow.payer_id, amount, currencyId } };
   });
+
+  try {
+    eventBus.publish('EscrowExpired', { ...result.event, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[WalletService] Failed to publish EscrowExpired after commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
