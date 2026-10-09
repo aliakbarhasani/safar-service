@@ -94,9 +94,10 @@ describe('TripDispatchService', () => {
       expect(result.tripId).toBe('trip-123');
 
       expect(redis.set).toHaveBeenCalledTimes(1);
-      const [key, value, exFlag, exValue] = redis.set.mock.calls[0];
+      const [key, value, nxFlag, exFlag, exValue] = redis.set.mock.calls[0];
       expect(key).toBe('dispatch:trip:trip-123');
       expect(value).toBe('driver-1');
+      expect(nxFlag).toBe('NX');
       expect(exFlag).toBe('EX');
       expect(exValue).toBe(15);
 
@@ -104,6 +105,25 @@ describe('TripDispatchService', () => {
       expect(eventBus.events[0].event).toBe('TripProposedToDriver');
       expect(eventBus.events[0].data.tripId).toBe('trip-123');
       expect(eventBus.events[0].data.driverId).toBe('driver-1');
+    });
+
+    test('should not create a second offer when the trip already has a dispatch key', async () => {
+      const locationService = makeLocationService([{ driverId: 'driver-1', distanceKm: 0.5 }]);
+      const driverService = makeDriverService({ 'driver-1': 'available' });
+      const redis = makeRedis();
+      const eventBus = makeEventBus();
+      const tripOfferRepository = { createOffer: jest.fn().mockResolvedValue({ status: 'PENDING' }) };
+      const service = new TripDispatchService({
+        locationService, driverService, redisClient: redis, eventBus, tripOfferRepository,
+      });
+
+      const first = await service.dispatchTrip('trip-idempotent', 51.389, 35.6892);
+      const second = await service.dispatchTrip('trip-idempotent', 51.389, 35.6892);
+
+      expect(first.status).toBe('DRIVER_PROPOSED');
+      expect(second.status).toBe('DRIVER_ALREADY_PROPOSED');
+      expect(tripOfferRepository.createOffer).toHaveBeenCalledTimes(1);
+      expect(eventBus.publish).toHaveBeenCalledTimes(1);
     });
 
     test('should publish NoDriverFound when no drivers in radius', async () => {
