@@ -14,6 +14,7 @@
  */
 
 const express = require('express');
+const driverService = require('../../07-driver-service/services/driver.service');
 
 function createLocationRoutes({
   geoRepository,
@@ -42,16 +43,23 @@ function createLocationRoutes({
     const { lat, lng, lon } = req.body || {};
     const longitude = Number(lng === undefined ? lon : lng);
     const latitude = Number(lat);
-    const driverId = req.user && (req.user.userId || req.user.id);
+    const userId = req.user && (req.user.userId || req.user.id);
 
     try {
-      if (!driverId) {
+      if (!userId) {
         return res.status(401).json({ success: false, error: 'Unauthorized: no user on request' });
       }
       if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
         return res.status(400).json({ success: false, error: 'lat and lng are required numeric values' });
       }
-      const result = await geoRepository.updateDriverLocation(driverId, longitude, latitude);
+      // Redis GEO keys must use the driver profile ID, not the account user ID.
+      const driver = req.user.driverId
+        ? { id: req.user.driverId }
+        : await driverService.getDriverByUserId(userId);
+      if (!driver || !driver.id) {
+        return res.status(403).json({ success: false, error: 'Verified driver profile is required to update location' });
+      }
+      const result = await geoRepository.updateDriverLocation(String(driver.id), longitude, latitude);
       return res.status(200).json({ success: true, data: result });
     } catch (err) {
       log.error('[location] update failed:', err.message);
@@ -63,7 +71,8 @@ function createLocationRoutes({
    * GET /nearby?lat=..&lng=..&radiusKm=..
    * (فقط خواندنی — برای جستجوی نزدیک‌ترین رانندگان)
    */
-  router.get('/nearby', iamAuthenticate, async (req, res) => {
+  // Nearby driver locations are available to authenticated trip creators and administrators only.
+  router.get('/nearby', iamAuthenticate, authorize('trip:create'), async (req, res) => {
     try {
       if (!nearby) {
         return res.status(503).json({ success: false, error: 'nearby search unavailable' });
