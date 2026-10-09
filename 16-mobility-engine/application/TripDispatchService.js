@@ -99,7 +99,19 @@ class TripDispatchService {
     }
 
     // ۳) ذخیره کاندیدا در Redis با TTL (جلوگیری از ارسال همزمان)
-    await this.redis.set(dispatchKey, selectedDriver.driverId, 'EX', this.ttlSeconds);
+    // Claim the dispatch slot atomically; GET followed by SET would race under
+    // duplicate TripCreated delivery and could invite multiple drivers.
+    const claimed = await this.redis.set(
+      dispatchKey,
+      selectedDriver.driverId,
+      'NX',
+      'EX',
+      this.ttlSeconds,
+    );
+    if (claimed !== 'OK' && claimed !== true) {
+      const existingDriverId = await this.redis.get(dispatchKey);
+      return { status: 'DRIVER_ALREADY_PROPOSED', tripId, driverId: existingDriverId ? String(existingDriverId) : undefined };
+    }
 
     // Persist the offer under the key accepted by AcceptTripUseCase.
     // The legacy dispatch key alone is not sufficient to prove the driver was invited.
@@ -107,7 +119,12 @@ class TripDispatchService {
       try {
         await this.tripOfferRepository.createOffer(tripId, selectedDriver.driverId, this.ttlSeconds);
       } catch (error) {
-        try { await this.redis.del(dispatchKey); } catch (_) { /* TTL is the fallback */ }
+        try {
+          const currentDriverId = await this.redis.get(dispatchKey);
+          if (String(currentDriverId) === String(selectedDriver.driverId)) {
+            await this.redis.del(dispatchKey);
+          }
+        } catch (_) { /* TTL is the fallback */ }
         throw error;
       }
     }
