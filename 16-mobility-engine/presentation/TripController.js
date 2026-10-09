@@ -47,8 +47,11 @@ class TripController {
             } = req.body;
             const passengerId = (req.user && (req.user.userId || req.user.id)) || null;
 
-            const coordinates = [originLat, originLng, destLat, destLng].map(Number);
-            if (!quoteId || !serviceType || coordinates.some((value) => !Number.isFinite(value))) {
+            const rawCoordinates = [originLat, originLng, destLat, destLng];
+            const coordinates = rawCoordinates.map(Number);
+            if (!quoteId || !serviceType
+                || rawCoordinates.some((value) => value === undefined || value === null || String(value).trim() === '')
+                || coordinates.some((value) => !Number.isFinite(value))) {
                 return res.status(400).json({
                     success: false,
                     error: 'پارامترهای quoteId، serviceType و چهار مختصات عددی مبدأ و مقصد الزامی هستند.',
