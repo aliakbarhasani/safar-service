@@ -14,33 +14,8 @@
 export const AUTH_TOKEN_COOKIE = "access_token";
 const USER_STORAGE_KEY = "user";
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split(";")
-    .map((s) => s.trim())
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : null;
-}
-
-/** Read the auth token (cookie-first, middleware-compatible). */
-export function getAuthToken(): string | null {
-  return getCookie(AUTH_TOKEN_COOKIE);
-}
-
-/** Persist the token in a non-HttpOnly cookie so both client & middleware see it. */
-export function setAuthToken(token: string, maxAgeSeconds = 7 * 24 * 3600): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${AUTH_TOKEN_COOKIE}=${encodeURIComponent(
-    token
-  )}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
-}
-
-/** Clear the auth token cookie. */
-export function clearAuthToken(): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${AUTH_TOKEN_COOKIE}=; path=/; max-age=0; samesite=lax`;
-}
+// The access token is HttpOnly and intentionally cannot be read or written by JavaScript.
+// AUTH_TOKEN_COOKIE is exported for server-side middleware only.
 
 // --- User profile (kept in localStorage — non-sensitive display data) ---
 
