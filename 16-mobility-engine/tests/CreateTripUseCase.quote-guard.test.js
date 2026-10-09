@@ -52,6 +52,7 @@ function buildDeps({ quote = VALID_QUOTE } = {}) {
     };
     const fareQuoteStore = {
         get: jest.fn(async (id) => (quote && quote.quoteId === id ? quote : quote)),
+        consume: jest.fn(async (id) => (quote && quote.quoteId === id ? quote : null)),
     };
     const events = [];
     const emitEvent = (event, data) => events.push({ event, data });
