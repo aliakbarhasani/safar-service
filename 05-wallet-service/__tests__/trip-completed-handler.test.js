@@ -6,7 +6,7 @@
  *    (15% general), and never throws back to the publisher.
  * 2) processTripPayment: verifies the exact atomic money flow for a 100,000 IRT
  *    trip — passenger charged 100,000, platform gets 15,000 commission,
- *    driver gets 85,000 — plus the debt path when the passenger is short.
+ *    driver gets 85,000 — and rejects insufficient funds to preserve DB constraints.
  */
 
 jest.mock('../db/pg', () => ({
@@ -16,6 +16,7 @@ jest.mock('../models/wallet.model', () => ({
   findByUserAndCurrency: jest.fn(),
   create: jest.fn(),
   debitAllowNegative: jest.fn(),
+  debitAvailableBalance: jest.fn(),
   creditAvailableBalance: jest.fn(),
 }));
 jest.mock('../models/transaction.model', () => ({
@@ -124,7 +125,7 @@ describe('walletService.processCancellationPenalty (atomic settlement)', () => {
     Wallet.create
       .mockResolvedValueOnce(driverWallet)
       .mockResolvedValueOnce(platformWallet);
-    Wallet.debitAllowNegative.mockResolvedValue({
+    Wallet.debitAvailableBalance.mockResolvedValue({
       id: 'passenger-wallet', balance: '10000', available_balance: '10000', frozen_balance: '0',
     });
     Wallet.creditAvailableBalance
@@ -173,7 +174,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     Wallet.create
       .mockResolvedValueOnce(plWallet)
       .mockResolvedValueOnce(dWallet);
-    Wallet.debitAllowNegative.mockResolvedValue({ id: 'pw', balance: '100000', available_balance: '100000', frozen_balance: '0' });
+    Wallet.debitAvailableBalance.mockResolvedValue({ id: 'pw', balance: '100000', available_balance: '100000', frozen_balance: '0' });
     Wallet.creditAvailableBalance
       .mockResolvedValueOnce({ id: 'platw', balance: '15000', available_balance: '15000', frozen_balance: '0' })
       .mockResolvedValueOnce({ id: 'dw', balance: '85000', available_balance: '85000', frozen_balance: '0' });
@@ -187,7 +188,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
 
     expect(result).toMatchObject({ success: true, amount: 100000, commission: 15000, driverAmount: 85000, debt: false });
 
-    expect(Wallet.debitAllowNegative).toHaveBeenCalledWith('pw', 100000, expect.anything());
+    expect(Wallet.debitAvailableBalance).toHaveBeenCalledWith('pw', 100000, expect.anything());
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('platw', 15000, expect.anything());
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('dw', 85000, expect.anything());
 
@@ -216,17 +217,15 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     ]);
   });
 
-  test('insufficient passenger balance produces debt (negative balance)', async () => {
-    Wallet.debitAllowNegative.mockResolvedValue({ id: 'pw', balance: '-50000', available_balance: '-50000', frozen_balance: '0' });
+  test('insufficient passenger balance is rejected without creating a negative wallet balance', async () => {
+    Wallet.debitAvailableBalance.mockResolvedValueOnce(null);
 
-    const result = await walletService.processTripPayment({
+    await expect(walletService.processTripPayment({
       tripId: 'trip-11', passengerId: 'user-1', driverId: 'user-driver', amount: 100000, currencyId: 'IRT',
-    });
+    })).rejects.toThrow('Insufficient available balance');
 
-    expect(result).toMatchObject({ success: true, debt: true, commission: 15000, driverAmount: 85000 });
-    const txs = Transaction.create.mock.calls.map((c) => c[0]);
-    const passengerTx = txs.find((t) => t.type === 'DEBIT');
-    expect(passengerTx).toMatchObject({ status: 'pending', description: expect.stringContaining('TRIP_PAYMENT') });
+    expect(Transaction.create).not.toHaveBeenCalled();
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
   });
 
   test('rejects duplicate payment (idempotency) for the same trip', async () => {
@@ -238,7 +237,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
       'trip-payment:trip-12:passenger',
       expect.anything(),
     );
-    expect(Wallet.debitAllowNegative).not.toHaveBeenCalled();
+    expect(Wallet.debitAvailableBalance).not.toHaveBeenCalled();
   });
 
   test('rejects commission rates outside the valid percentage range', async () => {
