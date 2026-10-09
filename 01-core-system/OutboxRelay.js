@@ -103,7 +103,7 @@ class OutboxRelay {
 
     for (const row of rows) {
       try {
-        this._publish(row);
+        await this._publish(row);
         await this.outboxRepository.markPublished(row.id);
         this.stats.published += 1;
         published += 1;
@@ -126,14 +126,34 @@ class OutboxRelay {
    * تا Inbox بتواند تکراری‌ها را تشخیص دهد.
    * @private
    */
-  _publish(row) {
+  async _publish(row) {
     const payload = (row.payload && typeof row.payload === 'object') ? row.payload : {};
     const data = {
       ...payload,
       [EVENT_ID_KEY]: row.id,
       [AGGREGATE_ID_KEY]: row.aggregate_id,
     };
-    this.eventBus.publish(row.event_type, data);
+
+    if (typeof this.eventBus.publishAsync !== 'function') {
+      this.eventBus.publish(row.event_type, data);
+      return;
+    }
+
+    const results = await this.eventBus.publishAsync(row.event_type, data);
+    // Financial events are marked PUBLISHED only after their async consumers
+    // report success. Otherwise runOnce records a failure and schedules retry.
+    const failed = (results || []).find((result) => {
+      if (!result || typeof result !== 'object') return false;
+      if (row.event_type === 'TripCompleted') return result.processed === false;
+      if (row.event_type === 'TripCancelled') {
+        return result.penaltyProcessed === false
+          || (result.released === false && result.reason !== 'no_held_amount');
+      }
+      return false;
+    });
+    if (failed) {
+      throw new Error(`Consumer failed for ${row.event_type}: ${failed.reason || failed.message || 'processing failed'}`);
+    }
   }
 }
 
