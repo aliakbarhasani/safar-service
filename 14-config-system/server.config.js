@@ -88,7 +88,7 @@ const config = {
     // حساب متعلق به پلتفرم که کمیسیون سفرها به آن واریز میشود (P5-1)
     platformUserId: process.env.WALLET_PLATFORM_USER_ID || 'system-platform',
     // سهم راننده از جریمه لغو سفر (درصد) — P7-1 (مابقی به پلتفرم)
-    cancellationDriverShare: parseFloat(process.env.CANCELLATION_DRIVER_SHARE) || 80,
+    cancellationDriverShare: Number.isFinite(parseFloat(process.env.CANCELLATION_DRIVER_SHARE)) ? parseFloat(process.env.CANCELLATION_DRIVER_SHARE) : 80,
   },
   trip: {
     defaultCost: parseInt(process.env.TRIP_DEFAULT_COST, 10) || 50000,
@@ -97,10 +97,10 @@ const config = {
     // نرخ سرانه هر کیلومتر برای محاسبه ساده کرایه نهایی (`EndTripUseCase`)
     perKmRate: parseFloat(process.env.TRIP_PER_KM_RATE) || 2000,
     commissionRates: {
-      urban_taxi: parseFloat(process.env.COMMISSION_URBAN_TAXI) || 10,
-      intercity_taxi: parseFloat(process.env.COMMISSION_INTERCITY_TAXI) || 7,
-      freight: parseFloat(process.env.COMMISSION_FREIGHT) || 5,
-      delivery: parseFloat(process.env.COMMISSION_DELIVERY) || 12,
+      urban_taxi: Number.isFinite(parseFloat(process.env.COMMISSION_URBAN_TAXI)) ? parseFloat(process.env.COMMISSION_URBAN_TAXI) : 10,
+      intercity_taxi: Number.isFinite(parseFloat(process.env.COMMISSION_INTERCITY_TAXI)) ? parseFloat(process.env.COMMISSION_INTERCITY_TAXI) : 7,
+      freight: Number.isFinite(parseFloat(process.env.COMMISSION_FREIGHT)) ? parseFloat(process.env.COMMISSION_FREIGHT) : 5,
+      delivery: Number.isFinite(parseFloat(process.env.COMMISSION_DELIVERY)) ? parseFloat(process.env.COMMISSION_DELIVERY) : 12,
       // کمیسیون عمومی/پیشفرض سیستم (۱۵٪ در صورت عدم ورود صریح)
       general: Number.isFinite(parseFloat(process.env.COMMISSION_GENERAL)) ? parseFloat(process.env.COMMISSION_GENERAL) : 15,
     },
