@@ -1682,8 +1682,8 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
   const rate = (commissionRate == null)
     ? (Number.isFinite(configuredCommissionRate) ? configuredCommissionRate : 15)
     : Number(commissionRate);
-  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
-    throw new Error('Commission rate must be a finite number between 0 and 100');
+  if (!Number.isFinite(rate) || rate < 0 || rate >= 100) {
+    throw new Error('Commission rate must be a finite number greater than or equal to 0 and less than 100');
   }
 
   const commission = Math.round(amount * (rate / 100));
@@ -1981,6 +1981,11 @@ async function processCancellationPenalty({
         referenceId: platformReferenceId,
       }, client);
       platformShareId = plTx.id;
+      events.push({
+        walletId: plWallet.id, userId: null, amount: platformShare, type: 'CREDIT',
+        availableBalance: plAvailAfter, frozenBalance: plFrozenAfter, transactionId: plTx.id,
+        description: `CANCELLATION_PLATFORM_SHARE trip ${tripId}`,
+      });
     }
 
     return {
