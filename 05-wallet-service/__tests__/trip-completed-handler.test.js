@@ -94,6 +94,17 @@ describe('TripCompletedHandler (P5-1)', () => {
     });
   });
 
+  test('preserves an explicitly configured zero-percent commission', () => {
+    const originalRate = config.trip.commissionRates.general;
+    config.trip.commissionRates.general = 0;
+    try {
+      const h = new TripCompletedHandler({ eventBus: makeFakeBus(), walletService: {} });
+      expect(h.commissionRate).toBe(0);
+    } finally {
+      config.trip.commissionRates.general = originalRate;
+    }
+  });
+
   test('duplicate payment is treated as success (deduped)', async () => {
     const processTripPayment = jest.fn().mockRejectedValue(
       new Error('Duplicate transaction: referenceId trip-payment:t1 already exists'),
