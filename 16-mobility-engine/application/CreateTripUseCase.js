@@ -243,19 +243,25 @@ class CreateTripUseCase {
 
             await client.query('COMMIT');
 
-            // هـ) انتشار رویدادهای دامنه (پس از Commit — subscribe امن)
-            this.emitEvent(TripDomainEvents.TripCreated, {
-                tripId: savedTrip.id,
-                passengerId,
-                quoteId,
-                serviceType,
-                origin: { lat: coordinates[0], lng: coordinates[1] },
-                destination: { lat: coordinates[2], lng: coordinates[3] },
-            });
-            this.emitEvent(TripDomainEvents.DriverSearchingStarted, {
-                tripId: savedTrip.id,
-                serviceType,
-            });
+            // هـ) انتشار درون‌فرآیندی پس از Commit. اگر listener خطا دهد،
+            // نباید پاسخ ساخت سفر به‌اشتباه شکست بخورد؛ رویداد TripCreated در
+            // Outbox ثبت شده و Relay می‌تواند آن را دوباره منتشر کند.
+            try {
+                this.emitEvent(TripDomainEvents.TripCreated, {
+                    tripId: savedTrip.id,
+                    passengerId,
+                    quoteId,
+                    serviceType,
+                    origin: { lat: coordinates[0], lng: coordinates[1] },
+                    destination: { lat: coordinates[2], lng: coordinates[3] },
+                });
+                this.emitEvent(TripDomainEvents.DriverSearchingStarted, {
+                    tripId: savedTrip.id,
+                    serviceType,
+                });
+            } catch (eventError) {
+                console.error('[CreateTripUseCase] post-commit event emit failed; Outbox will retry:', eventError.message);
+            }
 
             return {
                 tripId: savedTrip.id,
