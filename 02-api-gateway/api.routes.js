@@ -119,7 +119,7 @@ router.use('/api/drivers', driverRoutes);
 // بازارچه روی 3012 — جلوگیری از تداخل با سرویس‌های دیگر (AdminPanel روی 3002)
 // مسیرهای سرویس مقصد: /api/v1/marketplace/products | /products/:id | /health
 const marketplaceProxy = createProxyMiddleware({
-  target: process.env.MARKETPLACE_URL || 'http://localhost:3012',
+  target: process.env.MARKETPLACE_URL || 'http://127.0.0.1:3012',
   changeOrigin: true,
   logLevel: 'warn',
   pathRewrite: rewriteToServicePrefix('/api/v1/marketplace'),
@@ -136,7 +136,7 @@ router.use('/api/v1/marketplace', marketplaceProxy);
 // تبلیغات روی 3013 — جدا از سایر سرویس‌ها
 // مسیرهای سرویس مقصد: /api/v1/ads/campaigns | /campaigns/:id | /health
 const adsProxy = createProxyMiddleware({
-  target: process.env.ADS_URL || 'http://localhost:3013',
+  target: process.env.ADS_URL || 'http://127.0.0.1:3013',
   changeOrigin: true,
   logLevel: 'warn',
   pathRewrite: rewriteToServicePrefix('/api/v1/ads'),
