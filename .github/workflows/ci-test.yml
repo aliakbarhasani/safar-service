@@ -59,3 +59,8 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 16-mobility-engine/tests/trip-router-auth.test.js
 
+      - name: Run wallet trip-settlement regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js
+
