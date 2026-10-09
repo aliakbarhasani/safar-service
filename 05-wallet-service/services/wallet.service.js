@@ -1701,7 +1701,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
     }
 
-    // 1) Charge passenger. Debt is recorded when the available balance is insufficient.
+    // 1) Charge passenger. The DB forbids negative balances, so insufficient funds abort the whole settlement.
     const pWallet = await getOrCreateWallet(client, passengerId, currencyId);
     const pBalBefore = parseFloat(pWallet.balance);
     const pAvailBefore = parseFloat(pWallet.available_balance);
@@ -1712,13 +1712,13 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     const pBalAfter = parseFloat(pUpdated.balance);
     const pAvailAfter = parseFloat(pUpdated.available_balance);
     const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
-    const debt = pAvailAfter < 0;
+    const debt = false;
 
     const pTx = await Transaction.create({
       walletId: pWallet.id, userId: passengerId, tripId,
       amount, currencyId, type: 'DEBIT',
-      description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
-      status: debt ? 'pending' : 'success',
+      description: `TRIP_PAYMENT trip ${tripId}`,
+      status: 'success',
       referenceId: passengerReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
@@ -1728,7 +1728,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       availableBefore: pAvailBefore, availableAfter: pAvailAfter,
       frozenBefore: pFrozenBefore, frozenAfter: pFrozenAfter,
       operationType: 'trip_payment',
-      description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
+      description: `TRIP_PAYMENT trip ${tripId}`,
       referenceId: passengerReferenceId,
     }, client);
 
@@ -1811,6 +1811,11 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       platformCommissionId,
       events: [
         { walletId: pWallet.id, userId: passengerId, amount, type: 'DEBIT', availableBalance: pAvailAfter, frozenBalance: pFrozenAfter, transactionId: pTx.id, description: `TRIP_PAYMENT trip ${tripId}` },
+        ...(platformCommissionId ? [{
+          walletId: plWallet.id, userId: null, amount: commission, type: 'CREDIT',
+          availableBalance: parseFloat(plUpdated.available_balance), frozenBalance: parseFloat(plUpdated.frozen_balance),
+          transactionId: platformCommissionId, description: `TRIP_COMMISSION trip ${tripId}`,
+        }] : []),
         { walletId: dWallet.id, userId: driverId, amount: driverAmount, type: 'CREDIT', availableBalance: dAvailAfter, frozenBalance: dFrozenAfter, transactionId: dTx.id, description: `TRIP_REVENUE trip ${tripId}` },
       ],
     };
@@ -1836,8 +1841,8 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
  * پردازش جریمه لغو سفر (P7-1) — تراکنش اتمیک چندکیفپوله.
  *
  * با دریافت رویداد کانونیک `TripCancelled` فراخوانی میشود و در یک تراکنش:
- *   1. مبلغ `penaltyAmount` از کیف پول مسافر کسر میشود (CANCELLATION_PENALTY)
- *      — اجازه بدهی (منفی شدن) مطابق سیاست P5-1.
+ *   1. مبلغ `penaltyAmount` از کیف پول مسافر کسر میشود (CANCELLATION_PENALTY).
+ *      موجودی منفی مجاز نیست؛ در صورت کمبود موجودی، کل تسویه لغو می‌شود.
  *   2. سهم راننده (driverShare٪ از Config: wallet.cancellationDriverShare)
  *      به کیف پول راننده واریز میشود (CANCELLATION_COMPENSATION).
  *   3. مابقی به کیف پول پلتفرم واریز میشود (CANCELLATION_PLATFORM_SHARE).
@@ -1880,13 +1885,13 @@ async function processCancellationPenalty({
     const pBalAfter = parseFloat(pUpdated.balance);
     const pAvailAfter = parseFloat(pUpdated.available_balance);
     const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
-    const debt = pAvailAfter < 0;
+    const debt = false;
 
     const pTx = await Transaction.create({
       walletId: pWallet.id, userId: passengerId, tripId,
       amount: penaltyAmount, currencyId, type: 'DEBIT',
-      description: `CANCELLATION_PENALTY trip ${tripId}${debt ? ' (debt)' : ''}`,
-      status: debt ? 'pending' : 'success',
+      description: `CANCELLATION_PENALTY trip ${tripId}`,
+      status: 'success',
       referenceId: passengerReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
