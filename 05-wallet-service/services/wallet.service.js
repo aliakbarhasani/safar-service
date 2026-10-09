@@ -782,7 +782,7 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
 
   return await pg.transaction(async (client) => {
     // 1. دریافت کیف پول Escrow
-    const escrowWallet = await Wallet.findById(escrowWalletId);
+    const escrowWallet = await Wallet.findById(escrowWalletId, client);
     if (!escrowWallet) {
       throw new Error(`Escrow wallet not found: ${escrowWalletId}`);
     }
@@ -801,7 +801,8 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
     // 4. دریافت کیف پول پلتفرم
     const platformWallet = await Wallet.findByUserAndCurrency(
       (await client.query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1")).rows[0]?.id,
-      currencyId
+      currencyId,
+      client
     );
 
     // 5. ذخیره وضعیت قبل برای ledger
@@ -1115,7 +1116,7 @@ async function releaseEscrowFull(escrowId) {
   if (!escrowId) throw new Error('Escrow ID is required');
 
   return await pg.transaction(async (client) => {
-    const escrow = await Escrow.findById(escrowId);
+    const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
     if (!escrow.payee_id) throw new Error('Escrow has no payee assigned. Use assignPayee first.');
@@ -1126,7 +1127,7 @@ async function releaseEscrowFull(escrowId) {
     const currencyId = escrow.currency_id;
 
     // 1. ذخیره وضعیت قبل escrow wallet
-    const sourceWallet = await Wallet.findById(escrow.source_wallet_id);
+    const sourceWallet = await Wallet.findById(escrow.source_wallet_id, client);
     if (!sourceWallet) throw new Error('Source wallet not found');
 
     const srcBalanceBefore = parseFloat(sourceWallet.balance);
