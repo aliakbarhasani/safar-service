@@ -132,6 +132,13 @@ function createDriverService(repository = new DriverRepository()) {
     return repository.findById(driverId);
   }
 
+  /** دریافت پروفایل راننده بر اساس حساب کاربری احرازشده */
+  async function getDriverByUserId(userId) {
+    if (!userId) return null;
+    return repository.findByUserId(userId);
+  }
+
+
   /** دریافت لیست رانندگان */
   async function getAllDrivers() {
     return repository.findAll();
@@ -143,6 +150,7 @@ function createDriverService(repository = new DriverRepository()) {
     updateOperationalStatus,
     updateLocation,
     getDriverById,
+    getDriverByUserId,
     getAllDrivers,
   };
 }
