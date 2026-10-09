@@ -855,12 +855,10 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
     // 3. دریافت یا ایجاد کیف پول گیرنده
     const recipientWallet = await getOrCreateWallet(client, recipientId, currencyId);
 
-    // 4. دریافت کیف پول پلتفرم
-    const platformWallet = await Wallet.findByUserAndCurrency(
-      (await client.query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1")).rows[0]?.id,
-      currencyId,
-      client
-    );
+    // 4. دریافت کیف پول سیستمی پلتفرم فقط زمانی که کمیسیون باید ثبت شود.
+    const platformWallet = platformCommission > 0
+      ? await getPlatformWallet(client, currencyId)
+      : null;
 
     // 5. ذخیره وضعیت قبل برای ledger
     const escrowBalanceBefore = parseFloat(escrowWallet.balance);
@@ -1180,11 +1178,9 @@ async function createEscrow({ payerId, payeeId, amount, currencyId = 'IRT', plat
       referenceId: freezeReferenceId,
     }, client);
 
-    let platformWallet = null;
-    const adminResult = await client.query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1");
-    if (adminResult.rows[0]) {
-      platformWallet = await Wallet.findByUserAndCurrency(adminResult.rows[0].id, currencyId, client);
-    }
+    const platformWallet = commission > 0
+      ? await getPlatformWallet(client, currencyId)
+      : null;
 
     const escrow = await Escrow.create({
       tripId, payerId, payeeId: payeeId || null,
