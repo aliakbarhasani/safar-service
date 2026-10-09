@@ -152,6 +152,10 @@ class CreateTripUseCase {
                     error.statusCode = 503;
                     throw error;
                 }
+                // The matching SQL quote row is required by trips.quote_id FK and
+                // is consumed in this same PostgreSQL transaction for audit integrity.
+                await this.pricingRepository.consumeQuote(quoteId, tripReferenceId, client);
+
                 const consumedFareQuote = await this.fareQuoteStore.consume(quoteId);
                 if (!consumedFareQuote) {
                     const error = new Error('قیمت منقضی شده است یا قبلاً استفاده شده است.');
