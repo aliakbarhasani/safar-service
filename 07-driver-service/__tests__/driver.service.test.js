@@ -118,7 +118,25 @@ describe('DriverService', () => {
   test('updateLocation requires coordinates', async () => {
     const svc = createDriverService(fakeRepo());
     const res = await svc.updateLocation('d1', null, 10);
-    expect(res.error).toMatch(/latitude and longitude/);
+    expect(res.error).toMatch(/latitude.*longitude/);
+  });
+
+  test('updateLocation rejects coordinates outside geographic bounds', async () => {
+    const repo = fakeRepo();
+    const svc = createDriverService(repo);
+    expect((await svc.updateLocation('d1', 91, 10)).error).toMatch(/Valid latitude/);
+    expect((await svc.updateLocation('d1', 10, 181)).error).toMatch(/Valid latitude/);
+    expect(repo.findById).not.toHaveBeenCalled();
+    expect(repo.updateLocation).not.toHaveBeenCalled();
+  });
+
+  test('updateLocation normalizes valid numeric strings before persistence', async () => {
+    const repo = fakeRepo();
+    repo.findById.mockResolvedValue(BASE_DRIVER);
+    repo.updateLocation.mockResolvedValue({ ...BASE_DRIVER, currentLocation: { latitude: 35.7, longitude: 51.4 } });
+    const svc = createDriverService(repo);
+    await svc.updateLocation('d1', '35.7', '51.4');
+    expect(repo.updateLocation).toHaveBeenCalledWith('d1', 35.7, 51.4);
   });
 
   test('updateLocation returns not-found', async () => {
