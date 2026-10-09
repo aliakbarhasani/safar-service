@@ -240,7 +240,10 @@ router.use('/api/v1/trips', iamAuthenticate, tripRouter);
 async function fetchTripById(tripId) {
   const pool = getPool();
   const { rows } = await pool.query(
-    'SELECT id, passenger_id, driver_id FROM trips WHERE id = $1',
+    `SELECT t.id, t.passenger_id, t.driver_id, d.user_id AS driver_user_id
+       FROM trips t
+       LEFT JOIN drivers d ON d.id = t.driver_id AND d.deleted_at IS NULL
+      WHERE t.id = $1`,
     [tripId]
   );
   const row = rows && rows[0];
@@ -249,6 +252,7 @@ async function fetchTripById(tripId) {
     id: row.id,
     passengerId: row.passenger_id,
     driverId: row.driver_id,
+    driverUserId: row.driver_user_id,
   };
 }
 router.get(
