@@ -119,12 +119,17 @@ function createDriverService(repository = new DriverRepository()) {
 
   /** به‌روزرسانی موقعیت مکانی راننده */
   async function updateLocation(driverId, latitude, longitude) {
-    if (latitude == null || longitude == null) {
-      return { error: 'latitude and longitude are required' };
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (latitude == null || longitude == null
+        || String(latitude).trim() === '' || String(longitude).trim() === ''
+        || !Number.isFinite(lat) || !Number.isFinite(lon)
+        || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return { error: 'Valid latitude (-90..90) and longitude (-180..180) are required' };
     }
     const driver = await repository.findById(driverId);
     if (!driver) return { error: 'Driver not found' };
-    return repository.updateLocation(driverId, latitude, longitude);
+    return repository.updateLocation(driverId, lat, lon);
   }
 
   /** دریافت اطلاعات راننده */
