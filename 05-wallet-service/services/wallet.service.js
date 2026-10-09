@@ -1215,7 +1215,7 @@ async function refundEscrow(escrowId, reason = '') {
   if (!escrowId) throw new Error('Escrow ID is required');
 
   return await pg.transaction(async (client) => {
-    const escrow = await Escrow.findById(escrowId);
+    const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
 
@@ -1264,7 +1264,7 @@ async function expireEscrow(escrowId) {
   if (!escrowId) throw new Error('Escrow ID is required');
 
   return await pg.transaction(async (client) => {
-    const escrow = await Escrow.findById(escrowId);
+    const escrow = await Escrow.findById(escrowId, client, true);
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
 
