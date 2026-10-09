@@ -212,6 +212,38 @@ describe('walletService.refundFunds (atomic refund)', () => {
     expect(EventBus.publish).toHaveBeenCalledWith('WalletBalanceChanged', expect.any(Object));
   });
 
+  test('allocates the full penalty to the platform when no driver is assigned', async () => {
+    jest.clearAllMocks();
+    Wallet.findByUserAndCurrency
+      .mockResolvedValueOnce({
+        id: 'passenger-wallet', balance: '20000', available_balance: '20000',
+        frozen_balance: '0', status: 'active',
+      })
+      .mockResolvedValueOnce(null);
+    Wallet.create.mockResolvedValueOnce({
+      id: 'platform-wallet', balance: '0', available_balance: '0',
+      frozen_balance: '0', status: 'active',
+    });
+    Wallet.debitAvailableBalance.mockResolvedValue({
+      id: 'passenger-wallet', balance: '10000', available_balance: '10000', frozen_balance: '0',
+    });
+    Wallet.creditAvailableBalance.mockResolvedValue({
+      id: 'platform-wallet', balance: '10000', available_balance: '10000', frozen_balance: '0',
+    });
+    Transaction.findByReferenceId.mockResolvedValue(null);
+
+    const result = await walletService.processCancellationPenalty({
+      tripId: 'trip-no-driver', passengerId: 'passenger-1', penaltyAmount: 10000,
+      currencyId: 'IRT', driverShare: 80,
+    });
+
+    expect(result).toMatchObject({
+      success: true, driverCompensation: 0, platformShare: 10000, driverCompensationId: null,
+    });
+    expect(Wallet.creditAvailableBalance).toHaveBeenCalledTimes(1);
+    expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('platform-wallet', 10000, expect.anything());
+  });
+
   test('rejects refunding a credit transaction', async () => {
     jest.clearAllMocks();
     pg.transaction.mockImplementationOnce(async (callback) => callback({
