@@ -145,6 +145,7 @@ class OutboxRelay {
     const failed = (results || []).find((result) => {
       if (!result || typeof result !== 'object') return false;
       if (row.event_type === 'TripCompleted') return result.processed === false;
+      if (row.event_type === 'TripCreated') return result.dispatchFailed === true;
       if (row.event_type === 'TripCancelled') {
         return result.penaltyProcessed === false
           || (result.released === false && result.reason !== 'no_held_amount');
