@@ -46,6 +46,7 @@ class DispatchTimeoutQueue {
     this.tripDispatchService = tripDispatchService;
     this._queue = null;
     this._worker = null;
+    this._fallbackTimers = new Map();
 
     if (Queue && redisConnection) {
       this._queue = new Queue(queueName, { connection: redisConnection });
@@ -60,7 +61,24 @@ class DispatchTimeoutQueue {
    */
   async scheduleTimeout(tripId, delayMs = this.timeoutMs) {
     if (!this._queue) {
-      // Fallback: در صورت عدم وجود BullMQ، فقط لاگ می‌کنیم
+      // Functional local fallback when BullMQ is not installed. The Redis
+      // dispatch key and database status are rechecked by handleDispatchTimeout.
+      // This fallback is process-local; production should use BullMQ for durable jobs.
+      if (!this.tripDispatchService || typeof this.tripDispatchService.handleDispatchTimeout !== 'function') {
+        return;
+      }
+      const previous = this._fallbackTimers.get(String(tripId));
+      if (previous) clearTimeout(previous);
+      const timer = setTimeout(async () => {
+        this._fallbackTimers.delete(String(tripId));
+        try {
+          await this.tripDispatchService.handleDispatchTimeout(tripId);
+        } catch (error) {
+          console.error(`[DispatchTimeoutQueue] timeout failed for trip ${tripId}:`, error.message);
+        }
+      }, Math.max(0, Number(delayMs) || this.timeoutMs));
+      if (typeof timer.unref === 'function') timer.unref();
+      this._fallbackTimers.set(String(tripId), timer);
       return;
     }
     await this._queue.add(
@@ -103,6 +121,8 @@ class DispatchTimeoutQueue {
    * @returns {Promise<void>}
    */
   async close() {
+    for (const timer of this._fallbackTimers.values()) clearTimeout(timer);
+    this._fallbackTimers.clear();
     if (this._worker) {
       await this._worker.close();
       this._worker = null;
