@@ -44,7 +44,7 @@ class EndTripUseCase {
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
-    execute({ tripId, changedByUserId = null, finalFare = null }) {
+    execute({ tripId, changedByUserId = null, finalFare = null, driverId = null, actorRole = 'driver' }) {
         if (!tripId) {
             const error = new Error('پارامتر tripId الزامی است.');
             error.code = 'END_TRIP_VALIDATION';
@@ -62,6 +62,15 @@ class EndTripUseCase {
                 const row = await this.tripRepository.getTripByIdForUpdate(tripId, client);
                 if (!row) {
                     throw new TripNotFoundError(tripId);
+                }
+
+                // SECURITY: فقط رانندهٔ تخصیص‌یافته یا مدیر ارشد مجاز به پایان سفر است.
+                if (String(actorRole).toLowerCase() !== 'super_admin'
+                    && (!driverId || String(row.driver_id) !== String(driverId))) {
+                    const error = new Error('این سفر به رانندهٔ احرازشده تخصیص نیافته است.');
+                    error.code = 'TRIP_FORBIDDEN';
+                    error.statusCode = 403;
+                    throw error;
                 }
 
                 // ب) گذار دامنه: IN_PROGRESS -> COMPLETED
