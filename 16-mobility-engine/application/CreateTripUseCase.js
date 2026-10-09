@@ -224,6 +224,23 @@ class CreateTripUseCase {
                 client,
             );
 
+            // Persist dispatch trigger atomically with trip creation so a crash
+            // after COMMIT cannot silently leave the trip undispatched.
+            if (this.tripRepository.outboxRepository) {
+                await this.tripRepository.outboxRepository.insert({
+                    aggregateId: String(savedTrip.id),
+                    eventType: TripDomainEvents.TripCreated,
+                    payload: {
+                        tripId: String(savedTrip.id),
+                        passengerId,
+                        quoteId,
+                        serviceType,
+                        origin: { lat: coordinates[0], lng: coordinates[1] },
+                        destination: { lat: coordinates[2], lng: coordinates[3] },
+                    },
+                }, client);
+            }
+
             await client.query('COMMIT');
 
             // هـ) انتشار رویدادهای دامنه (پس از Commit — subscribe امن)
