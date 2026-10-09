@@ -90,6 +90,9 @@ router.use('/api/users', userRoutes);
 // ===== مسیرهای احراز هویت و ثبت‌نام (13-auth-management) =====
 const authRoutes = require('../13-auth-management/presentation/routes/AuthRouter');
 router.use('/api/auth', authRoutes);
+// Browser and mobile session authentication: validates the RS256 access token,
+// HttpOnly cookie/Bearer delivery, and active-session revocation state.
+const { authenticate: authenticateSession } = require('../13-auth-management/presentation/middleware/auth.middleware');
 
 const registrationRoutes = require('../13-auth-management/presentation/routes/RegistrationRouter');
 router.use('/api/auth', registrationRoutes);
@@ -234,7 +237,7 @@ const tripController = new TripController({
 const tripRouter = createTripRouter(tripController, iamAuthorize);
 // محافظت‌شده: همه عملیات سفر نیازمند احراز هویت هستند (RS256 / کوکی HttpOnly)
 // (P11-1) لایه‌ی احراز هویت Stateless (IAM) پیش از RBAC — توکن Bearer با public.pem وریفای می‌شود
-router.use('/api/v1/trips', iamAuthenticate, tripRouter);
+router.use('/api/v1/trips', authenticateSession, tripRouter);
 
 // (P11-2) خواندن یک سفر با سیاست ABAC (trip:read:own)
 // fetchTripById منبع را از دیتابیس می‌خواند تا سیاست مالکیت مسافر/راننده اعمال شود.
