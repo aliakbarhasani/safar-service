@@ -825,7 +825,16 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
 
     // 2. محاسبه کمیسیون سمت سرور (هرگز از بدی درخواست)
     const commissionRates = (config.trip && config.trip.commissionRates) || {};
-    const rate = commissionRates[serviceType] || commissionRates.urban_taxi || 10;
+    const configuredRate = serviceType && commissionRates[serviceType] != null
+      ? Number(commissionRates[serviceType])
+      : Number(commissionRates.urban_taxi);
+    const rate = Number.isFinite(configuredRate) ? configuredRate : 10;
+    if (!Number.isFinite(escrowFrozen) || escrowFrozen <= 0) {
+      throw new Error('Escrow wallet has no positive frozen balance to release');
+    }
+    if (!Number.isFinite(rate) || rate < 0 || rate >= 100) {
+      throw new Error('Escrow commission rate must be a finite percentage from 0 up to, but not including, 100');
+    }
     const platformCommission = (escrowFrozen * rate) / 100;
     const netAmount = escrowFrozen - platformCommission;
 
@@ -854,7 +863,9 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
     const escrowFrozenAfter = parseFloat(updatedEscrow.frozen_balance);
 
     // 7. واریز خالص به گیرنده
+    const recipientBalanceBefore = parseFloat(recipientWallet.balance);
     const recipientAvailableBefore = parseFloat(recipientWallet.available_balance);
+    const recipientFrozenBefore = parseFloat(recipientWallet.frozen_balance);
     const updatedRecipient = await Wallet.creditAvailableBalance(recipientWallet.id, netAmount, client);
     if (!updatedRecipient) {
       throw new Error('Failed to credit recipient');
@@ -863,9 +874,46 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
     const recipientBalanceAfter = parseFloat(updatedRecipient.balance);
     const recipientAvailableAfter = parseFloat(updatedRecipient.available_balance);
 
-    // 8. واریز کارمزد به پلتفرم
-    if (platformWallet && platformCommission > 0) {
-      await Wallet.creditAvailableBalance(platformWallet.id, platformCommission, client);
+    // 8. ثبت کارمزد پلتفرم؛ اگر کیف پول مقصد موجود نباشد، کل تسویه باید rollback شود.
+    let platformTx = null;
+    if (platformCommission > 0) {
+      if (!platformWallet) {
+        throw new Error('Platform wallet not found; cannot safely settle escrow commission');
+      }
+      const platformBalanceBefore = parseFloat(platformWallet.balance);
+      const platformAvailableBefore = parseFloat(platformWallet.available_balance);
+      const platformFrozenBefore = parseFloat(platformWallet.frozen_balance);
+      const updatedPlatform = await Wallet.creditAvailableBalance(platformWallet.id, platformCommission, client);
+      if (!updatedPlatform) throw new Error('Failed to credit platform escrow commission');
+      const platformBalanceAfter = parseFloat(updatedPlatform.balance);
+      const platformAvailableAfter = parseFloat(updatedPlatform.available_balance);
+      const platformFrozenAfter = parseFloat(updatedPlatform.frozen_balance);
+
+      platformTx = await Transaction.create({
+        walletId: platformWallet.id,
+        userId: platformWallet.user_id,
+        amount: platformCommission,
+        currencyId,
+        type: 'CREDIT',
+        description: description || 'Escrow release - platform commission',
+        status: 'success'
+      }, client);
+
+      await Transaction.createLedgerEntry({
+        walletId: platformWallet.id,
+        transactionId: platformTx.id,
+        creditAmount: platformCommission,
+        debitAmount: 0,
+        currencyId,
+        balanceBefore: platformBalanceBefore,
+        balanceAfter: platformBalanceAfter,
+        availableBefore: platformAvailableBefore,
+        availableAfter: platformAvailableAfter,
+        frozenBefore: platformFrozenBefore,
+        frozenAfter: platformFrozenAfter,
+        operationType: 'escrow_commission',
+        description: description || 'Escrow platform commission'
+      }, client);
     }
 
     // 9. ثبت تراکنش‌ها
@@ -912,12 +960,12 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
       creditAmount: netAmount,
       debitAmount: 0,
       currencyId,
-      balanceBefore: recipientAvailableBefore,
+      balanceBefore: recipientBalanceBefore,
       balanceAfter: recipientBalanceAfter,
       availableBefore: recipientAvailableBefore,
       availableAfter: recipientAvailableAfter,
-      frozenBefore: 0,
-      frozenAfter: 0,
+      frozenBefore: recipientFrozenBefore,
+      frozenAfter: recipientFrozenBefore,
       operationType: 'escrow_release',
       description: description || 'Escrow payment received'
     }, client);
@@ -935,7 +983,8 @@ async function releaseEscrow(escrowWalletId, recipientId, currencyId = 'IRT', de
       },
       transactionIds: {
         escrow: escrowTx.id,
-        recipient: recipientTx.id
+        recipient: recipientTx.id,
+        platformCommission: platformTx?.id || null
       }
     };
   });
