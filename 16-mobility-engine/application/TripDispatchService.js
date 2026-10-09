@@ -61,6 +61,12 @@ class TripDispatchService {
     if (originLon == null || originLat == null) {
       throw new Error('originLon and originLat are required');
     }
+    if (this.redis.status === 'offline') {
+      const error = new Error('Redis is unavailable; trip dispatch cannot safely create an offer.');
+      error.code = 'DISPATCH_REDIS_UNAVAILABLE';
+      error.statusCode = 503;
+      throw error;
+    }
 
     // ۱) یافتن رانندگان نزدیک (مرتب‌شده بر اساس فاصله)
     const nearbyDrivers = await this.locationService.findNearbyDrivers(
