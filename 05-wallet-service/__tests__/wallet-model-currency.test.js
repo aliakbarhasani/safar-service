@@ -8,6 +8,7 @@ jest.mock('../db/pg', () => ({ query: jest.fn() }));
 const pg = require('../db/pg');
 const Wallet = require('../models/wallet.model');
 const Transaction = require('../models/transaction.model');
+const Escrow = require('../models/escrow.model');
 
 function makeClient(rows = []) {
   return { query: jest.fn().mockResolvedValue({ rows, rowCount: rows.length }) };
@@ -70,6 +71,19 @@ describe('wallet currency database mapping', () => {
     expect(client.query.mock.calls[0][1][4]).toBe('IRT');
     expect(client.query.mock.calls[1][0]).toContain('FROM currencies c');
     expect(client.query.mock.calls[1][1][4]).toBe('IRT');
+  });
+
+  test('escrow creation resolves a currency code to its UUID', async () => {
+    const client = makeClient([{ id: 'escrow-1', currency_id: 'currency-uuid' }]);
+
+    await expect(Escrow.create({
+      tripId: 'trip-1', payerId: 'user-1', payeeId: 'driver-1',
+      amount: 10000, currencyId: 'IRT', platformCommission: 1000, netAmount: 9000,
+      sourceWalletId: 'wallet-1',
+    }, client)).resolves.toMatchObject({ id: 'escrow-1', currency_id: 'currency-uuid' });
+
+    expect(client.query.mock.calls[0][0]).toContain('FROM currencies c');
+    expect(client.query.mock.calls[0][1][4]).toBe('IRT');
   });
 
   test('unknown currency is rejected rather than silently returning an empty row', async () => {
