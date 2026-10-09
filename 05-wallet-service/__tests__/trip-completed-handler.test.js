@@ -29,6 +29,7 @@ jest.mock('../../01-core-system/EventBus', () => ({
   emit: jest.fn(),
 }));
 
+const pg = require('../db/pg');
 const Wallet = require('../models/wallet.model');
 const Transaction = require('../models/transaction.model');
 const walletService = require('../services/wallet.service');
@@ -146,6 +147,25 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     expect(txs.some((t) => t.type === 'DEBIT' && t.amount === 100000 && t.description.includes('TRIP_PAYMENT'))).toBe(true);
     expect(txs.some((t) => t.type === 'CREDIT' && t.amount === 15000 && t.description.includes('TRIP_COMMISSION'))).toBe(true);
     expect(txs.some((t) => t.type === 'CREDIT' && t.amount === 85000 && t.description.includes('TRIP_REVENUE'))).toBe(true);
+
+    // Every transaction has a distinct reference, matching the DB unique index.
+    expect(txs.map((t) => t.referenceId).sort()).toEqual([
+      'trip-payment:trip-10:driver',
+      'trip-payment:trip-10:passenger',
+      'trip-payment:trip-10:platform',
+    ]);
+    expect(Transaction.findByReferenceId).toHaveBeenCalledWith(
+      'trip-payment:trip-10:passenger',
+      expect.anything(),
+    );
+
+    // Ledger references are also unique because migration 005 enforces uniqueness.
+    const ledgerEntries = Transaction.createLedgerEntry.mock.calls.map((call) => call[0]);
+    expect(ledgerEntries.map((entry) => entry.referenceId).sort()).toEqual([
+      'trip-payment:trip-10:driver',
+      'trip-payment:trip-10:passenger',
+      'trip-payment:trip-10:platform',
+    ]);
   });
 
   test('insufficient passenger balance produces debt (negative balance)', async () => {
@@ -166,6 +186,19 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     await expect(
       walletService.processTripPayment({ tripId: 'trip-12', passengerId: 'u1', driverId: 'd1', amount: 50000 })
     ).rejects.toThrow('Duplicate transaction');
+    expect(Transaction.findByReferenceId).toHaveBeenCalledWith(
+      'trip-payment:trip-12:passenger',
+      expect.anything(),
+    );
     expect(Wallet.debitAllowNegative).not.toHaveBeenCalled();
+  });
+
+  test('rejects commission rates outside the valid percentage range', async () => {
+    await expect(
+      walletService.processTripPayment({
+        tripId: 'trip-13', passengerId: 'u1', driverId: 'd1', amount: 50000, commissionRate: 150,
+      }),
+    ).rejects.toThrow('Commission rate must be a finite number between 0 and 100');
+    expect(pg.transaction).not.toHaveBeenCalled();
   });
 });
