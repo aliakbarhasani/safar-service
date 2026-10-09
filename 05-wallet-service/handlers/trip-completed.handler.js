@@ -34,8 +34,10 @@ class TripCompletedHandler {
     // eslint-disable-next-line global-require
     this.walletService = walletService || require('../services/wallet.service');
     // کمیسیون از Config خوانده می‌شود (پیش‌فرض ۱۵٪)، هرگز Hardcode در DF.
+    const configuredRate = parseFloat(((config.trip || {}).commissionRates || {}).general);
+    // Preserve an intentional 0% commission; only fall back when config is absent/invalid.
     this.commissionRate = (commissionRate == null)
-      ? parseFloat(((config.trip || {}).commissionRates || {}).general) || 15
+      ? (Number.isFinite(configuredRate) ? configuredRate : 15)
       : Number(commissionRate);
     this._registered = false;
     this._boundOnTripCompleted = (envelope) => this.handle(envelope);
