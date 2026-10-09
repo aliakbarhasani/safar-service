@@ -16,6 +16,7 @@
  */
 
 const express = require('express');
+const driverService = require('../../07-driver-service/services/driver.service');
 
 const DRIVER_ROLE = 'DRIVER';
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
@@ -62,12 +63,23 @@ function createDispatchRoutes({ acceptTripUseCase, iamAuthenticate, logger = con
    */
   router.post('/trips/:tripId/accept', iamAuthenticate, requireDriverRole, async (req, res) => {
     const { tripId } = req.params;
-    // SECURITY: هویت راننده فقط از توکن
-    const driverId = req.user && (req.user.driverId || req.user.userId || req.user.id);
-    const changedByUserId = req.user && (req.user.userId || req.user.id);
+    // Resolve the driver profile ID from the authenticated account. A user ID
+    // is not necessarily the same as the driver profile ID stored on trips.
+    const userId = req.user && (req.user.userId || req.user.id || req.user.sub);
+    const changedByUserId = userId || null;
 
     try {
-      const result = await acceptTripUseCase.acceptOffer({ tripId, driverId, changedByUserId });
+      const driver = req.user && req.user.driverId
+        ? { id: req.user.driverId }
+        : await driverService.getDriverByUserId(userId);
+      if (!driver || !driver.id) {
+        return res.status(403).json({ success: false, error: 'Verified driver profile is required.' });
+      }
+      const result = await acceptTripUseCase.acceptOffer({
+        tripId,
+        driverId: String(driver.id),
+        changedByUserId,
+      });
       return res.status(200).json({
         success: true,
         message: 'سفر با موفقیت پذیرفته شد.',
