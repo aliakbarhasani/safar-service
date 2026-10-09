@@ -124,6 +124,23 @@ class CancelTripUseCase {
                 client,
             );
 
+            // ثبت پایدار رویداد لغو در همان تراکنش تغییر وضعیت سفر.
+            if (this.tripRepository.outboxRepository) {
+                await this.tripRepository.outboxRepository.insert({
+                    aggregateId: String(tripId),
+                    eventType: TripDomainEvents.TripCancelled,
+                    payload: {
+                        tripId: String(tripId),
+                        cancelledBy: cancelledByUserId || passengerId,
+                        role,
+                        penaltyAmount,
+                        driverId,
+                        passengerId,
+                        reason: trip.cancelReason,
+                    },
+                }, client);
+            }
+
             await client.query('COMMIT');
 
             // د) انتشار رویداد کانونیک TripCancelled (با جریمه) پس از Commit
