@@ -28,11 +28,11 @@ const OWNERSHIP_RULES = {
   'trip:read:own': (user, resource) =>
     resource &&
     (String(resource.passengerId) === String(user.id) ||
-     String(resource.driverId) === String(user.id)),
+     String(resource.driverUserId || resource.driverId) === String(user.id)),
   'trip:cancel:own': (user, resource) =>
     resource &&
     (String(resource.passengerId) === String(user.id) ||
-     String(resource.driverId) === String(user.id)),
+     String(resource.driverUserId || resource.driverId) === String(user.id)),
   'trip:create': () => true,
   'admin:config:read': (user) => user && user.role === ROLES.SUPER_ADMIN,
   'admin:config:write': (user) => user && (user.role === ROLES.CITY_ADMIN || user.role === ROLES.SUPER_ADMIN),
