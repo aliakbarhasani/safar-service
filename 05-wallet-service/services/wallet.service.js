@@ -581,7 +581,7 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
     throw new Error('User ID is required');
   }
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     // 1. دریافت کیف پول
     const wallet = await Wallet.findByUserAndCurrency(userId, currencyId, client);
     if (!wallet) {
@@ -642,11 +642,6 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
       description: description || 'Funds frozen'
     }, client);
 
-    publishBalanceChangedEvent(
-      wallet.id, userId, amount, 'DEBIT', currencyId,
-      availableAfter, frozenAfter, tx.id, description || 'Funds frozen'
-    );
-
     return {
       success: true,
       message: 'Funds frozen successfully',
@@ -658,9 +653,26 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
       availableBalance: availableAfter,
       frozenBalance: frozenAfter,
       transactionId: tx.id,
-      description: description || 'Funds frozen'
+      description: description || 'Funds frozen',
+      event: {
+        walletId: wallet.id, userId, amount, currencyId,
+        availableBalance: availableAfter, frozenBalance: frozenAfter,
+        transactionId: tx.id, description: description || 'Funds frozen',
+      }
     };
   });
+
+  try {
+    const event = result.event;
+    publishBalanceChangedEvent(
+      event.walletId, event.userId, event.amount, 'DEBIT', event.currencyId,
+      event.availableBalance, event.frozenBalance, event.transactionId, event.description
+    );
+  } catch (error) {
+    console.error('[WalletService] Failed to publish WalletBalanceChanged after freeze commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
