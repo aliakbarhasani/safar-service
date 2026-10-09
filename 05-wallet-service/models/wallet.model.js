@@ -24,6 +24,7 @@ const COLUMNS = [
   'status', 'created_at', 'updated_at', 'deleted_at'
 ];
 const COLUMNS_SELECT = COLUMNS.join(', ');
+const COLUMNS_SELECT_W = COLUMNS.map((column) => `w.${column}`).join(', ');
 
 // ============================================================================
 // متدهای مدل
@@ -45,9 +46,33 @@ async function findById(id, client = null) {
  * یافتن کیف پول کاربر بر اساس ارز
  */
 async function findByUserAndCurrency(userId, currencyId, client = null) {
-  const queryText = `SELECT ${COLUMNS_SELECT} FROM ${TABLE} 
-     WHERE user_id = $1 AND currency_id = $2 AND deleted_at IS NULL`;
-  const params = [userId, currencyId];
+  const queryText = `SELECT ${COLUMNS_SELECT_W}
+     FROM ${TABLE} w
+     JOIN currencies c ON c.id = w.currency_id
+     WHERE w.user_id = $1
+       AND (c.code = $2 OR c.id::text = $2)
+       AND w.deleted_at IS NULL
+     ORDER BY w.created_at ASC
+     LIMIT 1`;
+  const params = [userId, String(currencyId)];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
+  return result.rows[0] || null;
+}
+
+async function findByTypeAndCurrency(walletType, currencyId, client = null) {
+  const queryText = `SELECT ${COLUMNS_SELECT_W}
+     FROM ${TABLE} w
+     JOIN currencies c ON c.id = w.currency_id
+     WHERE w.wallet_type = $1
+       AND (c.code = $2 OR c.id::text = $2)
+       AND w.deleted_at IS NULL
+       AND w.status = 'active'
+     ORDER BY w.created_at ASC
+     LIMIT 1
+     FOR UPDATE OF w`;
+  const params = [walletType, String(currencyId)];
   const result = client
     ? await client.query(queryText, params)
     : await pg.query(queryText, params);
@@ -80,14 +105,21 @@ async function create(data, client = null) {
     status = 'active'
   } = data;
 
-  const queryText = `INSERT INTO ${TABLE} 
+  const queryText = `INSERT INTO ${TABLE}
      (user_id, currency_id, wallet_type, balance, available_balance, frozen_balance, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     SELECT $1, c.id, $3, $4, $5, $6, $7
+     FROM currencies c
+     WHERE c.code = $2 OR c.id::text = $2
+     ORDER BY CASE WHEN c.code = $2 THEN 0 ELSE 1 END
+     LIMIT 1
      RETURNING ${COLUMNS_SELECT}`;
-  const params = [userId, currencyId, walletType, balance, availableBalance, frozenBalance, status];
+  const params = [userId, String(currencyId), walletType, balance, availableBalance, frozenBalance, status];
   const result = client
     ? await client.query(queryText, params)
     : await pg.query(queryText, params);
+  if (!result.rows[0]) {
+    throw new Error(`Unknown currency code or ID: ${currencyId}`);
+  }
   return result.rows[0];
 }
 
@@ -285,6 +317,7 @@ async function getReconciliationSnapshot(walletId) {
 module.exports = {
   findById,
   findByUserAndCurrency,
+  findByTypeAndCurrency,
   findAllByUser,
   create,
   updateBalances,
