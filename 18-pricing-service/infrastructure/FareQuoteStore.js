@@ -33,6 +33,9 @@ class FareQuoteStore {
   /** Persist a quote payload (JSON) with TTL. */
   async save(quote) {
     if (!quote || !quote.quoteId) throw new Error('FareQuoteStore.save: quote.quoteId is required');
+    if (this.redis.status === 'offline') {
+      throw new Error('FareQuoteStore: Redis is offline; quote was not persisted');
+    }
     const key = this._key(quote.quoteId);
     const payload = JSON.stringify(quote);
     if (typeof this.redis.setex === 'function') {
@@ -66,6 +69,9 @@ class FareQuoteStore {
    */
   async saveQuote(quoteId, data, ttl = this.ttlSeconds) {
     if (!quoteId) throw new Error('FareQuoteStore.saveQuote: quoteId is required');
+    if (this.redis.status === 'offline') {
+      throw new Error('FareQuoteStore: Redis is offline; quote was not persisted');
+    }
     const effectiveTtl = Number(ttl) > 0 ? Number(ttl) : this.ttlSeconds;
     const quote = { quoteId, ...data };
     if (effectiveTtl === this.ttlSeconds) {
