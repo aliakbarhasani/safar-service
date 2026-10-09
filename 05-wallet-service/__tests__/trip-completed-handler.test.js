@@ -21,6 +21,10 @@ jest.mock('../models/wallet.model', () => ({
   debitAvailableBalance: jest.fn(),
   creditAvailableBalance: jest.fn(),
 }));
+jest.mock('../models/escrow.model', () => ({
+  findById: jest.fn(),
+  updateStatus: jest.fn(),
+}));
 jest.mock('../models/transaction.model', () => ({
   findByReferenceId: jest.fn(async () => null),
   create: jest.fn(async (d) => ({ id: `txn-${d.type}-${Math.random().toString(36).slice(2, 7)}`, ...d })),
@@ -35,6 +39,7 @@ jest.mock('../../01-core-system/EventBus', () => ({
 const pg = require('../db/pg');
 const Wallet = require('../models/wallet.model');
 const Transaction = require('../models/transaction.model');
+const Escrow = require('../models/escrow.model');
 const EventBus = require('../../01-core-system/EventBus');
 const walletService = require('../services/wallet.service');
 const { TripCompletedHandler, TRIP_COMPLETED_EVENT } = require('../handlers/trip-completed.handler');
@@ -114,6 +119,74 @@ describe('TripCompletedHandler (P5-1)', () => {
     expect(res).toMatchObject({ processed: false, reason: 'payment_failed' });
   });
 });
+describe('walletService.releaseEscrowFull (atomic escrow release)', () => {
+  test('records payer, payee and platform transactions/ledger entries and publishes only after commit', async () => {
+    let committed = false;
+    const sourceWallet = {
+      id: 'source-wallet', user_id: 'payer-1', wallet_type: 'user', status: 'active',
+      balance: '10000', available_balance: '0', frozen_balance: '10000',
+    };
+    const payeeWallet = {
+      id: 'payee-wallet', user_id: 'payee-1', wallet_type: 'user', status: 'active',
+      balance: '0', available_balance: '0', frozen_balance: '0',
+    };
+    const platformWallet = {
+      id: 'platform-wallet', user_id: null, wallet_type: 'platform', status: 'active',
+      balance: '0', available_balance: '0', frozen_balance: '0',
+    };
+    const updatedSource = { ...sourceWallet, balance: '0', frozen_balance: '0' };
+    const updatedPayee = { ...payeeWallet, balance: '9000', available_balance: '9000' };
+    const updatedPlatform = { ...platformWallet, balance: '1000', available_balance: '1000' };
+
+    pg.transaction.mockImplementationOnce(async (callback) => {
+      const result = await callback({ query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) });
+      committed = true;
+      return result;
+    });
+    Escrow.findById.mockResolvedValue({
+      id: 'escrow-1', status: 'active', trip_id: 'trip-1', payer_id: 'payer-1', payee_id: 'payee-1',
+      amount: '10000', platform_commission: '1000', net_amount: '9000',
+      currency_id: 'currency-uuid', source_wallet_id: 'source-wallet', platform_wallet_id: 'platform-wallet',
+    });
+    Escrow.updateStatus.mockResolvedValue({ id: 'escrow-1', status: 'released' });
+    Wallet.findById.mockReset().mockResolvedValueOnce(sourceWallet).mockResolvedValueOnce(platformWallet);
+    Wallet.findByUserAndCurrency.mockReset().mockResolvedValue(payeeWallet);
+    Wallet.deductFrozen.mockReset().mockResolvedValue(updatedSource);
+    Wallet.creditAvailableBalance.mockReset()
+      .mockResolvedValueOnce(updatedPayee)
+      .mockResolvedValueOnce(updatedPlatform);
+    Transaction.create.mockReset().mockImplementation(async (data) => ({ id: `tx-${data.referenceId}`, ...data }));
+    Transaction.createLedgerEntry.mockReset().mockResolvedValue({ rows: [] });
+    EventBus.publish.mockClear().mockImplementation(() => {
+      expect(committed).toBe(true);
+    });
+
+    const result = await walletService.releaseEscrowFull('escrow-1');
+
+    expect(result).toMatchObject({
+      success: true, escrowId: 'escrow-1', status: 'released', platformCommission: 1000,
+      transactionIds: {
+        escrow: 'tx-escrow-release:escrow-1:payer',
+        recipient: 'tx-escrow-release:escrow-1:payee',
+        platformCommission: 'tx-escrow-release:escrow-1:platform',
+      },
+    });
+    expect(Wallet.creditAvailableBalance).toHaveBeenNthCalledWith(1, 'payee-wallet', 9000, expect.anything());
+    expect(Wallet.creditAvailableBalance).toHaveBeenNthCalledWith(2, 'platform-wallet', 1000, expect.anything());
+    expect(Escrow.updateStatus).toHaveBeenCalledWith(
+      'escrow-1', 'released', { destination_wallet_id: 'payee-wallet' }, expect.anything(),
+    );
+    const ledgerEntries = Transaction.createLedgerEntry.mock.calls.map((call) => call[0]);
+    expect(ledgerEntries.map((entry) => entry.referenceId).sort()).toEqual([
+      'escrow-release:escrow-1:payee',
+      'escrow-release:escrow-1:payer',
+      'escrow-release:escrow-1:platform',
+    ]);
+    expect(EventBus.publish).toHaveBeenCalledWith('EscrowReleased', expect.objectContaining({ escrowId: 'escrow-1' }));
+    expect(EventBus.publish).toHaveBeenCalledTimes(4); // 3 balance events + EscrowReleased
+  });
+});
+
 describe('walletService.processCancellationPenalty (atomic settlement)', () => {
   test('credits driver and platform through supported wallet model methods with unique ledger references', async () => {
     jest.clearAllMocks();
