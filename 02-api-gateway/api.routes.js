@@ -301,7 +301,11 @@ router.use('/api/v1/dispatch', dispatchRoutes);
 // ===== (P12) Worker جدول Outbox (اختیاری — بهصورت پیشفرض خاموش) =====
 // انتشار تضمینشده رویدادهای ثبتشده در `outbox_events` روی EventBus.
 // در محیط production با OUTBOX_RELAY_ENABLED=true فعال میشود.
-if (String(process.env.OUTBOX_RELAY_ENABLED || '').toLowerCase() === 'true') {
+const outboxRelaySetting = String(process.env.OUTBOX_RELAY_ENABLED || '').toLowerCase();
+const outboxRelayEnabled = outboxRelaySetting === 'true'
+  || (config.env === 'production' && outboxRelaySetting !== 'false');
+
+if (outboxRelayEnabled) {
   const OutboxRelay = require('../01-core-system/OutboxRelay');
   const outboxRelay = new OutboxRelay({
     outboxRepository,
