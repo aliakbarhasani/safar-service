@@ -47,20 +47,21 @@ class TripController {
             } = req.body;
             const passengerId = (req.user && (req.user.userId || req.user.id)) || null;
 
-            if (!quoteId || !serviceType || originLat === undefined || destLat === undefined) {
+            const coordinates = [originLat, originLng, destLat, destLng].map(Number);
+            if (!quoteId || !serviceType || coordinates.some((value) => !Number.isFinite(value))) {
                 return res.status(400).json({
                     success: false,
-                    error: 'پارامترهای quoteId، serviceType و مختصات (originLat/destLat) الزامی هستند.',
+                    error: 'پارامترهای quoteId، serviceType و چهار مختصات عددی مبدأ و مقصد الزامی هستند.',
                 });
             }
 
             const result = await this.createTripUseCase.execute({
                 passengerId,
                 quoteId,
-                originLat: Number(originLat),
-                originLng: Number(originLng),
-                destLat: Number(destLat),
-                destLng: Number(destLng),
+                originLat: coordinates[0],
+                originLng: coordinates[1],
+                destLat: coordinates[2],
+                destLng: coordinates[3],
                 originAddress: originAddress || null,
                 destinationAddress: destinationAddress || null,
                 serviceType,
