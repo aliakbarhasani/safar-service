@@ -39,7 +39,7 @@ class ProductService {
     if (!(await this._isDBReady())) throw new Error('Database not available');
     const { rows } = await this.pool.query(
       `SELECT id FROM sellers
-        WHERE user_id = $1 AND status = 'active' AND verification_status = 'verified'
+        WHERE user_id = $1 AND status = 'active'
         LIMIT 1`,
       [userId],
     );
@@ -162,7 +162,7 @@ class ProductService {
     const { sellerId, name, description, categoryId, price, quantity, imageUrl } = productData || {};
     const numericPrice = Number(price);
     const numericQuantity = Number(quantity ?? 0);
-    if (!sellerId) throw new Error('An approved seller profile is required');
+    if (!sellerId) throw new Error('An active seller profile is required');
     if (typeof name !== 'string' || !name.trim()) throw new Error('Product name is required');
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) throw new Error('Product price must be a positive number');
     if (!Number.isInteger(numericQuantity) || numericQuantity < 0) throw new Error('Product quantity must be a non-negative integer');
