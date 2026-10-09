@@ -233,6 +233,31 @@ describe('walletService.processCancellationPenalty (atomic settlement)', () => {
       'trip-penalty:trip-penalty-test:passenger',
       'trip-penalty:trip-penalty-test:platform',
     ]);
+    expect(EventBus.publish).toHaveBeenCalledTimes(3);
+    expect(EventBus.publish).toHaveBeenCalledWith('WalletBalanceChanged', expect.objectContaining({
+      walletId: 'platform-wallet', userId: null, amount: 2000, type: 'CREDIT',
+    }));
+  });
+
+  test('rejects cancellation penalty when passenger balance is insufficient', async () => {
+    jest.clearAllMocks();
+    Wallet.findByUserAndCurrency.mockResolvedValueOnce({
+      id: 'passenger-wallet', balance: '1000', available_balance: '1000',
+      frozen_balance: '0', status: 'active',
+    });
+    Wallet.debitAvailableBalance.mockResolvedValueOnce(null);
+    Transaction.findByReferenceId.mockResolvedValue(null);
+
+    await expect(walletService.processCancellationPenalty({
+      tripId: 'trip-penalty-insufficient',
+      passengerId: 'passenger-1',
+      driverId: 'driver-1',
+      penaltyAmount: 10000,
+      currencyId: 'IRT',
+    })).rejects.toThrow('Insufficient available balance');
+
+    expect(Transaction.create).not.toHaveBeenCalled();
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
   });
 });
 
