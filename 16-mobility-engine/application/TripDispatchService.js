@@ -108,7 +108,7 @@ class TripDispatchService {
       selectedDriver.driverId,
       'NX',
       'EX',
-      this.ttlSeconds,
+      this.ttlSeconds + 10, // keep dispatch marker alive beyond the delayed timeout
     );
     if (claimed !== 'OK' && claimed !== true) {
       const existingDriverId = await this.redis.get(dispatchKey);
