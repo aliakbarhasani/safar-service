@@ -27,3 +27,35 @@ ALTER TABLE transactions
 
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_currency ON transactions(currency_id);
+
+-- Migration 005 changed wallet and ledger amounts to NUMERIC(20,8). Recreate
+-- the reconciliation function with matching numeric return types so fractional
+-- amounts are not rounded or rejected by its older BIGINT signature.
+DROP FUNCTION IF EXISTS fn_get_wallet_snapshot(UUID);
+
+CREATE FUNCTION fn_get_wallet_snapshot(p_wallet_id UUID)
+RETURNS TABLE (
+    wallet_id UUID,
+    total_balance NUMERIC(20,8),
+    available_balance NUMERIC(20,8),
+    frozen_balance NUMERIC(20,8),
+    ledger_total_credits NUMERIC(20,8),
+    ledger_total_debits NUMERIC(20,8),
+    ledger_balance NUMERIC(20,8)
+) AS $
+BEGIN
+    RETURN QUERY
+    SELECT
+        w.id,
+        w.balance,
+        w.available_balance,
+        w.frozen_balance,
+        COALESCE(SUM(wl.credit_amount), 0)::NUMERIC(20,8),
+        COALESCE(SUM(wl.debit_amount), 0)::NUMERIC(20,8),
+        (COALESCE(SUM(wl.credit_amount), 0) - COALESCE(SUM(wl.debit_amount), 0))::NUMERIC(20,8)
+    FROM wallets w
+    LEFT JOIN wallet_ledger wl ON wl.wallet_id = w.id
+    WHERE w.id = p_wallet_id
+    GROUP BY w.id, w.balance, w.available_balance, w.frozen_balance;
+END;
+$ LANGUAGE plpgsql;
