@@ -112,15 +112,20 @@ async function updateLocation(req, res) {
   try {
     const { id } = req.params;
     const { latitude, longitude } = req.body || {};
-    if (!id || latitude == null || longitude == null) {
-      return res.status(400).json({ error: 'driverId, latitude and longitude are required' });
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!id || latitude == null || longitude == null
+        || String(latitude).trim() === '' || String(longitude).trim() === ''
+        || !Number.isFinite(lat) || !Number.isFinite(lon)
+        || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return res.status(400).json({ error: 'Valid driverId, latitude (-90..90) and longitude (-180..180) are required' });
     }
 
     const driver = await requireDriverAccess(req, res, id);
     if (!driver) return;
     const [pgResult, redisResult] = await Promise.allSettled([
-      driverService.updateLocation(id, latitude, longitude),
-      locationService.updateDriverLocation(id, longitude, latitude).catch(() => null),
+      driverService.updateLocation(id, lat, lon),
+      locationService.updateDriverLocation(id, lon, lat).catch(() => null),
     ]);
     if (pgResult.status === 'rejected') {
       return res.status(400).json({ error: pgResult.reason && pgResult.reason.message });
