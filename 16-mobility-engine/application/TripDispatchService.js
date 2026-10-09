@@ -31,6 +31,7 @@ class TripDispatchService {
     redisClient,
     eventBus = null,
     dispatchTimeoutQueue = null,
+    tripOfferRepository = null,
     ttlSeconds = DISPATCH_TTL_SECONDS,
     radiusKm = DISPATCH_RADIUS_KM,
   } = {}) {
@@ -43,6 +44,7 @@ class TripDispatchService {
     this.redis = redisClient;
     this.eventBus = eventBus;
     this.dispatchTimeoutQueue = dispatchTimeoutQueue;
+    this.tripOfferRepository = tripOfferRepository;
     this.ttlSeconds = ttlSeconds;
     this.radiusKm = radiusKm;
   }
@@ -87,6 +89,17 @@ class TripDispatchService {
     // ۳) ذخیره کاندیدا در Redis با TTL (جلوگیری از ارسال همزمان)
     const dispatchKey = this._buildDispatchKey(tripId);
     await this.redis.set(dispatchKey, selectedDriver.driverId, 'EX', this.ttlSeconds);
+
+    // Persist the offer under the key accepted by AcceptTripUseCase.
+    // The legacy dispatch key alone is not sufficient to prove the driver was invited.
+    if (this.tripOfferRepository) {
+      try {
+        await this.tripOfferRepository.createOffer(tripId, selectedDriver.driverId, this.ttlSeconds);
+      } catch (error) {
+        try { await this.redis.del(dispatchKey); } catch (_) { /* TTL is the fallback */ }
+        throw error;
+      }
+    }
 
     // ۳.۵) زمان‌بندی تایم‌اوت در صف BullMQ (P3-4)
     if (this.dispatchTimeoutQueue) {
@@ -158,7 +171,7 @@ class TripDispatchService {
       try {
         const driverInfo = await this.driverService.findById(driver.driverId);
         if (driverInfo && driverInfo.operationalStatus === 'available') {
-          return { driverId: driver.driverId, distanceKm: driver.distanceKm };
+          return { driverId: driver.driverId, distanceKm: driver.distanceKm ?? driver.distance ?? null };
         }
       } catch (err) {
         // خطا در دریافت اطلاعات راننده -> ادامه به راننده بعدی
