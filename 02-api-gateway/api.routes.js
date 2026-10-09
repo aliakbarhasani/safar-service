@@ -394,7 +394,7 @@ try {
   // اگر پایگاه داده/وابستگی در دسترس نبود، تخفیف فعال نمیشود ولی سرویس قیمت سالم میماند.
   console.warn('[gateway] Promo service unavailable:', err.message);
 }
-const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore, dynamicConfigStore, promoService: validatePromoUseCase });
+const calculateFareUseCase = new CalculateFareUseCase({ demandSupplyTracker, fareQuoteStore, dynamicConfigStore, promoService: validatePromoUseCase, pricingRepository });
 
 // (P10-1) مسیرهای مدیریت تنظیمات پویا (22-admin-service)
 const { createConfigRoutes } = require('../22-admin-service/routes/config.routes');
