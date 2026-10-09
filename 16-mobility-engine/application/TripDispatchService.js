@@ -198,7 +198,10 @@ class TripDispatchService {
     for (const driver of nearbyDrivers) {
       try {
         const driverInfo = await this.driverService.findById(driver.driverId);
-        if (driverInfo && driverInfo.operationalStatus === 'available') {
+        // DriverService's canonical operational state is "online", not "available".
+        if (driverInfo
+            && driverInfo.operationalStatus === 'online'
+            && driverInfo.accountStatus === 'verified') {
           return { driverId: driver.driverId, distanceKm: driver.distanceKm ?? driver.distance ?? null };
         }
       } catch (err) {
