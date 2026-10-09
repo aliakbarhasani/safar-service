@@ -1499,23 +1499,27 @@ async function processCancellationPenalty({
   }
 
   const referenceId = `trip-penalty:${tripId}`;
+  const passengerReferenceId = `${referenceId}:passenger`;
+  const driverReferenceId = `${referenceId}:driver`;
+  const platformReferenceId = `${referenceId}:platform`;
   const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
   const sharePct = (driverShare == null)
     ? parseFloat((config.wallet || {}).cancellationDriverShare) || 80
     : Number(driverShare);
+  if (!Number.isFinite(sharePct) || sharePct < 0 || sharePct > 100) {
+    throw new Error('Driver share must be a finite number between 0 and 100');
+  }
 
-  return await pg.transaction(async (client) => {
-    const existing = await Transaction.findByReferenceId(`${referenceId}:passenger`, client);
+  const result = await pg.transaction(async (client) => {
+    const existing = await Transaction.findByReferenceId(passengerReferenceId, client);
     if (existing) {
       throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
     }
 
-    // ---- 1) کسر جریمه از کیف پول مسافر (اجازه بدهی) ----
     const pWallet = await getOrCreateWallet(client, passengerId, currencyId);
     const pBalBefore = parseFloat(pWallet.balance);
     const pAvailBefore = parseFloat(pWallet.available_balance);
     const pFrozenBefore = parseFloat(pWallet.frozen_balance);
-
     const pUpdated = await Wallet.debitAllowNegative(pWallet.id, penaltyAmount, client);
     if (!pUpdated) throw new Error('Failed to debit passenger for cancellation penalty');
     const pBalAfter = parseFloat(pUpdated.balance);
@@ -1528,7 +1532,7 @@ async function processCancellationPenalty({
       amount: penaltyAmount, currencyId, type: 'DEBIT',
       description: `CANCELLATION_PENALTY trip ${tripId}${debt ? ' (debt)' : ''}`,
       status: debt ? 'pending' : 'success',
-      referenceId: `${referenceId}:passenger`,
+      referenceId: passengerReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
       walletId: pWallet.id, transactionId: pTx.id,
@@ -1538,12 +1542,15 @@ async function processCancellationPenalty({
       frozenBefore: pFrozenBefore, frozenAfter: pFrozenAfter,
       operationType: 'cancellation_penalty',
       description: `CANCELLATION_PENALTY trip ${tripId}`,
-      referenceId,
+      referenceId: passengerReferenceId,
     }, client);
 
-    publishBalanceChangedEvent(pWallet.id, passengerId, penaltyAmount, 'DEBIT', currencyId, pAvailAfter, pFrozenAfter, pTx.id, `CANCELLATION_PENALTY trip ${tripId}`);
+    const events = [{
+      walletId: pWallet.id, userId: passengerId, amount: penaltyAmount, type: 'DEBIT',
+      availableBalance: pAvailAfter, frozenBalance: pFrozenAfter, transactionId: pTx.id,
+      description: `CANCELLATION_PENALTY trip ${tripId}`,
+    }];
 
-    // ---- 2) واریز سهم راننده (CANCELLATION_COMPENSATION) ----
     const driverCompensation = Math.round(penaltyAmount * (sharePct / 100));
     let driverCompensationId = null;
     if (driverId && driverCompensation > 0) {
@@ -1551,8 +1558,8 @@ async function processCancellationPenalty({
       const dBalBefore = parseFloat(dWallet.balance);
       const dAvailBefore = parseFloat(dWallet.available_balance);
       const dFrozenBefore = parseFloat(dWallet.frozen_balance);
-
-      const dUpdated = await Wallet.credit(dWallet.id, driverCompensation, client);
+      const dUpdated = await Wallet.creditAvailableBalance(dWallet.id, driverCompensation, client);
+      if (!dUpdated) throw new Error('Failed to credit driver cancellation compensation');
       const dBalAfter = parseFloat(dUpdated.balance);
       const dAvailAfter = parseFloat(dUpdated.available_balance);
       const dFrozenAfter = parseFloat(dUpdated.frozen_balance);
@@ -1561,8 +1568,7 @@ async function processCancellationPenalty({
         walletId: dWallet.id, userId: driverId, tripId,
         amount: driverCompensation, currencyId, type: 'CREDIT',
         description: `CANCELLATION_COMPENSATION trip ${tripId} (${sharePct}% of ${penaltyAmount})`,
-        status: 'success',
-        referenceId: `${referenceId}:driver`,
+        status: 'success', referenceId: driverReferenceId,
       }, client);
       await Transaction.createLedgerEntry({
         walletId: dWallet.id, transactionId: dTx.id,
@@ -1572,13 +1578,16 @@ async function processCancellationPenalty({
         frozenBefore: dFrozenBefore, frozenAfter: dFrozenAfter,
         operationType: 'cancellation_compensation',
         description: `CANCELLATION_COMPENSATION trip ${tripId}`,
-        referenceId,
+        referenceId: driverReferenceId,
       }, client);
       driverCompensationId = dTx.id;
-      publishBalanceChangedEvent(dWallet.id, driverId, driverCompensation, 'CREDIT', currencyId, dAvailAfter, dFrozenAfter, dTx.id, `CANCELLATION_COMPENSATION trip ${tripId}`);
+      events.push({
+        walletId: dWallet.id, userId: driverId, amount: driverCompensation, type: 'CREDIT',
+        availableBalance: dAvailAfter, frozenBalance: dFrozenAfter, transactionId: dTx.id,
+        description: `CANCELLATION_COMPENSATION trip ${tripId}`,
+      });
     }
 
-    // ---- 3) واریز مابقی به کیف پول پلتفرم (CANCELLATION_PLATFORM_SHARE) ----
     const platformShare = Math.max(0, penaltyAmount - driverCompensation);
     let platformShareId = null;
     if (platformShare > 0) {
@@ -1586,8 +1595,8 @@ async function processCancellationPenalty({
       const plBalBefore = parseFloat(plWallet.balance);
       const plAvailBefore = parseFloat(plWallet.available_balance);
       const plFrozenBefore = parseFloat(plWallet.frozen_balance);
-
-      const plUpdated = await Wallet.credit(plWallet.id, platformShare, client);
+      const plUpdated = await Wallet.creditAvailableBalance(plWallet.id, platformShare, client);
+      if (!plUpdated) throw new Error('Failed to credit platform cancellation share');
       const plBalAfter = parseFloat(plUpdated.balance);
       const plAvailAfter = parseFloat(plUpdated.available_balance);
       const plFrozenAfter = parseFloat(plUpdated.frozen_balance);
@@ -1596,8 +1605,7 @@ async function processCancellationPenalty({
         walletId: plWallet.id, userId: platformUserId, tripId,
         amount: platformShare, currencyId, type: 'CREDIT',
         description: `CANCELLATION_PLATFORM_SHARE trip ${tripId}`,
-        status: 'success',
-        referenceId: `${referenceId}:platform`,
+        status: 'success', referenceId: platformReferenceId,
       }, client);
       await Transaction.createLedgerEntry({
         walletId: plWallet.id, transactionId: plTx.id,
@@ -1607,7 +1615,7 @@ async function processCancellationPenalty({
         frozenBefore: plFrozenBefore, frozenAfter: plFrozenAfter,
         operationType: 'cancellation_platform_share',
         description: `CANCELLATION_PLATFORM_SHARE trip ${tripId}`,
-        referenceId,
+        referenceId: platformReferenceId,
       }, client);
       platformShareId = plTx.id;
     }
@@ -1625,8 +1633,23 @@ async function processCancellationPenalty({
       passengerTransactionId: pTx.id,
       driverCompensationId,
       platformShareId,
+      events,
     };
   });
+
+  // Do not publish balance events until the database transaction has committed.
+  for (const event of result.events) {
+    try {
+      publishBalanceChangedEvent(
+        event.walletId, event.userId, event.amount, event.type, currencyId,
+        event.availableBalance, event.frozenBalance, event.transactionId, event.description
+      );
+    } catch (error) {
+      console.error('[WalletService] Failed to publish WalletBalanceChanged after cancellation settlement:', error && error.message);
+    }
+  }
+  const { events, ...publicResult } = result;
+  return publicResult;
 }
 
 module.exports = {
