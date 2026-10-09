@@ -26,6 +26,7 @@ jest.mock('../models/wallet.model', () => ({
 }));
 jest.mock('../models/escrow.model', () => ({
   findById: jest.fn(),
+  create: jest.fn(),
   updateStatus: jest.fn(),
 }));
 jest.mock('../models/transaction.model', () => ({
@@ -45,6 +46,7 @@ const Transaction = require('../models/transaction.model');
 const Escrow = require('../models/escrow.model');
 const EventBus = require('../../01-core-system/EventBus');
 const walletService = require('../services/wallet.service');
+const config = require('../../14-config-system/server.config');
 const { TripCompletedHandler, TRIP_COMPLETED_EVENT } = require('../handlers/trip-completed.handler');
 
 function makeFakeBus() {
@@ -360,6 +362,51 @@ describe('walletService.refundFunds (atomic refund)', () => {
     );
     expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
     expect(Transaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('walletService.createEscrow (server-side commission)', () => {
+  test('ignores caller-supplied commission and derives it from trusted config', async () => {
+    jest.clearAllMocks();
+    const amount = 100000;
+    const rate = Number(config.trip.commissionRates.intercity_taxi);
+    const expectedCommission = Number((amount * rate / 100).toFixed(8));
+    const payerWallet = {
+      id: 'payer-wallet', balance: '150000', available_balance: '150000',
+      frozen_balance: '0', status: 'active',
+    };
+    Wallet.findByUserAndCurrency.mockResolvedValue(payerWallet);
+    Wallet.freezeAvailable.mockResolvedValue({
+      id: 'payer-wallet', balance: '150000', available_balance: '50000',
+      frozen_balance: '100000', status: 'active',
+    });
+    Wallet.findByTypeAndCurrency.mockResolvedValue({
+      id: 'platform-wallet', wallet_type: 'platform', status: 'active',
+    });
+    Escrow.create.mockResolvedValue({ id: 'escrow-config-test', status: 'active' });
+
+    const result = await walletService.createEscrow({
+      payerId: 'payer-1',
+      payeeId: 'driver-1',
+      amount,
+      currencyId: 'IRT',
+      tripId: 'trip-config-test',
+      serviceType: 'intercity_taxi',
+      platformCommission: 1,
+    });
+
+    expect(result.platformCommission).toBe(expectedCommission);
+    expect(result.netAmount).toBe(Number((amount - expectedCommission).toFixed(8)));
+    expect(result.platformCommission).not.toBe(1);
+    expect(Escrow.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount,
+        platformCommission: expectedCommission,
+        netAmount: Number((amount - expectedCommission).toFixed(8)),
+        platformWalletId: 'platform-wallet',
+      }),
+      expect.anything(),
+    );
   });
 });
 
