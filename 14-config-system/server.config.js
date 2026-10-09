@@ -102,7 +102,7 @@ const config = {
       freight: parseFloat(process.env.COMMISSION_FREIGHT) || 5,
       delivery: parseFloat(process.env.COMMISSION_DELIVERY) || 12,
       // کمیسیون عمومی/پیشفرض سیستم (۱۵٪ در صورت عدم ورود صریح)
-      general: parseFloat(process.env.COMMISSION_GENERAL) || 15,
+      general: Number.isFinite(parseFloat(process.env.COMMISSION_GENERAL)) ? parseFloat(process.env.COMMISSION_GENERAL) : 15,
     },
   },
 };
