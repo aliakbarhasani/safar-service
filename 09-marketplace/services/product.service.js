@@ -34,6 +34,27 @@ class ProductService {
     }
   }
 
+  async getActiveSellerIdForUser(userId) {
+    if (!userId) return null;
+    if (!(await this._isDBReady())) throw new Error('Database not available');
+    const { rows } = await this.pool.query(
+      `SELECT id FROM sellers
+        WHERE user_id = $1 AND status = 'active' AND verification_status = 'verified'
+        LIMIT 1`,
+      [userId],
+    );
+    return rows[0]?.id || null;
+  }
+
+  async isSellerOwner(sellerId, userId) {
+    if (!sellerId || !userId || !(await this._isDBReady())) return false;
+    const { rows } = await this.pool.query(
+      'SELECT 1 FROM sellers WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [sellerId, userId],
+    );
+    return rows.length > 0;
+  }
+
   async getAllProducts(limit = 20, offset = 0, filters = {}) {
     const dbReady = await this._isDBReady();
     if (!dbReady) return { products: [], total: 0 };
@@ -138,14 +159,20 @@ class ProductService {
     const dbReady = await this._isDBReady();
     if (!dbReady) throw new Error('Database not available');
 
-    const { sellerId, name, description, categoryId, price, quantity, imageUrl } = productData;
+    const { sellerId, name, description, categoryId, price, quantity, imageUrl } = productData || {};
+    const numericPrice = Number(price);
+    const numericQuantity = Number(quantity ?? 0);
+    if (!sellerId) throw new Error('An approved seller profile is required');
+    if (typeof name !== 'string' || !name.trim()) throw new Error('Product name is required');
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) throw new Error('Product price must be a positive number');
+    if (!Number.isInteger(numericQuantity) || numericQuantity < 0) throw new Error('Product quantity must be a non-negative integer');
 
     try {
       const result = await this.pool.query(
         `INSERT INTO products (seller_id, name, description, category_id, price, quantity, image_url, status, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW())
          RETURNING *`,
-        [sellerId, name, description, categoryId, price, quantity, imageUrl]
+        [sellerId, name.trim(), description || null, categoryId || null, numericPrice, numericQuantity, imageUrl || null]
       );
 
       const row = result.rows[0];
