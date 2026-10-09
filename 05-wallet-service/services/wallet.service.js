@@ -1470,8 +1470,8 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     const pAvailBefore = parseFloat(pWallet.available_balance);
     const pFrozenBefore = parseFloat(pWallet.frozen_balance);
 
-    const pUpdated = await Wallet.debitAllowNegative(pWallet.id, amount, client);
-    if (!pUpdated) throw new Error('Failed to debit passenger wallet');
+    const pUpdated = await Wallet.debitAvailableBalance(pWallet.id, amount, client);
+    if (!pUpdated) throw new Error('Insufficient available balance or inactive passenger wallet');
     const pBalAfter = parseFloat(pUpdated.balance);
     const pAvailAfter = parseFloat(pUpdated.available_balance);
     const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
@@ -1638,8 +1638,8 @@ async function processCancellationPenalty({
     const pBalBefore = parseFloat(pWallet.balance);
     const pAvailBefore = parseFloat(pWallet.available_balance);
     const pFrozenBefore = parseFloat(pWallet.frozen_balance);
-    const pUpdated = await Wallet.debitAllowNegative(pWallet.id, penaltyAmount, client);
-    if (!pUpdated) throw new Error('Failed to debit passenger for cancellation penalty');
+    const pUpdated = await Wallet.debitAvailableBalance(pWallet.id, penaltyAmount, client);
+    if (!pUpdated) throw new Error('Insufficient available balance or inactive passenger wallet for cancellation penalty');
     const pBalAfter = parseFloat(pUpdated.balance);
     const pAvailAfter = parseFloat(pUpdated.available_balance);
     const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
