@@ -39,6 +39,7 @@ class JwtService {
 
     return jwt.sign(payload, this.signingKey, {
       algorithm: 'RS256',
+      issuer: 'safar-iam',
       expiresIn: '15m',
       jwtid: `access-${crypto.randomUUID()}`,
     });
@@ -55,6 +56,7 @@ class JwtService {
 
     return jwt.sign(payload, this.signingKey, {
       algorithm: 'RS256',
+      issuer: 'safar-iam',
       expiresIn: '7d',
     });
   }
