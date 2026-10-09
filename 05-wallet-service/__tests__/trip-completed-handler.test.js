@@ -354,6 +354,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     Transaction.create.mockReset().mockImplementation(async (data) => ({ id: `txn-${data.type}-test`, ...data }));
     Transaction.createLedgerEntry.mockReset().mockResolvedValue({ rows: [] });
     pg.transaction.mockClear();
+    EventBus.publish.mockClear();
     // مسافر یافت؛ پلتفرم و راننده ساخته می‌شوند
     Wallet.findByUserAndCurrency
       .mockResolvedValueOnce(pWallet)
@@ -403,6 +404,10 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
       'trip-payment:trip-10:passenger',
       'trip-payment:trip-10:platform',
     ]);
+    expect(EventBus.publish).toHaveBeenCalledTimes(3);
+    expect(EventBus.publish).toHaveBeenCalledWith('WalletBalanceChanged', expect.objectContaining({
+      walletId: 'platw', userId: null, amount: 15000, type: 'CREDIT',
+    }));
   });
 
   test('insufficient passenger balance is rejected without creating a negative wallet balance', async () => {
@@ -433,7 +438,12 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
       walletService.processTripPayment({
         tripId: 'trip-13', passengerId: 'u1', driverId: 'd1', amount: 50000, commissionRate: 150,
       }),
-    ).rejects.toThrow('Commission rate must be a finite number between 0 and 100');
+    ).rejects.toThrow('Commission rate must be a finite number greater than or equal to 0 and less than 100');
+    expect(pg.transaction).not.toHaveBeenCalled();
+
+    await expect(walletService.processTripPayment({
+      tripId: 'trip-14', passengerId: 'u1', driverId: 'd1', amount: 50000, commissionRate: 100,
+    })).rejects.toThrow('Commission rate must be a finite number greater than or equal to 0 and less than 100');
     expect(pg.transaction).not.toHaveBeenCalled();
   });
 });
