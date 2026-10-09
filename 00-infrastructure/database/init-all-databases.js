@@ -22,28 +22,33 @@ const services = [
 ];
 
 async function initAllDatabases() {
+  const failures = [];
   console.log('🔧 شروع تهيئة پایگاه داده‌های تمام سرویس‌ها...\n');
 
   for (const service of services) {
     try {
       console.log(`⏳ در حال تهيئة ${service.name}...`);
-      
-      // dynamically require the init function
       const dbModule = require(service.initFile);
-      
-      // call the init function
       if (typeof dbModule[service.initFunction] === 'function') {
         await dbModule[service.initFunction]();
         console.log(`✅ ${service.name} با موفقیت تهيئه شد\n`);
       } else {
-        console.warn(`⚠️  تابع ${service.initFunction} در ${service.name} یافت نشد\n`);
+        throw new Error(`تابع ${service.initFunction} در ${service.name} یافت نشد`);
       }
     } catch (error) {
+      failures.push({ service: service.name, message: error.message });
       console.error(`❌ خطا در تهيئة ${service.name}:`, error.message, '\n');
     }
   }
 
-  console.log('✨ تهيئة پایگاه داده‌ها تکمیل شد');
+  if (failures.length > 0 && process.env.NODE_ENV === 'production') {
+    throw new Error(`Database initialization failed for: ${failures.map((item) => item.service).join(', ')}`);
+  }
+
+  console.log(failures.length
+    ? `⚠️ تهيئة پایگاه داده‌ها با ${failures.length} خطا پایان یافت.`
+    : '✨ تهيئة پایگاه داده‌ها تکمیل شد');
+  return { success: failures.length === 0, failures };
 }
 
 module.exports = { initAllDatabases };
