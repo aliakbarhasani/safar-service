@@ -14,6 +14,7 @@ jest.mock('../db/pg', () => ({
 }));
 jest.mock('../models/wallet.model', () => ({
   findByUserAndCurrency: jest.fn(),
+  findByTypeAndCurrency: jest.fn(),
   findById: jest.fn(),
   create: jest.fn(),
   debitAllowNegative: jest.fn(),
@@ -122,11 +123,9 @@ describe('walletService.processCancellationPenalty (atomic settlement)', () => {
 
     Wallet.findByUserAndCurrency
       .mockResolvedValueOnce(passengerWallet)
-      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    Wallet.create
-      .mockResolvedValueOnce(driverWallet)
-      .mockResolvedValueOnce(platformWallet);
+    Wallet.findByTypeAndCurrency.mockResolvedValue(platformWallet);
+    Wallet.create.mockResolvedValueOnce(driverWallet);
     Wallet.debitAvailableBalance.mockResolvedValue({
       id: 'passenger-wallet', balance: '10000', available_balance: '10000', frozen_balance: '0',
     });
@@ -274,11 +273,9 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     // مسافر یافت؛ پلتفرم و راننده ساخته می‌شوند
     Wallet.findByUserAndCurrency
       .mockResolvedValueOnce(pWallet)
-      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    Wallet.create
-      .mockResolvedValueOnce(plWallet)
-      .mockResolvedValueOnce(dWallet);
+    Wallet.findByTypeAndCurrency.mockResolvedValue(plWallet);
+    Wallet.create.mockResolvedValueOnce(dWallet);
     Wallet.debitAvailableBalance.mockResolvedValue({ id: 'pw', balance: '100000', available_balance: '100000', frozen_balance: '0' });
     Wallet.creditAvailableBalance
       .mockResolvedValueOnce({ id: 'platw', balance: '15000', available_balance: '15000', frozen_balance: '0' })
