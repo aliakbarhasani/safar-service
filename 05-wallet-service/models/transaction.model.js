@@ -41,11 +41,12 @@ async function findById(id) {
 /**
  * یافتن تراکنش با reference_id (برای Idempotency)
  */
-async function findByReferenceId(referenceId) {
-  const result = await pg.query(
-    `SELECT ${COLUMNS_SELECT} FROM ${TABLE} WHERE reference_id = $1`,
-    [referenceId]
-  );
+async function findByReferenceId(referenceId, client = null) {
+  const queryText = `SELECT ${COLUMNS_SELECT} FROM ${TABLE} WHERE reference_id = $1`;
+  const params = [referenceId];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
   return result.rows[0] || null;
 }
 
