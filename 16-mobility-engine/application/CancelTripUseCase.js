@@ -73,16 +73,18 @@ class CancelTripUseCase {
                 throw error;
             }
 
-            // ج) مالکیت: فقط مسافر یا رانندهی همین سفر (ادمین/سیستم مستثنی)
+            // ج) مالکیت: شناسه الزامی است و هر نقش فقط مالکیت مربوط به خودش را بررسی می‌کند.
+            // مدیر/سیستم مستثنی هستند؛ مسافر و راننده بدون هویت معتبر fail-closed می‌شوند.
             const passengerId = row.passenger_id || null;
             const driverId = row.driver_id || null;
-            if (
-                (role === 'passenger' || role === 'driver') &&
-                cancelledByUserId &&
-                cancelledByUserId !== passengerId &&
-                cancelledByUserId !== driverId
-            ) {
-                throw new UnauthorizedTripCancelError(tripId, cancelledByUserId);
+            if (role === 'passenger' || role === 'driver') {
+                if (!cancelledByUserId) {
+                    throw new UnauthorizedTripCancelError(tripId, null);
+                }
+                const expectedOwnerId = role === 'passenger' ? passengerId : driverId;
+                if (!expectedOwnerId || String(cancelledByUserId) !== String(expectedOwnerId)) {
+                    throw new UnauthorizedTripCancelError(tripId, cancelledByUserId);
+                }
             }
 
             // ه) لغو آگاه از نقش (State Machine دامنه)
