@@ -20,6 +20,9 @@ jest.mock('../models/wallet.model', () => ({
   debitAllowNegative: jest.fn(),
   debitAvailableBalance: jest.fn(),
   creditAvailableBalance: jest.fn(),
+  freezeAvailable: jest.fn(),
+  unfreezeFrozen: jest.fn(),
+  deductFrozen: jest.fn(),
 }));
 jest.mock('../models/escrow.model', () => ({
   findById: jest.fn(),
