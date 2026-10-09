@@ -42,9 +42,7 @@ RETURNS TABLE (
     ledger_total_credits NUMERIC(20,8),
     ledger_total_debits NUMERIC(20,8),
     ledger_balance NUMERIC(20,8)
-) AS $
-BEGIN
-    RETURN QUERY
+) LANGUAGE SQL STABLE AS '
     SELECT
         w.id,
         w.balance,
@@ -55,7 +53,6 @@ BEGIN
         (COALESCE(SUM(wl.credit_amount), 0) - COALESCE(SUM(wl.debit_amount), 0))::NUMERIC(20,8)
     FROM wallets w
     LEFT JOIN wallet_ledger wl ON wl.wallet_id = w.id
-    WHERE w.id = p_wallet_id
-    GROUP BY w.id, w.balance, w.available_balance, w.frozen_balance;
-END;
-$ LANGUAGE plpgsql;
+    WHERE w.id = $1
+    GROUP BY w.id, w.balance, w.available_balance, w.frozen_balance
+';
