@@ -77,6 +77,13 @@ function publishBalanceChangedEvent(walletId, userId, amount, type, currencyId, 
  * این تابع تراکنش‌محور است (نیازمند client)
  */
 async function getOrCreateWallet(client, userId, currencyId) {
+  // Serialize wallet creation for this user/currency pair so concurrent
+  // settlements cannot both observe "missing" and race into the UNIQUE index.
+  await client.query(
+    'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+    [String(userId), String(currencyId)]
+  );
+
   let wallet = await Wallet.findByUserAndCurrency(userId, currencyId, client);
 
   if (!wallet) {
