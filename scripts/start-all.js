@@ -50,10 +50,8 @@ for (const service of services) {
 
   child.on('exit', (code, signal) => {
     if (stopping) return;
-    if (code !== 0) {
-      console.error(`[start-all] ${service.name} exited unexpectedly (code=${code}, signal=${signal || 'none'}).`);
-      stopAll(code || 1);
-    }
+    console.error(`[start-all] ${service.name} exited unexpectedly (code=${code}, signal=${signal || 'none'}).`);
+    stopAll(code || 1);
   });
 }
 
