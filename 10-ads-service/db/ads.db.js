@@ -95,6 +95,7 @@ const initAdsDB = async () => {
     console.log('[AdsDB] All tables initialized successfully');
   } catch (err) {
     console.error('[AdsDB] Initialization error:', err.message);
+    if (process.env.NODE_ENV === 'production') throw err;
   }
 };
 
