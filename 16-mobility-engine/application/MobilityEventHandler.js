@@ -63,14 +63,16 @@ class MobilityEventHandler {
 
       if (!tripId || !origin || origin.lng == null || origin.lat == null) {
         this._log('TripCreated event missing tripId or origin coordinates, skipping dispatch');
-        return;
+        return { dispatchFailed: true, reason: 'missing_trip_or_origin_coordinates' };
       }
 
       this._log(`Dispatching trip ${tripId} at (${origin.lng}, ${origin.lat})`);
       const result = await this.tripDispatchService.dispatchTrip(tripId, origin.lng, origin.lat);
       this._log(`Dispatch result for trip ${tripId}: ${result.status}`);
+      return result;
     } catch (err) {
       this._log(`Error handling TripCreated event: ${err.message}`);
+      return { dispatchFailed: true, reason: err.code || err.message || 'dispatch_failed' };
     }
   }
 
