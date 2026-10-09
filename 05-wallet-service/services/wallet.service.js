@@ -1441,8 +1441,9 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     throw new Error('tripId, passengerId and driverId are required for trip payment');
   }
 
+  const configuredCommissionRate = parseFloat((config.trip.commissionRates || {}).general);
   const rate = (commissionRate == null)
-    ? parseFloat((config.trip.commissionRates || {}).general) || 15
+    ? (Number.isFinite(configuredCommissionRate) ? configuredCommissionRate : 15)
     : Number(commissionRate);
   if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
     throw new Error('Commission rate must be a finite number between 0 and 100');
@@ -1621,8 +1622,9 @@ async function processCancellationPenalty({
   const driverReferenceId = `${referenceId}:driver`;
   const platformReferenceId = `${referenceId}:platform`;
   const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
+  const configuredDriverShare = parseFloat((config.wallet || {}).cancellationDriverShare);
   const sharePct = (driverShare == null)
-    ? parseFloat((config.wallet || {}).cancellationDriverShare) || 80
+    ? (Number.isFinite(configuredDriverShare) ? configuredDriverShare : 80)
     : Number(driverShare);
   if (!Number.isFinite(sharePct) || sharePct < 0 || sharePct > 100) {
     throw new Error('Driver share must be a finite number between 0 and 100');
