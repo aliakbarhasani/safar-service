@@ -992,30 +992,75 @@ async function createEscrow({ payerId, payeeId, amount, currencyId = 'IRT', plat
   validateCurrency(currencyId);
   if (!payerId) throw new Error('Payer ID is required');
 
-  return await pg.transaction(async (client) => {
-    const netAmount = amount - platformCommission;
-    if (netAmount <= 0) throw new Error('Net amount after commission must be positive');
+  const commission = Number(platformCommission);
+  if (!Number.isFinite(commission) || commission < 0 || commission >= amount) {
+    throw new Error('Platform commission must be a finite amount greater than or equal to zero and less than the escrow amount');
+  }
+  const netAmount = amount - commission;
+  const freezeReferenceId = tripId ? `escrow-create:${tripId}:freeze` : null;
 
-    // 1. Freeze payer funds
-    const freezeResult = await freezeFunds(payerId, amount, currencyId, `Escrow: ${description || 'Trip payment'}`);
-
-    // 2. پیدا کردن کیف پول payer
-    const payerWallet = await Wallet.findByUserAndCurrency(payerId, currencyId);
+  const result = await pg.transaction(async (client) => {
+    // Freeze the payer's funds and create the escrow record in the SAME
+    // PostgreSQL transaction. Do not call freezeFunds(), which opens a nested
+    // transaction and could commit the freeze without the escrow record.
+    const payerWallet = await Wallet.findByUserAndCurrency(payerId, currencyId, client);
     if (!payerWallet) throw new Error(`Payer wallet not found: ${payerId}`);
+    if (payerWallet.status !== 'active') {
+      throw new Error(`Wallet is ${payerWallet.status}. Cannot freeze funds.`);
+    }
 
-    // 3. پیدا کردن کیف پول پلتفرم (برای commission)
+    const balanceBefore = parseFloat(payerWallet.balance);
+    const availableBefore = parseFloat(payerWallet.available_balance);
+    const frozenBefore = parseFloat(payerWallet.frozen_balance);
+    if (availableBefore < amount) {
+      throw new Error(`Insufficient available balance to freeze. Required: ${amount} ${currencyId}, Available: ${availableBefore} ${currencyId}`);
+    }
+
+    const updatedWallet = await Wallet.freezeAvailable(payerWallet.id, amount, client);
+    if (!updatedWallet) throw new Error('Failed to freeze escrow funds. Possible race condition.');
+
+    const balanceAfter = parseFloat(updatedWallet.balance);
+    const availableAfter = parseFloat(updatedWallet.available_balance);
+    const frozenAfter = parseFloat(updatedWallet.frozen_balance);
+
+    const freezeTx = await Transaction.create({
+      walletId: payerWallet.id,
+      userId: payerId,
+      tripId,
+      amount,
+      currencyId,
+      type: 'DEBIT',
+      description: `Escrow: ${description || 'Trip payment'}`,
+      status: 'pending',
+      referenceId: freezeReferenceId,
+    }, client);
+
+    await Transaction.createLedgerEntry({
+      walletId: payerWallet.id,
+      transactionId: freezeTx.id,
+      creditAmount: 0,
+      debitAmount: 0,
+      currencyId,
+      balanceBefore,
+      balanceAfter,
+      availableBefore,
+      availableAfter,
+      frozenBefore,
+      frozenAfter,
+      operationType: 'escrow_freeze',
+      description: `Escrow: ${description || 'Trip payment'}`,
+      referenceId: freezeReferenceId,
+    }, client);
+
     let platformWallet = null;
-    try {
-      const adminResult = await client.query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1");
-      if (adminResult.rows[0]) {
-        platformWallet = await Wallet.findByUserAndCurrency(adminResult.rows[0].id, currencyId);
-      }
-    } catch (e) { /* silent, platform wallet is optional */ }
+    const adminResult = await client.query("SELECT id FROM users WHERE role = 'super_admin' LIMIT 1");
+    if (adminResult.rows[0]) {
+      platformWallet = await Wallet.findByUserAndCurrency(adminResult.rows[0].id, currencyId, client);
+    }
 
-    // 4. ایجاد رکورد Escrow
     const escrow = await Escrow.create({
       tripId, payerId, payeeId: payeeId || null,
-      amount, currencyId, platformCommission, netAmount,
+      amount, currencyId, platformCommission: commission, netAmount,
       sourceWalletId: payerWallet.id,
       destinationWalletId: null,
       platformWalletId: platformWallet?.id || null,
@@ -1029,11 +1074,33 @@ async function createEscrow({ payerId, payeeId, amount, currencyId = 'IRT', plat
       status: escrow.status,
       amount,
       currencyId,
-      platformCommission,
+      platformCommission: commission,
       netAmount,
-      transactionId: freezeResult.transactionId
+      transactionId: freezeTx.id,
+      event: {
+        walletId: payerWallet.id,
+        userId: payerId,
+        amount,
+        currencyId,
+        availableBalance: availableAfter,
+        frozenBalance: frozenAfter,
+        transactionId: freezeTx.id,
+        description: `Escrow: ${description || 'Trip payment'}`,
+      },
     };
   });
+
+  try {
+    const event = result.event;
+    publishBalanceChangedEvent(
+      event.walletId, event.userId, event.amount, 'DEBIT', event.currencyId,
+      event.availableBalance, event.frozenBalance, event.transactionId, event.description
+    );
+  } catch (error) {
+    console.error('[WalletService] Failed to publish WalletBalanceChanged after escrow creation commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
