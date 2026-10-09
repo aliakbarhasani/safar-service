@@ -134,7 +134,7 @@ class CalculateFareUseCase {
       base = baseFare != null ? Number(baseFare) : (await this.configStore.getConfig(CONFIG_KEYS.baseFare, parseFloat((config.trip || {}).baseFare) || 15000));
     } else {
       rate = perKmRate != null ? Number(perKmRate) : parseFloat((config.trip || {}).perKmRate) || 2000;
-      base = baseFare != null ? Number(baseFare) : parseFloat((config.trip || {}).baseFare) || 0;
+      base = baseFare != null ? Number(baseFare) : (Number.isFinite(Number((config.trip || {}).baseFare)) ? Number((config.trip || {}).baseFare) : 15000);
     }
 
     const geohash = ngeohash.encode(oLat, oLng, GEOHASH_PRECISION);
