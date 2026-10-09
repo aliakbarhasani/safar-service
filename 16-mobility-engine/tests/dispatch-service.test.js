@@ -235,24 +235,40 @@ describe('TripDispatchService', () => {
       expect(result.status).toBe('ALREADY_RESOLVED');
     });
 
-    test('should delete key and publish TripDispatchTimeout event', async () => {
+    test('should retry with another available driver after an unaccepted offer times out', async () => {
       const redis = makeRedis();
       redis.store.set('dispatch:trip:trip-timeout', 'driver-old');
       const eventBus = makeEventBus();
+      const locationService = makeLocationService([
+        { driverId: 'driver-old', distanceKm: 0.2 },
+        { driverId: 'driver-next', distanceKm: 0.8 },
+      ]);
+      const driverService = makeDriverService({ 'driver-old': 'online', 'driver-next': 'online' });
+      const tripRepository = {
+        getTripById: jest.fn().mockResolvedValue({
+          id: 'trip-timeout',
+          status: 'REQUESTED',
+          origin_lng: 51.389,
+          origin_lat: 35.6892,
+        }),
+      };
 
       const service = new TripDispatchService({
-        locationService: makeLocationService(),
-        driverService: makeDriverService(),
+        locationService,
+        driverService,
         redisClient: redis,
         eventBus,
+        tripRepository,
       });
 
       const result = await service.handleDispatchTimeout('trip-timeout');
 
-      expect(result.status).toBe('RETRY_INITIATED');
-      expect(result.previousDriverId).toBe('driver-old');
-      expect(redis.store.has('dispatch:trip:trip-timeout')).toBe(false);
-      expect(eventBus.events[0].event).toBe('TripDispatchTimeout');
+      expect(result.status).toBe('DRIVER_PROPOSED');
+      expect(result.driverId).toBe('driver-next');
+      expect(locationService.findNearbyDrivers).toHaveBeenCalledWith(51.389, 35.6892, 3);
+      expect(redis.store.get('dispatch:trip:trip-timeout')).toBe('driver-next');
+      expect(eventBus.events.some((event) => event.event === 'TripDispatchTimeout')).toBe(true);
+      expect(eventBus.events.some((event) => event.event === 'TripProposedToDriver')).toBe(true);
     });
   });
 });
