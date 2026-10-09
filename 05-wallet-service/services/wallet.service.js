@@ -675,7 +675,7 @@ async function releaseHold({ userId, amount, referenceType = 'hold', referenceId
   return await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
-      const existingTx = await Transaction.findByReferenceId(referenceId);
+      const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
       }
@@ -920,17 +920,30 @@ async function refundFunds(originalTransactionId, reason = '') {
     throw new Error('Original transaction ID is required');
   }
 
-  return await pg.transaction(async (client) => {
-    const originalTx = await Transaction.findById(originalTransactionId);
+  const referenceId = `REFUND-${originalTransactionId}`;
+  const result = await pg.transaction(async (client) => {
+    // Lock the original transaction so concurrent refund requests serialize.
+    const originalResult = await client.query(
+      `SELECT ${['id', 'wallet_id', 'trip_id', 'user_id', 'amount', 'currency_id', 'type', 'description', 'status', 'reference_id', 'created_at'].join(', ')}
+       FROM transactions WHERE id = $1 FOR UPDATE`,
+      [originalTransactionId]
+    );
+    const originalTx = originalResult.rows[0];
     if (!originalTx) throw new Error(`Original transaction not found: ${originalTransactionId}`);
-    if (originalTx.status === 'failed') throw new Error('Cannot refund a failed transaction');
+    if (originalTx.type !== 'DEBIT' || originalTx.status !== 'success') {
+      throw new Error('Only successful debit transactions can be refunded');
+    }
 
-    const wallet = await Wallet.findById(originalTx.wallet_id);
+    const existingRefund = await Transaction.findByReferenceId(referenceId, client);
+    if (existingRefund) {
+      throw new Error(`Duplicate refund: referenceId '${referenceId}' already exists`);
+    }
+
+    const wallet = await Wallet.findById(originalTx.wallet_id, client);
     if (!wallet) throw new Error(`Wallet not found for transaction: ${originalTransactionId}`);
 
     const amount = parseFloat(originalTx.amount);
     const currencyId = originalTx.currency_id;
-
     const balanceBefore = parseFloat(wallet.balance);
     const availableBefore = parseFloat(wallet.available_balance);
     const frozenBefore = parseFloat(wallet.frozen_balance);
@@ -946,24 +959,41 @@ async function refundFunds(originalTransactionId, reason = '') {
       walletId: wallet.id, userId: originalTx.user_id, tripId: originalTx.trip_id,
       amount, currencyId, type: 'CREDIT',
       description: `Refund: ${reason || 'Customer refund'}`,
-      status: 'success', referenceId: `REFUND-${originalTransactionId}`
+      status: 'success', referenceId
     }, client);
 
     await Transaction.createLedgerEntry({
       walletId: wallet.id, transactionId: refundTx.id, creditAmount: amount, debitAmount: 0,
       currencyId, balanceBefore, balanceAfter, availableBefore, availableAfter, frozenBefore, frozenAfter,
       operationType: 'refund', description: reason || 'Customer refund',
-      referenceId: `REFUND-${originalTransactionId}`
+      referenceId
     }, client);
 
-    publishBalanceChangedEvent(wallet.id, originalTx.user_id, amount, 'CREDIT', currencyId,
-      availableAfter, frozenAfter, refundTx.id, reason || 'Refund');
-
-    return { success: true, message: 'Refund processed successfully',
+    return {
+      success: true, message: 'Refund processed successfully',
       walletId: wallet.id, userId: originalTx.user_id, amount, currencyId,
       availableBalance: availableAfter, originalTransactionId, refundTransactionId: refundTx.id,
-      reason: reason || 'Customer refund' };
+      reason: reason || 'Customer refund',
+      event: {
+        walletId: wallet.id, userId: originalTx.user_id, amount, currencyId,
+        availableBalance: availableAfter, frozenBalance: frozenAfter,
+        transactionId: refundTx.id, description: reason || 'Refund',
+      },
+    };
   });
+
+  // Publish after commit so subscribers never observe a rolled-back refund.
+  try {
+    const event = result.event;
+    publishBalanceChangedEvent(
+      event.walletId, event.userId, event.amount, 'CREDIT', event.currencyId,
+      event.availableBalance, event.frozenBalance, event.transactionId, event.description
+    );
+  } catch (error) {
+    console.error('[WalletService] Failed to publish WalletBalanceChanged after refund commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 // ============================================================================
