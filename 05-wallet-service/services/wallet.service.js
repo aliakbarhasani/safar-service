@@ -1734,6 +1734,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
 
     // 2) Credit platform commission.
     let platformCommissionId = null;
+    let platformEvent = null;
     if (commission > 0) {
       const plWallet = await getPlatformWallet(client, currencyId);
       const plBalBefore = parseFloat(plWallet.balance);
@@ -1764,6 +1765,11 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
         referenceId: platformReferenceId,
       }, client);
       platformCommissionId = plTx.id;
+      platformEvent = {
+        walletId: plWallet.id, userId: null, amount: commission, type: 'CREDIT',
+        availableBalance: plAvailAfter, frozenBalance: plFrozenAfter,
+        transactionId: plTx.id, description: `TRIP_COMMISSION trip ${tripId}`,
+      };
     }
 
     // 3) Credit the driver's net revenue.
@@ -1811,11 +1817,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       platformCommissionId,
       events: [
         { walletId: pWallet.id, userId: passengerId, amount, type: 'DEBIT', availableBalance: pAvailAfter, frozenBalance: pFrozenAfter, transactionId: pTx.id, description: `TRIP_PAYMENT trip ${tripId}` },
-        ...(platformCommissionId ? [{
-          walletId: plWallet.id, userId: null, amount: commission, type: 'CREDIT',
-          availableBalance: parseFloat(plUpdated.available_balance), frozenBalance: parseFloat(plUpdated.frozen_balance),
-          transactionId: platformCommissionId, description: `TRIP_COMMISSION trip ${tripId}`,
-        }] : []),
+        ...(platformEvent ? [platformEvent] : []),
         { walletId: dWallet.id, userId: driverId, amount: driverAmount, type: 'CREDIT', availableBalance: dAvailAfter, frozenBalance: dFrozenAfter, transactionId: dTx.id, description: `TRIP_REVENUE trip ${tripId}` },
       ],
     };
