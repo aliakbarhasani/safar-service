@@ -19,7 +19,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl,
 });
 
-export default function InteractiveMap({ onLocationSelect }) {
+export default function InteractiveMap({ onLocationSelect, pickupCoords = null, dropoffCoords = null }) {
   const [position, setPosition] = useState([34.3419, 62.2031]); // Default: Herat, Afghanistan
 
   function LocationMarker() {
@@ -32,10 +32,24 @@ export default function InteractiveMap({ onLocationSelect }) {
       },
     });
 
-    return position === null ? null : (
-      <Marker position={position}>
-        <Popup>موقعیت انتخاب شده</Popup>
-      </Marker>
+    return (
+      <>
+        {pickupCoords && (
+          <Marker position={[pickupCoords.lat, pickupCoords.lng]}>
+            <Popup>مبدأ سفر</Popup>
+          </Marker>
+        )}
+        {dropoffCoords && (
+          <Marker position={[dropoffCoords.lat, dropoffCoords.lng]}>
+            <Popup>مقصد سفر</Popup>
+          </Marker>
+        )}
+        {!pickupCoords && !dropoffCoords && position !== null && (
+          <Marker position={position}>
+            <Popup>موقعیت انتخاب شده</Popup>
+          </Marker>
+        )}
+      </>
     );
   }
 
