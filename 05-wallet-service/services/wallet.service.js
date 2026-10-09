@@ -1244,93 +1244,207 @@ async function releaseEscrowFull(escrowId) {
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
     if (!escrow.payee_id) throw new Error('Escrow has no payee assigned. Use assignPayee first.');
 
-    const amount = parseFloat(escrow.amount);
-    const platformCommission = parseFloat(escrow.platform_commission);
-    const netAmount = parseFloat(escrow.net_amount);
+    const amount = Number(escrow.amount);
+    const platformCommission = Number(escrow.platform_commission);
+    const netAmount = Number(escrow.net_amount);
     const currencyId = escrow.currency_id;
+    if (!Number.isFinite(amount) || amount <= 0 ||
+        !Number.isFinite(platformCommission) || platformCommission < 0 ||
+        !Number.isFinite(netAmount) || netAmount < 0 ||
+        Math.abs(amount - platformCommission - netAmount) > 0.00000001) {
+      throw new Error('Escrow amounts are invalid or do not reconcile');
+    }
 
-    // 1. ذخیره وضعیت قبل escrow wallet
     const sourceWallet = await Wallet.findById(escrow.source_wallet_id, client);
     if (!sourceWallet) throw new Error('Source wallet not found');
 
-    const srcBalanceBefore = parseFloat(sourceWallet.balance);
-    const srcAvailableBefore = parseFloat(sourceWallet.available_balance);
-    const srcFrozenBefore = parseFloat(sourceWallet.frozen_balance);
-
-    // 2. کسر از frozen فرستنده
+    const srcBalanceBefore = Number(sourceWallet.balance);
+    const srcAvailableBefore = Number(sourceWallet.available_balance);
+    const srcFrozenBefore = Number(sourceWallet.frozen_balance);
     const updatedSrc = await Wallet.deductFrozen(sourceWallet.id, amount, client);
     if (!updatedSrc) throw new Error('Failed to deduct frozen amount from payer wallet');
+    const srcBalanceAfter = Number(updatedSrc.balance);
+    const srcAvailableAfter = Number(updatedSrc.available_balance);
+    const srcFrozenAfter = Number(updatedSrc.frozen_balance);
 
-    const srcBalanceAfter = parseFloat(updatedSrc.balance);
-    const srcFrozenAfter = parseFloat(updatedSrc.frozen_balance);
-
-    // 3. واریز خالص به گیرنده
     const payeeWallet = await getOrCreateWallet(client, escrow.payee_id, currencyId);
-    const payeeAvailableBefore = parseFloat(payeeWallet.available_balance);
+    const payeeBalanceBefore = Number(payeeWallet.balance);
+    const payeeAvailableBefore = Number(payeeWallet.available_balance);
+    const payeeFrozenBefore = Number(payeeWallet.frozen_balance);
     const updatedPayee = await Wallet.creditAvailableBalance(payeeWallet.id, netAmount, client);
     if (!updatedPayee) throw new Error('Failed to credit payee wallet');
-    const payeeAvailableAfter = parseFloat(updatedPayee.available_balance);
+    const payeeBalanceAfter = Number(updatedPayee.balance);
+    const payeeAvailableAfter = Number(updatedPayee.available_balance);
+    const payeeFrozenAfter = Number(updatedPayee.frozen_balance);
 
-    // 4. واریز کارمزد به پلتفرم
-    if (escrow.platform_wallet_id && platformCommission > 0) {
-      await Wallet.creditAvailableBalance(escrow.platform_wallet_id, platformCommission, client);
+    let platformTx = null;
+    let platformBalanceEvent = null;
+    if (platformCommission > 0) {
+      if (!escrow.platform_wallet_id) {
+        throw new Error('Platform wallet is not configured on escrow; refusing to lose commission');
+      }
+      const platformWallet = await Wallet.findById(escrow.platform_wallet_id, client);
+      if (!platformWallet || platformWallet.wallet_type !== 'platform' || platformWallet.status !== 'active') {
+        throw new Error('Configured escrow platform wallet is missing, inactive, or not a platform wallet');
+      }
+      const platformBalanceBefore = Number(platformWallet.balance);
+      const platformAvailableBefore = Number(platformWallet.available_balance);
+      const platformFrozenBefore = Number(platformWallet.frozen_balance);
+      const updatedPlatform = await Wallet.creditAvailableBalance(platformWallet.id, platformCommission, client);
+      if (!updatedPlatform) throw new Error('Failed to credit platform escrow commission');
+      const platformBalanceAfter = Number(updatedPlatform.balance);
+      const platformAvailableAfter = Number(updatedPlatform.available_balance);
+      const platformFrozenAfter = Number(updatedPlatform.frozen_balance);
+      const platformReferenceId = `escrow-release:${escrow.id}:platform`;
+
+      platformTx = await Transaction.create({
+        walletId: platformWallet.id,
+        userId: null,
+        tripId: escrow.trip_id,
+        amount: platformCommission,
+        currencyId,
+        type: 'CREDIT',
+        description: `Escrow commission for ${escrow.id}`,
+        status: 'success',
+        referenceId: platformReferenceId,
+      }, client);
+      await Transaction.createLedgerEntry({
+        walletId: platformWallet.id,
+        transactionId: platformTx.id,
+        creditAmount: platformCommission,
+        debitAmount: 0,
+        currencyId,
+        balanceBefore: platformBalanceBefore,
+        balanceAfter: platformBalanceAfter,
+        availableBefore: platformAvailableBefore,
+        availableAfter: platformAvailableAfter,
+        frozenBefore: platformFrozenBefore,
+        frozenAfter: platformFrozenAfter,
+        operationType: 'escrow_commission',
+        description: `Escrow commission for ${escrow.id}`,
+        referenceId: platformReferenceId,
+      }, client);
+      platformBalanceEvent = {
+        walletId: platformWallet.id, userId: null, amount: platformCommission, type: 'CREDIT',
+        availableBalance: platformAvailableAfter, frozenBalance: platformFrozenAfter,
+        transactionId: platformTx.id, description: `Escrow commission for ${escrow.id}`,
+      };
     }
 
-    // 5. ثبت تراکنش‌ها
+    const payerReferenceId = `escrow-release:${escrow.id}:payer`;
+    const payeeReferenceId = `escrow-release:${escrow.id}:payee`;
     const debitTx = await Transaction.create({
-      walletId: sourceWallet.id, userId: escrow.payer_id,
-      amount, currencyId, type: 'DEBIT',
-      description: `Escrow release to user ${escrow.payee_id}`, status: 'success'
+      walletId: sourceWallet.id,
+      userId: escrow.payer_id,
+      tripId: escrow.trip_id,
+      amount,
+      currencyId,
+      type: 'DEBIT',
+      description: `Escrow released to user ${escrow.payee_id}`,
+      status: 'success',
+      referenceId: payerReferenceId,
     }, client);
-
     const creditTx = await Transaction.create({
-      walletId: payeeWallet.id, userId: escrow.payee_id,
-      amount: netAmount, currencyId, type: 'CREDIT',
-      description: `Escrow payment from user ${escrow.payer_id}`, status: 'success'
-    }, client);
-
-    // 6. ثبت در دفتر کل
-    await Transaction.createLedgerEntry({
-      walletId: sourceWallet.id, transactionId: debitTx.id,
-      creditAmount: 0, debitAmount: amount, currencyId,
-      balanceBefore: srcBalanceBefore, balanceAfter: srcBalanceAfter,
-      availableBefore: srcAvailableBefore, availableAfter: srcAvailableBefore,
-      frozenBefore: srcFrozenBefore, frozenAfter: srcFrozenAfter,
-      operationType: 'escrow_release',
-      description: `Escrow released - debited from payer ${escrow.payer_id}`
+      walletId: payeeWallet.id,
+      userId: escrow.payee_id,
+      tripId: escrow.trip_id,
+      amount: netAmount,
+      currencyId,
+      type: 'CREDIT',
+      description: `Escrow payment from user ${escrow.payer_id}`,
+      status: 'success',
+      referenceId: payeeReferenceId,
     }, client);
 
     await Transaction.createLedgerEntry({
-      walletId: payeeWallet.id, transactionId: creditTx.id,
-      creditAmount: netAmount, debitAmount: 0, currencyId,
-      balanceBefore: payeeAvailableBefore, balanceAfter: payeeAvailableAfter,
-      availableBefore: payeeAvailableBefore, availableAfter: payeeAvailableAfter,
-      frozenBefore: 0, frozenAfter: 0,
+      walletId: sourceWallet.id,
+      transactionId: debitTx.id,
+      creditAmount: 0,
+      debitAmount: amount,
+      currencyId,
+      balanceBefore: srcBalanceBefore,
+      balanceAfter: srcBalanceAfter,
+      availableBefore: srcAvailableBefore,
+      availableAfter: srcAvailableAfter,
+      frozenBefore: srcFrozenBefore,
+      frozenAfter: srcFrozenAfter,
       operationType: 'escrow_release',
-      description: `Escrow released - credited to payee ${escrow.payee_id}`
+      description: `Escrow released - payer ${escrow.payer_id}`,
+      referenceId: payerReferenceId,
+    }, client);
+    await Transaction.createLedgerEntry({
+      walletId: payeeWallet.id,
+      transactionId: creditTx.id,
+      creditAmount: netAmount,
+      debitAmount: 0,
+      currencyId,
+      balanceBefore: payeeBalanceBefore,
+      balanceAfter: payeeBalanceAfter,
+      availableBefore: payeeAvailableBefore,
+      availableAfter: payeeAvailableAfter,
+      frozenBefore: payeeFrozenBefore,
+      frozenAfter: payeeFrozenAfter,
+      operationType: 'escrow_release',
+      description: `Escrow released - payee ${escrow.payee_id}`,
+      referenceId: payeeReferenceId,
     }, client);
 
-    // 7. بروزرسانی Escrow
     const updatedEscrow = await Escrow.updateStatus(escrow.id, 'released', {
-      destination_wallet_id: payeeWallet.id
+      destination_wallet_id: payeeWallet.id,
     }, client);
+    if (!updatedEscrow) throw new Error('Failed to mark escrow as released');
 
-    return { success: true, message: 'Escrow released successfully',
-      escrowId: escrow.id, status: 'released',
-      payee: { walletId: payeeWallet.id, amount: netAmount, balance: payeeAvailableAfter },
+    const balanceEvents = [
+      {
+        walletId: sourceWallet.id, userId: escrow.payer_id, amount, type: 'DEBIT',
+        availableBalance: srcAvailableAfter, frozenBalance: srcFrozenAfter,
+        transactionId: debitTx.id, description: `Escrow released - payer ${escrow.payer_id}`,
+      },
+      {
+        walletId: payeeWallet.id, userId: escrow.payee_id, amount: netAmount, type: 'CREDIT',
+        availableBalance: payeeAvailableAfter, frozenBalance: payeeFrozenAfter,
+        transactionId: creditTx.id, description: `Escrow released - payee ${escrow.payee_id}`,
+      },
+    ];
+    if (platformBalanceEvent) balanceEvents.push(platformBalanceEvent);
+
+    return {
+      success: true,
+      message: 'Escrow released successfully',
+      escrowId: escrow.id,
+      status: 'released',
+      payee: { walletId: payeeWallet.id, amount: netAmount, balance: payeeBalanceAfter },
       platformCommission,
+      transactionIds: {
+        escrow: debitTx.id,
+        recipient: creditTx.id,
+        platformCommission: platformTx ? platformTx.id : null,
+      },
+      balanceEvents,
       event: {
         escrowId: escrow.id, payerId: escrow.payer_id, payeeId: escrow.payee_id,
         amount, netAmount, platformCommission, currencyId,
-      } };
+      },
+    };
   });
 
+  // Publish only after the database transaction has committed.
+  for (const event of result.balanceEvents) {
+    try {
+      publishBalanceChangedEvent(
+        event.walletId, event.userId || 'platform', event.amount, event.type, result.event.currencyId,
+        event.availableBalance, event.frozenBalance, event.transactionId, event.description
+      );
+    } catch (error) {
+      console.error('[WalletService] Failed to publish WalletBalanceChanged after escrow release:', error && error.message);
+    }
+  }
   try {
     eventBus.publish('EscrowReleased', { ...result.event, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('[WalletService] Failed to publish EscrowReleased after commit:', error && error.message);
   }
-  const { event, ...publicResult } = result;
+  const { event, balanceEvents, ...publicResult } = result;
   return publicResult;
 }
 
