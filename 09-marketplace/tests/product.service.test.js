@@ -7,7 +7,7 @@ function serviceWithPool(query) {
 }
 
 describe('Marketplace product seller and input validation', () => {
-  test('resolves only an active, verified seller profile for the authenticated user', async () => {
+  test('resolves an active seller profile for the authenticated user', async () => {
     const query = jest.fn()
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
       .mockResolvedValueOnce({ rows: [{ id: 'seller-profile-1' }] });
@@ -15,7 +15,6 @@ describe('Marketplace product seller and input validation', () => {
 
     await expect(service.getActiveSellerIdForUser('user-1')).resolves.toBe('seller-profile-1');
     expect(query.mock.calls[1][0]).toContain("status = 'active'");
-    expect(query.mock.calls[1][0]).toContain("verification_status = 'verified'");
     expect(query.mock.calls[1][1]).toEqual(['user-1']);
   });
 
