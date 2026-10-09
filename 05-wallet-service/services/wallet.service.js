@@ -172,7 +172,7 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
     throw new Error('User ID is required');
   }
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
       const existingTx = await Transaction.findByReferenceId(referenceId, client);
@@ -229,12 +229,6 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
       referenceId
     }, client);
 
-    // انتشار رویداد (بعد از commit موفق)
-    publishBalanceChangedEvent(
-      wallet.id, userId, amount, 'CREDIT', currencyId,
-      availableAfter, frozenAfter, tx.id, description
-    );
-
     return {
       success: true,
       message: 'Deposit successful',
@@ -246,9 +240,26 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
       availableBalance: availableAfter,
       frozenBalance: frozenAfter,
       transactionId: tx.id,
-      referenceId
+      referenceId,
+      event: {
+        walletId: wallet.id, userId, amount, currencyId,
+        availableBalance: availableAfter, frozenBalance: frozenAfter,
+        transactionId: tx.id, description: description || 'Wallet deposit',
+      }
     };
   });
+
+  try {
+    const event = result.event;
+    publishBalanceChangedEvent(
+      event.walletId, event.userId, event.amount, 'CREDIT', event.currencyId,
+      event.availableBalance, event.frozenBalance, event.transactionId, event.description
+    );
+  } catch (error) {
+    console.error('[WalletService] Failed to publish WalletBalanceChanged after deposit commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
