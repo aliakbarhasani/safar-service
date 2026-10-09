@@ -345,6 +345,21 @@ const tripDispatchService = new TripDispatchService({
   eventBus: mobilityEventBus,
   tripOfferRepository,
 });
+
+// The timeout queue was implemented but never bootstrapped, so unaccepted offers
+// could expire without ever triggering the next-driver attempt.
+const { DispatchTimeoutQueue } = require('../16-mobility-engine/infrastructure/queue/DispatchTimeoutQueue');
+const dispatchRedisConnection = typeof pricingRedisClient.duplicate === 'function'
+  ? pricingRedisClient.duplicate({ maxRetriesPerRequest: null })
+  : null;
+const dispatchTimeoutQueue = new DispatchTimeoutQueue({
+  redisConnection: dispatchRedisConnection,
+  tripDispatchService,
+});
+tripDispatchService.dispatchTimeoutQueue = dispatchTimeoutQueue;
+dispatchTimeoutQueue.startWorker().catch((error) => {
+  console.error('[gateway] dispatch timeout worker failed to start:', error.message);
+});
 registerMobilityEventHandler({ eventBus: mobilityEventBus, tripDispatchService, logger: console });
 
 // ===== (P13-2) مسیرهای توزیع سفر — 16-mobility-engine =====
