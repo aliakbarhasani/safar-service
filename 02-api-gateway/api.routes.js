@@ -353,7 +353,7 @@ registerMobilityEventHandler({ eventBus: mobilityEventBus, tripDispatchService, 
 const { createDispatchRoutes } = require('../16-mobility-engine/routes/dispatch.routes');
 const dispatchRoutes = createDispatchRoutes({
   acceptTripUseCase,
-  iamAuthenticate,
+  iamAuthenticate: authenticateSession,
   logger: console,
 });
 router.use('/api/v1/dispatch', dispatchRoutes);
