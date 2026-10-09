@@ -85,13 +85,39 @@ class FareQuoteStore {
     return this.get(quoteId);
   }
 
-  /** Consume (read + delete) — optional one-time-use semantics. */
+  /**
+   * Atomically consume a quote exactly once.
+   * GET+DEL in separate calls is race-prone: two concurrent trip requests could
+   * both read the same quote before either deletes it.
+   */
   async consume(quoteId) {
-    const quote = await this.get(quoteId);
-    if (quote && typeof this.redis.del === 'function') {
-      try { await this.redis.del(this._key(quoteId)); } catch (_) { /* ignore */ }
+    if (!quoteId) return null;
+    const key = this._key(quoteId);
+    let raw = null;
+
+    try {
+      if (typeof this.redis.getdel === 'function') {
+        raw = await this.redis.getdel(key);
+      } else if (typeof this.redis.eval === 'function') {
+        raw = await this.redis.eval(
+          "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value",
+          1,
+          key,
+        );
+      } else {
+        // Fail closed rather than falling back to a non-atomic GET + DEL.
+        return null;
+      }
+    } catch (_) {
+      return null;
     }
-    return quote;
+
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
