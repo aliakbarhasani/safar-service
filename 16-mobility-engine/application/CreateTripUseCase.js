@@ -232,6 +232,8 @@ class CreateTripUseCase {
                 passengerId,
                 quoteId,
                 serviceType,
+                origin: { lat: coordinates[0], lng: coordinates[1] },
+                destination: { lat: coordinates[2], lng: coordinates[3] },
             });
             this.emitEvent(TripDomainEvents.DriverSearchingStarted, {
                 tripId: savedTrip.id,
