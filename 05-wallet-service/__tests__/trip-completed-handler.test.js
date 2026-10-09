@@ -380,6 +380,8 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('dw', 85000, expect.anything());
 
     const txs = Transaction.create.mock.calls.map((c) => c[0]);
+    expect(Wallet.findByTypeAndCurrency).toHaveBeenCalledWith('platform', 'IRT', expect.anything());
+    expect(txs.find((t) => t.description.includes('TRIP_COMMISSION')).userId).toBeNull();
     expect(txs.some((t) => t.type === 'DEBIT' && t.amount === 100000 && t.description.includes('TRIP_PAYMENT'))).toBe(true);
     expect(txs.some((t) => t.type === 'CREDIT' && t.amount === 15000 && t.description.includes('TRIP_COMMISSION'))).toBe(true);
     expect(txs.some((t) => t.type === 'CREDIT' && t.amount === 85000 && t.description.includes('TRIP_REVENUE'))).toBe(true);
