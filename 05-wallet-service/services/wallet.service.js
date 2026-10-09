@@ -59,7 +59,7 @@ function validateCurrency(currencyId) {
 function publishBalanceChangedEvent(walletId, userId, amount, type, currencyId, availableBalance, frozenBalance, transactionId, description) {
   eventBus.publish('WalletBalanceChanged', {
     walletId: walletId.toString(),
-    userId: userId.toString(),
+    userId: userId == null ? null : userId.toString(),
     amount,
     type,
     currencyId,
@@ -1432,7 +1432,7 @@ async function releaseEscrowFull(escrowId) {
   for (const event of result.balanceEvents) {
     try {
       publishBalanceChangedEvent(
-        event.walletId, event.userId || 'platform', event.amount, event.type, result.event.currencyId,
+        event.walletId, event.userId, event.amount, event.type, result.event.currencyId,
         event.availableBalance, event.frozenBalance, event.transactionId, event.description
       );
     } catch (error) {
