@@ -86,8 +86,13 @@ class TripCompletedHandler {
   subscribe() {
     if (!this.eventBus || !this.eventBus.on || this._subscribed) return;
     this.eventBus.on(this.eventName, (payload) => {
+      // Central EventBus publishes { event, data, timestamp }; support both
+      // the canonical envelope and direct payloads used by legacy callers.
+      const eventData = payload && payload.data && payload.event
+        ? payload.data
+        : (payload || {});
       try {
-        this.handle(payload || {}).catch((err) => {
+        this.handle(eventData).catch((err) => {
           // خطای هندلر نباید به تولیدکننده رویداد منتقل شود
           if (this.eventBus && this.eventBus.logger) {
             this.eventBus.logger.error('TripCompletedHandler failed', err);
