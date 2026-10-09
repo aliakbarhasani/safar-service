@@ -32,11 +32,12 @@ const COLUMNS_SELECT = COLUMNS.join(', ');
 /**
  * یافتن کیف پول با شناسه
  */
-async function findById(id) {
-  const result = await pg.query(
-    `SELECT ${COLUMNS_SELECT} FROM ${TABLE} WHERE id = $1 AND deleted_at IS NULL`,
-    [id]
-  );
+async function findById(id, client = null) {
+  const queryText = `SELECT ${COLUMNS_SELECT} FROM ${TABLE} WHERE id = $1 AND deleted_at IS NULL`;
+  const params = [id];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
   return result.rows[0] || null;
 }
 
