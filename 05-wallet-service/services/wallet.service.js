@@ -257,10 +257,10 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
     throw new Error('User ID is required');
   }
 
-  return await pg.transaction(async (client) => {
+  const result = await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
-      const existingTx = await Transaction.findByReferenceId(referenceId);
+      const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
       }
@@ -328,12 +328,6 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
       referenceId
     }, client);
 
-    // انتشار رویداد
-    publishBalanceChangedEvent(
-      wallet.id, userId, amount, 'DEBIT', currencyId,
-      availableAfter, frozenAfter, tx.id, description
-    );
-
     return {
       success: true,
       message: 'Withdrawal successful',
@@ -345,9 +339,26 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
       availableBalance: availableAfter,
       frozenBalance: frozenAfter,
       transactionId: tx.id,
-      referenceId
+      referenceId,
+      event: {
+        walletId: wallet.id, userId, amount, type: 'DEBIT', currencyId,
+        availableBalance: availableAfter, frozenBalance: frozenAfter,
+        transactionId: tx.id, description
+      }
     };
   });
+
+  try {
+    const event = result.event;
+    publishBalanceChangedEvent(
+      event.walletId, event.userId, event.amount, event.type, event.currencyId,
+      event.availableBalance, event.frozenBalance, event.transactionId, event.description
+    );
+  } catch (error) {
+    console.error('[WalletService] Failed to publish WalletBalanceChanged after withdrawal commit:', error && error.message);
+  }
+  const { event, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
@@ -359,12 +370,21 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
  *   3. دو تراکنش (DEBIT و CREDIT) ثبت می‌کند
  *   4. دو ثبت در wallet_ledger (transfer_out, transfer_in)
  */
-async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', description = '') {
+async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', description = '', referenceId = null) {
   validateAmount(amount);
   validateCurrency(currencyId);
   validateUserIds(senderId, receiverId);
 
-  return await pg.transaction(async (client) => {
+  const senderReferenceId = referenceId ? `${referenceId}:sender` : null;
+  const receiverReferenceId = referenceId ? `${referenceId}:receiver` : null;
+
+  const result = await pg.transaction(async (client) => {
+    if (referenceId) {
+      const existingTx = await Transaction.findByReferenceId(senderReferenceId, client);
+      if (existingTx) {
+        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
+      }
+    }
     // 1. بازیابی کیف پول فرستنده (باید وجود داشته باشد)
     const senderWallet = await Wallet.findByUserAndCurrency(senderId, currencyId, client);
     if (!senderWallet) {
@@ -434,7 +454,8 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       currencyId,
       type: 'DEBIT',
       description: description || `Transfer to user ${receiverId}`,
-      status: 'success'
+      status: 'success',
+      referenceId: senderReferenceId
     }, client);
 
     // 8. ثبت تراکنش CREDIT برای گیرنده
@@ -445,7 +466,8 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       currencyId,
       type: 'CREDIT',
       description: description || `Transfer from user ${senderId}`,
-      status: 'success'
+      status: 'success',
+      referenceId: receiverReferenceId
     }, client);
 
     // 9. ثبت در دفتر کل - فرستنده
@@ -462,7 +484,8 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       frozenBefore: senderFrozenBefore,
       frozenAfter: senderFrozenAfter,
       operationType: 'transfer_out',
-      description: description || `Transfer to user ${receiverId}`
+      description: description || `Transfer to user ${receiverId}`,
+      referenceId: senderReferenceId
     }, client);
 
     // 10. ثبت در دفتر کل - گیرنده
@@ -479,20 +502,9 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       frozenBefore: receiverFrozenBefore,
       frozenAfter: receiverFrozenAfter,
       operationType: 'transfer_in',
-      description: description || `Transfer from user ${senderId}`
+      description: description || `Transfer from user ${senderId}`,
+      referenceId: receiverReferenceId
     }, client);
-
-    // انتشار رویدادها
-    publishBalanceChangedEvent(
-      senderWallet.id, senderId, amount, 'DEBIT', currencyId,
-      senderAvailableAfter, senderFrozenAfter, debitTx.id,
-      description || `Transfer to user ${receiverId}`
-    );
-    publishBalanceChangedEvent(
-      receiverWallet.id, receiverId, amount, 'CREDIT', currencyId,
-      receiverAvailableAfter, receiverFrozenAfter, creditTx.id,
-      description || `Transfer from user ${senderId}`
-    );
 
     return {
       success: true,
@@ -515,9 +527,27 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
       },
       amount,
       currencyId,
-      description: description || 'Internal transfer'
+      description: description || 'Internal transfer',
+      referenceId,
+      events: [
+        { walletId: senderWallet.id, userId: senderId, amount, type: 'DEBIT', availableBalance: senderAvailableAfter, frozenBalance: senderFrozenAfter, transactionId: debitTx.id, description: description || `Transfer to user ${receiverId}` },
+        { walletId: receiverWallet.id, userId: receiverId, amount, type: 'CREDIT', availableBalance: receiverAvailableAfter, frozenBalance: receiverFrozenAfter, transactionId: creditTx.id, description: description || `Transfer from user ${senderId}` },
+      ]
     };
   });
+
+  for (const event of result.events) {
+    try {
+      publishBalanceChangedEvent(
+        event.walletId, event.userId, event.amount, event.type, currencyId,
+        event.availableBalance, event.frozenBalance, event.transactionId, event.description
+      );
+    } catch (error) {
+      console.error('[WalletService] Failed to publish WalletBalanceChanged after transfer commit:', error && error.message);
+    }
+  }
+  const { events, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
