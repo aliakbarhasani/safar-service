@@ -119,9 +119,11 @@ class AuthController {
         failureReason: error.message,
       });
 
-      return res.status(400).json({
+      const statusCode = Number(error.statusCode) || 400;
+      return res.status(statusCode).json({
         success: false,
-        status_code: 400,
+        status_code: statusCode,
+        code: error.code || null,
         message: error.message || 'Unable to request OTP',
       });
     }
