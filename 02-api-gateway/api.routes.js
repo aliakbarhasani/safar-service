@@ -201,6 +201,13 @@ const { FareQuoteStore } = require('../18-pricing-service/infrastructure/FareQuo
 // { event, data, timestamp } — بنابراین adapter باید (event, data) را بگیرد.
 const mobilityEventBus = require('../16-mobility-engine/infrastructure/events/event-bus');
 const emitTripEvent = (event, data) => mobilityEventBus.publish(event, data);
+
+// ثبت صریح پردازشگرهای مالی در همان فرایندی که رویدادهای سفر را منتشر می‌کند.
+// بدون این ثبت، وجود handlerها به‌تنهایی باعث تسویه/آزادسازی وجه نمی‌شود.
+const { registerTripCompletedHandler } = require('../05-wallet-service/handlers/trip-completed.handler');
+const { registerTripCancelledHandler } = require('../05-wallet-service/handlers/trip-cancelled.handler');
+registerTripCompletedHandler({ eventBus: mobilityEventBus });
+registerTripCancelledHandler({ eventBus: mobilityEventBus });
 const pricingRedisClient = createRedisClient();
 const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
 const fareQuoteStore = new FareQuoteStore(pricingRedisClient);
