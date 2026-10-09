@@ -77,7 +77,7 @@ function publishBalanceChangedEvent(walletId, userId, amount, type, currencyId, 
  * این تابع تراکنش‌محور است (نیازمند client)
  */
 async function getOrCreateWallet(client, userId, currencyId) {
-  let wallet = await Wallet.findByUserAndCurrency(userId, currencyId);
+  let wallet = await Wallet.findByUserAndCurrency(userId, currencyId, client);
 
   if (!wallet) {
     wallet = await Wallet.create({
@@ -88,7 +88,7 @@ async function getOrCreateWallet(client, userId, currencyId) {
       availableBalance: 0,
       frozenBalance: 0,
       status: 'active'
-    });
+    }, client);
   }
 
   if (wallet.status !== 'active') {
@@ -168,7 +168,7 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
   return await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
-      const existingTx = await Transaction.findByReferenceId(referenceId);
+      const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
       }
@@ -267,7 +267,7 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
     }
 
     // 2. دریافت کیف پول
-    const wallet = await Wallet.findByUserAndCurrency(userId, currencyId);
+    const wallet = await Wallet.findByUserAndCurrency(userId, currencyId, client);
     if (!wallet) {
       throw new Error(`No wallet found for user ${userId} in currency ${currencyId}`);
     }
@@ -366,7 +366,7 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
 
   return await pg.transaction(async (client) => {
     // 1. بازیابی کیف پول فرستنده (باید وجود داشته باشد)
-    const senderWallet = await Wallet.findByUserAndCurrency(senderId, currencyId);
+    const senderWallet = await Wallet.findByUserAndCurrency(senderId, currencyId, client);
     if (!senderWallet) {
       throw new Error(`No wallet found for sender ${senderId} in currency ${currencyId}`);
     }
@@ -398,7 +398,7 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
     const senderFrozenAfter = parseFloat(updatedSender.frozen_balance);
 
     // 5. ایجاد یا دریافت کیف پول گیرنده
-    let receiverWallet = await Wallet.findByUserAndCurrency(receiverId, currencyId);
+    let receiverWallet = await Wallet.findByUserAndCurrency(receiverId, currencyId, client);
     if (!receiverWallet) {
       receiverWallet = await Wallet.create({
         userId: receiverId,
@@ -408,7 +408,7 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
         availableBalance: 0,
         frozenBalance: 0,
         status: 'active'
-      });
+      }, client);
     }
 
     const receiverBalanceBefore = parseFloat(receiverWallet.balance);
@@ -535,7 +535,7 @@ async function freezeFunds(userId, amount, currencyId = 'IRT', description = '')
 
   return await pg.transaction(async (client) => {
     // 1. دریافت کیف پول
-    const wallet = await Wallet.findByUserAndCurrency(userId, currencyId);
+    const wallet = await Wallet.findByUserAndCurrency(userId, currencyId, client);
     if (!wallet) {
       throw new Error(`No wallet found for user ${userId} in currency ${currencyId}`);
     }
@@ -1334,7 +1334,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
 
   return await pg.transaction(async (client) => {
     if (referenceId) {
-      const existing = await Transaction.findByReferenceId(referenceId);
+      const existing = await Transaction.findByReferenceId(`${referenceId}:passenger`, client);
       if (existing) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
       }
@@ -1484,7 +1484,7 @@ async function processCancellationPenalty({
     : Number(driverShare);
 
   return await pg.transaction(async (client) => {
-    const existing = await Transaction.findByReferenceId(referenceId);
+    const existing = await Transaction.findByReferenceId(`${referenceId}:passenger`, client);
     if (existing) {
       throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
     }
