@@ -105,6 +105,20 @@ async function getOrCreateWallet(client, userId, currencyId) {
   return wallet;
 }
 
+
+async function getPlatformWallet(client, currencyId) {
+  // Platform wallets are system-owned rows with wallet_type='platform' and
+  // user_id=NULL. Never create a human wallet for a synthetic system user ID.
+  await client.query(
+    'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+    ['wallet-type:platform', String(currencyId)]
+  );
+  const wallet = await Wallet.findByTypeAndCurrency('platform', currencyId, client);
+  if (!wallet) {
+    throw new Error(`Platform wallet is not configured for currency ${currencyId}; run database migrations/seeds first`);
+  }
+  return wallet;
+}
 /**
  * اعتبارسنجی ورودی‌های متدهای اصلی
  */
@@ -1568,7 +1582,6 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
   const passengerReferenceId = `${referenceId}:passenger`;
   const platformReferenceId = `${referenceId}:platform`;
   const driverReferenceId = `${referenceId}:driver`;
-  const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
 
   const result = await pg.transaction(async (client) => {
     // The transaction table has a unique reference_id index. Check the exact
@@ -1612,7 +1625,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     // 2) Credit platform commission.
     let platformCommissionId = null;
     if (commission > 0) {
-      const plWallet = await getOrCreateWallet(client, platformUserId, currencyId);
+      const plWallet = await getPlatformWallet(client, currencyId);
       const plBalBefore = parseFloat(plWallet.balance);
       const plAvailBefore = parseFloat(plWallet.available_balance);
       const plFrozenBefore = parseFloat(plWallet.frozen_balance);
@@ -1624,7 +1637,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       const plFrozenAfter = parseFloat(plUpdated.frozen_balance);
 
       const plTx = await Transaction.create({
-        walletId: plWallet.id, userId: platformUserId, tripId,
+        walletId: plWallet.id, userId: null, tripId,
         amount: commission, currencyId, type: 'CREDIT',
         description: `TRIP_COMMISSION trip ${tripId}`,
         status: 'success',
@@ -1734,7 +1747,6 @@ async function processCancellationPenalty({
   const passengerReferenceId = `${referenceId}:passenger`;
   const driverReferenceId = `${referenceId}:driver`;
   const platformReferenceId = `${referenceId}:platform`;
-  const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
   const configuredDriverShare = parseFloat((config.wallet || {}).cancellationDriverShare);
   const sharePct = (driverShare == null)
     ? (Number.isFinite(configuredDriverShare) ? configuredDriverShare : 80)
@@ -1825,7 +1837,7 @@ async function processCancellationPenalty({
     const platformShare = Math.max(0, penaltyAmount - driverCompensation);
     let platformShareId = null;
     if (platformShare > 0) {
-      const plWallet = await getOrCreateWallet(client, platformUserId, currencyId);
+      const plWallet = await getPlatformWallet(client, currencyId);
       const plBalBefore = parseFloat(plWallet.balance);
       const plAvailBefore = parseFloat(plWallet.available_balance);
       const plFrozenBefore = parseFloat(plWallet.frozen_balance);
@@ -1836,7 +1848,7 @@ async function processCancellationPenalty({
       const plFrozenAfter = parseFloat(plUpdated.frozen_balance);
 
       const plTx = await Transaction.create({
-        walletId: plWallet.id, userId: platformUserId, tripId,
+        walletId: plWallet.id, userId: null, tripId,
         amount: platformShare, currencyId, type: 'CREDIT',
         description: `CANCELLATION_PLATFORM_SHARE trip ${tripId}`,
         status: 'success', referenceId: platformReferenceId,
