@@ -70,7 +70,7 @@ class PricingRepository {
 
             // ۱. واکشی رکورد با قفل ردیف برای جلوگیری از مصرف همزمان (Race Condition)
             const selectQuery = `
-                SELECT id, status, expires_at, reference_id
+                SELECT id, status, expires_at, reference_id, customer_final_amount
                 FROM quotes
                 WHERE id = $1
                 FOR UPDATE
@@ -101,7 +101,7 @@ class PricingRepository {
                     consumed_at = NOW(),
                     reference_id = COALESCE($2, reference_id)
                 WHERE id = $1
-                RETURNING id, status, reference_id, consumed_at
+                RETURNING id, status, reference_id, consumed_at, customer_final_amount
             `;
             const updateResult = await client.query(updateQuery, [quoteId, referenceId]);
             const consumedQuote = updateResult.rows[0];
