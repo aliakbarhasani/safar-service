@@ -1701,7 +1701,8 @@ async function processCancellationPenalty({
       description: `CANCELLATION_PENALTY trip ${tripId}`,
     }];
 
-    const driverCompensation = Math.round(penaltyAmount * (sharePct / 100));
+    // If no driver is assigned, no driver share is allocated; the platform receives the full penalty.
+    const driverCompensation = driverId ? Math.round(penaltyAmount * (sharePct / 100)) : 0;
     let driverCompensationId = null;
     if (driverId && driverCompensation > 0) {
       const dWallet = await getOrCreateWallet(client, driverId, currencyId);
