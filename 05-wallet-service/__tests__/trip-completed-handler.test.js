@@ -110,6 +110,54 @@ describe('TripCompletedHandler (P5-1)', () => {
     expect(res).toMatchObject({ processed: false, reason: 'payment_failed' });
   });
 });
+describe('walletService.processCancellationPenalty (atomic settlement)', () => {
+  test('credits driver and platform through supported wallet model methods with unique ledger references', async () => {
+    jest.clearAllMocks();
+    const passengerWallet = { id: 'passenger-wallet', balance: '20000', available_balance: '20000', frozen_balance: '0', status: 'active' };
+    const driverWallet = { id: 'driver-wallet', balance: '0', available_balance: '0', frozen_balance: '0', status: 'active' };
+    const platformWallet = { id: 'platform-wallet', balance: '0', available_balance: '0', frozen_balance: '0', status: 'active' };
+
+    Wallet.findByUserAndCurrency
+      .mockResolvedValueOnce(passengerWallet)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    Wallet.create
+      .mockResolvedValueOnce(driverWallet)
+      .mockResolvedValueOnce(platformWallet);
+    Wallet.debitAllowNegative.mockResolvedValue({
+      id: 'passenger-wallet', balance: '10000', available_balance: '10000', frozen_balance: '0',
+    });
+    Wallet.creditAvailableBalance
+      .mockResolvedValueOnce({ id: 'driver-wallet', balance: '8000', available_balance: '8000', frozen_balance: '0' })
+      .mockResolvedValueOnce({ id: 'platform-wallet', balance: '2000', available_balance: '2000', frozen_balance: '0' });
+    Transaction.findByReferenceId.mockResolvedValue(null);
+
+    const result = await walletService.processCancellationPenalty({
+      tripId: 'trip-penalty-test',
+      passengerId: 'passenger-1',
+      driverId: 'driver-1',
+      penaltyAmount: 10000,
+      currencyId: 'IRT',
+      driverShare: 80,
+    });
+
+    expect(result).toMatchObject({
+      success: true, penaltyAmount: 10000, driverCompensation: 8000, platformShare: 2000,
+    });
+    expect(Wallet.creditAvailableBalance).toHaveBeenCalledTimes(2);
+    expect(Transaction.findByReferenceId).toHaveBeenCalledWith(
+      'trip-penalty:trip-penalty-test:passenger',
+      expect.anything(),
+    );
+    const ledgerEntries = Transaction.createLedgerEntry.mock.calls.map((call) => call[0]);
+    expect(ledgerEntries.map((entry) => entry.referenceId).sort()).toEqual([
+      'trip-penalty:trip-penalty-test:driver',
+      'trip-penalty:trip-penalty-test:passenger',
+      'trip-penalty:trip-penalty-test:platform',
+    ]);
+  });
+});
+
 describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
   const pWallet = { id: 'pw', balance: '200000', available_balance: '200000', frozen_balance: '0', status: 'active' };
   const plWallet = { id: 'platw', balance: '0', available_balance: '0', frozen_balance: '0', status: 'active' };
