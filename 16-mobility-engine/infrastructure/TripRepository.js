@@ -189,7 +189,7 @@ class TripRepository {
             SET lifecycle_status = $2,
                 status           = $3,
                 trip_phase       = $3,
-                driver_id        = COALESCE($4, driver_id),
+                driver_id        = CASE WHEN $2 IN ('CANCELLED', 'CANCELLED_BY_PASSENGER', 'CANCELLED_BY_DRIVER', 'EXPIRED') THEN NULL ELSE COALESCE($4, driver_id) END,
                 cancel_reason    = COALESCE($5, cancel_reason),
                 cancelled_by     = COALESCE($6, cancelled_by),
                 final_cost       = COALESCE($7, final_cost),
