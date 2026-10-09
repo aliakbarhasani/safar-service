@@ -73,8 +73,13 @@ class TripController {
             return res.status(201).json({ success: true, message: 'سفر با موفقیت ایجاد شد.', data: result });
         } catch (error) {
             console.error('[TripController] createTrip error:', error);
-            if (error.code === 'TRIP_SERVICE_TYPE_INVALID' || error.statusCode === 400) {
-                return res.status(400).json({ success: false, error: error.message });
+            const statusCode = Number(error.statusCode);
+            if ([400, 403, 404, 409, 410, 503].includes(statusCode)) {
+                return res.status(statusCode).json({
+                    success: false,
+                    code: error.code || null,
+                    error: error.message || 'درخواست سفر قابل پردازش نیست.',
+                });
             }
             return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در ایجاد سفر.' });
         }
