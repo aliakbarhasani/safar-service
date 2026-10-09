@@ -49,10 +49,15 @@ class ProductController {
   async createProduct(req, res) {
     try {
       const { name, description, categoryId, price, quantity, imageUrl } = req.body;
-      const sellerId = req.user?.userId;
+      const sellerUserId = req.user?.userId || req.user?.id || req.user?.sub;
 
-      if (!sellerId) {
+      if (!sellerUserId) {
         return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const sellerId = await productService.getActiveSellerIdForUser(sellerUserId);
+      if (!sellerId) {
+        return res.status(403).json({ error: 'An active, verified seller profile is required to publish products' });
       }
 
       const product = await productService.createProduct({
@@ -88,13 +93,21 @@ class ProductController {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      // SECURITY (Seller Ownership Check): فقط مالک محصول یا ادمین مجاز به ویرایش است
-      if (!isAdmin && String(existing.sellerId) !== String(callerId)) {
+      // Product seller_id references sellers.id, not users.id; resolve ownership via sellers.user_id.
+      if (!isAdmin && !(await productService.isSellerOwner(existing.sellerId, callerId))) {
         return res.status(403).json({ error: 'Forbidden: you are not the owner of this product' });
       }
 
-      // جلوگیری از انتقال مالکیت از طریق بادی
       const { sellerId: _s, seller_id: _s2, ...safeUpdates } = req.body || {};
+      if (safeUpdates.name !== undefined && (typeof safeUpdates.name !== 'string' || !safeUpdates.name.trim())) {
+        return res.status(400).json({ error: 'Product name cannot be empty' });
+      }
+      if (safeUpdates.price !== undefined && (!Number.isFinite(Number(safeUpdates.price)) || Number(safeUpdates.price) <= 0)) {
+        return res.status(400).json({ error: 'Product price must be a positive number' });
+      }
+      if (safeUpdates.quantity !== undefined && (!Number.isInteger(Number(safeUpdates.quantity)) || Number(safeUpdates.quantity) < 0)) {
+        return res.status(400).json({ error: 'Product quantity must be a non-negative integer' });
+      }
       const product = await productService.updateProduct(id, safeUpdates);
 
       if (!product) {
@@ -124,8 +137,8 @@ class ProductController {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      // SECURITY (Seller Ownership Check): فقط مالک محصول یا ادمین مجاز به حذف است
-      if (!isAdmin && String(existing.sellerId) !== String(callerId)) {
+      // Product seller_id references sellers.id; ownership must be checked via sellers.user_id.
+      if (!isAdmin && !(await productService.isSellerOwner(existing.sellerId, callerId))) {
         return res.status(403).json({ error: 'Forbidden: you are not the owner of this product' });
       }
 
