@@ -37,6 +37,13 @@ describe('CalculateFareUseCase (P6-1)', () => {
     expect(res.geohash).toHaveLength(5);
   });
 
+  test('uses the configured base fare when no dynamic config store is injected', async () => {
+    const config = require('../../14-config-system/server.config');
+    const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(0) });
+    const res = await uc.execute({ ...TEHRAN_A, perKmRate: 0 });
+    expect(res.estimatedFare).toBe(Math.round(config.trip.baseFare));
+  });
+
   test('surge ratio 1.5 is applied to final fare', async () => {
     const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(1.5) });
     const res = await uc.execute({ ...TEHRAN_A, perKmRate: 2000, baseFare: 15000 });
