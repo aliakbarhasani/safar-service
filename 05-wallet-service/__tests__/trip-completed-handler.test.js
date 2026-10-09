@@ -14,6 +14,7 @@ jest.mock('../db/pg', () => ({
 }));
 jest.mock('../models/wallet.model', () => ({
   findByUserAndCurrency: jest.fn(),
+  findById: jest.fn(),
   create: jest.fn(),
   debitAllowNegative: jest.fn(),
   debitAvailableBalance: jest.fn(),
@@ -33,6 +34,7 @@ jest.mock('../../01-core-system/EventBus', () => ({
 const pg = require('../db/pg');
 const Wallet = require('../models/wallet.model');
 const Transaction = require('../models/transaction.model');
+const EventBus = require('../../01-core-system/EventBus');
 const walletService = require('../services/wallet.service');
 const { TripCompletedHandler, TRIP_COMPLETED_EVENT } = require('../handlers/trip-completed.handler');
 
@@ -156,6 +158,77 @@ describe('walletService.processCancellationPenalty (atomic settlement)', () => {
       'trip-penalty:trip-penalty-test:passenger',
       'trip-penalty:trip-penalty-test:platform',
     ]);
+  });
+});
+
+describe('walletService.refundFunds (atomic refund)', () => {
+  test('refunds a successful debit once and publishes only after transaction callback completes', async () => {
+    jest.clearAllMocks();
+    const originalTx = {
+      id: 'original-tx', wallet_id: 'wallet-1', trip_id: 'trip-1', user_id: 'user-1',
+      amount: '2500', currency_id: 'IRT', type: 'DEBIT', status: 'success',
+    };
+    const wallet = {
+      id: 'wallet-1', balance: '7500', available_balance: '7500', frozen_balance: '0',
+      user_id: 'user-1', status: 'active',
+    };
+    let committed = false;
+    pg.transaction.mockImplementationOnce(async (callback) => {
+      const client = {
+        query: jest.fn(async (sql) => (
+          sql.includes('FROM transactions WHERE id = $1')
+            ? { rows: [originalTx], rowCount: 1 }
+            : { rows: [], rowCount: 0 }
+        )),
+      };
+      const result = await callback(client);
+      committed = true;
+      return result;
+    });
+    Wallet.findById.mockResolvedValue(wallet);
+    Wallet.creditAvailableBalance.mockResolvedValue({
+      id: 'wallet-1', balance: '10000', available_balance: '10000', frozen_balance: '0',
+    });
+    Transaction.findByReferenceId.mockResolvedValue(null);
+    EventBus.publish.mockImplementation(() => {
+      expect(committed).toBe(true);
+    });
+
+    const result = await walletService.refundFunds('original-tx', 'approved refund');
+
+    expect(result).toMatchObject({
+      success: true, amount: 2500, originalTransactionId: 'original-tx',
+      refundTransactionId: expect.any(String),
+    });
+    expect(Wallet.findById).toHaveBeenCalledWith('wallet-1', expect.anything());
+    expect(Transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'CREDIT', referenceId: 'REFUND-original-tx' }),
+      expect.anything(),
+    );
+    expect(Transaction.createLedgerEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceId: 'REFUND-original-tx' }),
+      expect.anything(),
+    );
+    expect(EventBus.publish).toHaveBeenCalledWith('WalletBalanceChanged', expect.any(Object));
+  });
+
+  test('rejects refunding a credit transaction', async () => {
+    jest.clearAllMocks();
+    pg.transaction.mockImplementationOnce(async (callback) => callback({
+      query: jest.fn(async () => ({
+        rows: [{
+          id: 'credit-tx', wallet_id: 'wallet-1', user_id: 'user-1',
+          amount: '2500', currency_id: 'IRT', type: 'CREDIT', status: 'success',
+        }],
+        rowCount: 1,
+      })),
+    }));
+
+    await expect(walletService.refundFunds('credit-tx')).rejects.toThrow(
+      'Only successful debit transactions can be refunded',
+    );
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
   });
 });
 
