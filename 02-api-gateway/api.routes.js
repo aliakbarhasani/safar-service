@@ -418,12 +418,14 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
   const dLat = Number(req.query.destLat);
   const dLng = Number(req.query.destLng);
   const promoCode = req.query.promoCode ? String(req.query.promoCode) : null;
+  const serviceType = req.query.serviceType ? String(req.query.serviceType) : 'urban_taxi';
   try {
     const result = await calculateFareUseCase.execute({
       originLat: oLat,
       originLng: oLng,
       destLat: dLat,
       destLng: dLng,
+      serviceType,
       promoCode,
     });
     // ثبت تقاضای منطقه مبدأ در پس‌زمینه (fire-and-forget؛ عدم block کردن پاسخ)
