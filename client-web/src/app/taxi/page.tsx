@@ -69,7 +69,9 @@ export default function TaxiPage() {
     } catch (error) {
       setStatusMessage({
         type: "error",
-        text: "خطا در ثبت درخواست. لطفاً اتصال خود را بررسی کنید.",
+        text: error instanceof Error
+          ? error.message
+          : "خطا در ثبت درخواست. لطفاً اتصال خود را بررسی کنید.",
       });
     } finally {
       // 4. Reset Loading State
