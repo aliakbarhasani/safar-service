@@ -26,10 +26,22 @@ class CampaignController {
   async getCampaign(req, res) {
     try {
       const { id } = req.params;
-      const campaign = await campaignService.getCampaignById(id);
+      const callerId = req.user?.userId || req.user?.id;
+      const callerRole = String(req.user?.role || '').toLowerCase();
+      const isAdmin = callerRole === 'admin' || callerRole === 'super_admin';
 
+      if (!callerId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const campaign = await campaignService.getCampaignById(id);
       if (!campaign) {
         return res.status(404).json({ error: 'Campaign not found' });
+      }
+
+      // Campaign data is tenant-scoped: only its advertiser or an administrator may read it.
+      if (!isAdmin && String(campaign.advertiserId) !== String(callerId)) {
+        return res.status(403).json({ error: 'Forbidden: you are not the owner of this campaign' });
       }
 
       return res.status(200).json({ success: true, data: campaign });
