@@ -56,22 +56,19 @@ export default function OtpPage() {
     setIsLoading(true);
     try {
       const result = await verifyOtp(phoneNumber, normalizedOtp);
-      // Backend returns `{ data: { token, user } }` — read the `token` key only.
+      // Backend stores the access token in an HttpOnly cookie; JSON returns user data only.
       const payload = result?.data || result || {};
-      const token = payload?.token;
-      if (token) {
-        const u = payload?.user;
-        // Backend sends nullable fields (first/last name, email) via JSON null;
-        // map null → undefined to satisfy the client AuthUser contract.
-        setAuth(token, u ? {
-          id: u.id,
-          phoneNumber: u.phoneNumber,
-          firstName: u.firstName ?? undefined,
-          lastName: u.lastName ?? undefined,
-          email: u.email ?? undefined,
-          role: u.role,
-        } : null);
-      }
+      const u = payload?.user;
+      if (!u) throw new Error("پاسخ سرور اطلاعات کاربر را ندارد.");
+      // Backend sends nullable fields via JSON null; map null → undefined.
+      setAuth({
+        id: u.id,
+        phoneNumber: u.phoneNumber,
+        firstName: u.firstName ?? undefined,
+        lastName: u.lastName ?? undefined,
+        email: u.email ?? undefined,
+        role: u.role,
+      });
       localStorage.removeItem("login_phone");
       router.replace("/dashboard");
     } catch (err: any) {
