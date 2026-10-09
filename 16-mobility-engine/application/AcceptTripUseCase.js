@@ -116,6 +116,17 @@ class AcceptTripUseCase {
             throw error;
         }
 
+        // Remove the dispatch slot as soon as acceptance commits. The delayed
+        // timeout worker uses this key to detect that the offer was resolved.
+        try {
+            if (this.tripOfferRepository.redis && typeof this.tripOfferRepository.redis.del === 'function') {
+                await this.tripOfferRepository.redis.del(`${DISPATCH_KEY_PREFIX}${tripId}`);
+            }
+        } catch (cleanupError) {
+            // DB state is already accepted; a timeout worker also checks the DB and lock.
+            console.warn('[AcceptTripUseCase] dispatch key cleanup failed:', cleanupError.message);
+        }
+
         // ۵) انتشار درون‌فرآیندی برای مصرفکننده‌های فعلی؛ انتشار پایدار و
         // تضمین‌شده (At-least-once) بر عهده OutboxRelay روی جدول outbox_events است.
         this.emitEvent(TripDomainEvents.DriverAccepted, {
