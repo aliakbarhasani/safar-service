@@ -86,6 +86,15 @@ test('200/next: SUPER_ADMIN bypasses ownership for any permission', async () => 
   passed++;
 });
 
+test('200/next: legacy session identity and lowercase role are normalized for policy checks', async () => {
+  const mw = authorize('trip:create');
+  const { statusCode, nextCalled, req } = await runMw(mw, { userId: 'passenger-1', role: 'passenger' });
+  assert(nextCalled === true, 'legacy passenger session should be allowed to create trips');
+  assert(statusCode == null, `no error status expected, got ${statusCode}`);
+  assert(req.user.userId === 'passenger-1', 'original request identity must remain unchanged');
+  passed++;
+});
+
 test('401: no authenticated user (no req.user)', async () => {
   const mw = authorize('trip:read:own', () => ({ passengerId: 'u-1', driverId: null }));
   const { statusCode, nextCalled } = await runMw(mw, null);
