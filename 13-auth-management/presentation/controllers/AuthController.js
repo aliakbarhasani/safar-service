@@ -169,8 +169,9 @@ class AuthController {
         success: true,
         status_code: 200,
         message: result.message,
+        // Access token is delivered only through the HttpOnly cookie above.
+        // Never expose it to JavaScript in the JSON response.
         data: {
-          token: result.token,
           user: result.user,
         },
       });
