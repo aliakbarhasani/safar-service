@@ -20,6 +20,15 @@ class RequestOtpUseCase {
       throw new Error('Phone number is required');
     }
 
+    // SECURITY: ConsoleSmsProvider only logs codes and is never a real delivery
+    // channel. Do not generate or log OTPs in production without a real provider.
+    if (process.env.NODE_ENV === 'production' && this.smsProvider instanceof ConsoleSmsProvider) {
+      const error = new Error('OTP delivery provider is not configured.');
+      error.code = 'SMS_PROVIDER_NOT_CONFIGURED';
+      error.statusCode = 503;
+      throw error;
+    }
+
     // Note: We don't block OTP requests based on previous verification attempts.
     // The save() method resets attempts to 0 when generating a new OTP.
     // Rate limiting middleware (strictRateLimit) handles request-side throttling.
