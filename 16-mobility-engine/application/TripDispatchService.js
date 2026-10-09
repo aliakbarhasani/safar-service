@@ -68,6 +68,12 @@ class TripDispatchService {
       throw error;
     }
 
+    const dispatchKey = this._buildDispatchKey(tripId);
+    const existingDriverId = await this.redis.get(dispatchKey);
+    if (existingDriverId) {
+      return { status: 'DRIVER_ALREADY_PROPOSED', tripId, driverId: String(existingDriverId) };
+    }
+
     // ۱) یافتن رانندگان نزدیک (مرتب‌شده بر اساس فاصله)
     const nearbyDrivers = await this.locationService.findNearbyDrivers(
       originLon,
@@ -93,7 +99,6 @@ class TripDispatchService {
     }
 
     // ۳) ذخیره کاندیدا در Redis با TTL (جلوگیری از ارسال همزمان)
-    const dispatchKey = this._buildDispatchKey(tripId);
     await this.redis.set(dispatchKey, selectedDriver.driverId, 'EX', this.ttlSeconds);
 
     // Persist the offer under the key accepted by AcceptTripUseCase.
