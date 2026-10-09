@@ -235,6 +235,32 @@ describe('TripDispatchService', () => {
       expect(result.status).toBe('ALREADY_RESOLVED');
     });
 
+    test('should not retry a trip that has already been accepted', async () => {
+      const redis = makeRedis();
+      redis.store.set('dispatch:trip:trip-accepted', 'driver-old');
+      const locationService = makeLocationService([{ driverId: 'driver-next', distanceKm: 0.5 }]);
+      const tripRepository = {
+        getTripById: jest.fn().mockResolvedValue({
+          id: 'trip-accepted',
+          status: 'ACCEPTED',
+          origin_lng: 51.389,
+          origin_lat: 35.6892,
+        }),
+      };
+      const service = new TripDispatchService({
+        locationService,
+        driverService: makeDriverService({ 'driver-next': 'online' }),
+        redisClient: redis,
+        tripRepository,
+      });
+
+      const result = await service.handleDispatchTimeout('trip-accepted');
+
+      expect(result.status).toBe('ALREADY_RESOLVED');
+      expect(redis.store.has('dispatch:trip:trip-accepted')).toBe(false);
+      expect(locationService.findNearbyDrivers).not.toHaveBeenCalled();
+    });
+
     test('should retry with another available driver after an unaccepted offer times out', async () => {
       const redis = makeRedis();
       redis.store.set('dispatch:trip:trip-timeout', 'driver-old');
