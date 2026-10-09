@@ -137,6 +137,76 @@ class PricingRepository {
         }
     }
 
+    /**
+     * Persist a coordinate-bound quote created by the mobility fare estimator.
+     * The explicit ID is shared with FareQuoteStore so trips.quote_id retains
+     * its foreign-key integrity and the SQL quote can be consumed transactionally.
+     */
+    async saveFareQuote({
+        quoteId,
+        serviceType,
+        estimatedFare,
+        currencyCode = 'IRT',
+        expiresAt,
+        inputSnapshot = {},
+        calculationSnapshot = {},
+    } = {}) {
+        const amount = Number(estimatedFare);
+        if (!quoteId || !serviceType || !Number.isFinite(amount) || amount <= 0 || !expiresAt) {
+            const error = new Error('saveFareQuote requires quoteId, serviceType, positive amount, and expiresAt.');
+            error.code = 'FARE_QUOTE_VALIDATION';
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const config = await this.getActiveConfig(serviceType);
+        const client = await this.db.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query(
+                `INSERT INTO quotes (
+                    id, reference_id, pricing_config_id, service_type, currency_code,
+                    gross_amount, discount_amount, tax_amount, commission_amount,
+                    provider_amount, customer_final_amount, status,
+                    input_snapshot, calculation_snapshot, expires_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5,
+                    $6, 0, 0, 0,
+                    $6, $6, 'CREATED',
+                    $7::jsonb, $8::jsonb, $9
+                )`,
+                [
+                    quoteId,
+                    `fare-quote:${quoteId}`,
+                    config.id,
+                    serviceType,
+                    currencyCode,
+                    amount,
+                    JSON.stringify(inputSnapshot),
+                    JSON.stringify(calculationSnapshot),
+                    expiresAt,
+                ],
+            );
+            await client.query(
+                `INSERT INTO pricing_audit_logs (
+                    quote_id, action_type, rule_snapshot, calculation_steps
+                ) VALUES ($1, 'QUOTE_GENERATED', $2::jsonb, $3::jsonb)`,
+                [
+                    quoteId,
+                    JSON.stringify({ source: 'mobility-fare-estimator', serviceType }),
+                    JSON.stringify(calculationSnapshot),
+                ],
+            );
+            await client.query('COMMIT');
+            return quoteId;
+        } catch (error) {
+            try { await client.query('ROLLBACK'); } catch (_) { /* preserve original error */ }
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
     async saveQuoteAndAudit(quoteEntity) {
         const client = await this.db.connect();
         try {
