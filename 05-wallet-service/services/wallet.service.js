@@ -1108,21 +1108,31 @@ async function refundFunds(originalTransactionId, reason = '') {
  * @param {string} params.payeeId - شناسه دریافت‌کننده
  * @param {number} params.amount - مبلغ
  * @param {string} params.currencyId - کد ارز
- * @param {number} params.platformCommission - کارمزد پلتفرم
+ * @param {string} params.serviceType - نوع سرویس برای تعیین کمیسیون از تنظیمات سمت سرور
  * @param {string} params.tripId - شناسه سفر (اختیاری)
  * @param {string} params.description - توضیحات
  * @returns {Object} escrow created
  */
-async function createEscrow({ payerId, payeeId, amount, currencyId = 'IRT', platformCommission = 0, tripId = null, description = '' }) {
+async function createEscrow({
+  payerId, payeeId, amount, currencyId = 'IRT', tripId = null,
+  description = '', serviceType = 'urban_taxi',
+} = {}) {
   validateAmount(amount);
   validateCurrency(currencyId);
   if (!payerId) throw new Error('Payer ID is required');
 
-  const commission = Number(platformCommission);
-  if (!Number.isFinite(commission) || commission < 0 || commission >= amount) {
-    throw new Error('Platform commission must be a finite amount greater than or equal to zero and less than the escrow amount');
+  // Commission is resolved only from trusted server configuration. Any
+  // caller-supplied platformCommission field is intentionally ignored.
+  const commissionRates = (config.trip && config.trip.commissionRates) || {};
+  const configuredRate = serviceType && commissionRates[serviceType] != null
+    ? Number(commissionRates[serviceType])
+    : Number(commissionRates.general ?? commissionRates.urban_taxi);
+  const rate = Number.isFinite(configuredRate) ? configuredRate : 10;
+  if (!Number.isFinite(rate) || rate < 0 || rate >= 100) {
+    throw new Error('Escrow commission rate must be a finite percentage greater than or equal to 0 and less than 100');
   }
-  const netAmount = amount - commission;
+  const commission = Number((amount * rate / 100).toFixed(8));
+  const netAmount = Number((amount - commission).toFixed(8));
   const freezeReferenceId = tripId ? `escrow-create:${tripId}:freeze` : null;
 
   const result = await pg.transaction(async (client) => {
