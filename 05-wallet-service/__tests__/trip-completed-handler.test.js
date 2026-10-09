@@ -269,7 +269,16 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
   const dWallet = { id: 'dw', balance: '0', available_balance: '0', frozen_balance: '0', status: 'active' };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    // Clear queued one-time mock results from earlier describe blocks too.
+    Wallet.findByUserAndCurrency.mockReset();
+    Wallet.findByTypeAndCurrency.mockReset();
+    Wallet.create.mockReset();
+    Wallet.debitAvailableBalance.mockReset();
+    Wallet.creditAvailableBalance.mockReset();
+    Transaction.findByReferenceId.mockReset();
+    Transaction.create.mockReset().mockImplementation(async (data) => ({ id: `txn-${data.type}-test`, ...data }));
+    Transaction.createLedgerEntry.mockReset().mockResolvedValue({ rows: [] });
+    pg.transaction.mockClear();
     // مسافر یافت؛ پلتفرم و راننده ساخته می‌شوند
     Wallet.findByUserAndCurrency
       .mockResolvedValueOnce(pWallet)
