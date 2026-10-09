@@ -70,7 +70,7 @@ class CalculateFareUseCase {
    *        (P10-2) سرویس اعتبارسنجی کد تخفیف — validate({ code, userId, fare })
    *        را با خروجی { valid, discountAmount, finalFare } پیاده‌سازی می‌کند.
    */
-  constructor({ demandSupplyTracker, fareQuoteStore = null, dynamicConfigStore = null, promoService = null }) {
+  constructor({ demandSupplyTracker, fareQuoteStore = null, dynamicConfigStore = null, promoService = null, pricingRepository = null }) {
     if (!demandSupplyTracker) {
       throw new Error('CalculateFareUseCase: demandSupplyTracker is required');
     }
@@ -78,6 +78,7 @@ class CalculateFareUseCase {
     this.fareQuoteStore = fareQuoteStore;
     this.configStore = dynamicConfigStore;
     this.promoService = promoService;
+    this.pricingRepository = pricingRepository;
   }
 
   /**
@@ -184,11 +185,39 @@ class CalculateFareUseCase {
         expiresAt: expiresAt.toISOString(),
       };
       try {
+        // SQL row and Redis payload share one ID: trips.quote_id has an FK to quotes.id.
+        // Persist the audit/foreign-key record first; only expose the quote ID after
+        // the coordinate-bound Redis payload is also stored successfully.
+        if (this.pricingRepository && typeof this.pricingRepository.saveFareQuote === 'function') {
+          await this.pricingRepository.saveFareQuote({
+            quoteId,
+            serviceType,
+            estimatedFare,
+            currencyCode: 'IRT',
+            expiresAt: quote.expiresAt,
+            inputSnapshot: {
+              serviceType,
+              originLat: oLat,
+              originLng: oLng,
+              destLat: dLat,
+              destLng: dLng,
+              distance,
+            },
+            calculationSnapshot: {
+              estimatedFare,
+              distance,
+              surgeMultiplier,
+              geohash,
+              demandRatio: ratio,
+            },
+          });
+        }
         await this.fareQuoteStore.save(quote);
         result.quoteId = quoteId;
         result.expiresAt = quote.expiresAt;
-      } catch (_) {
-        // خطای Redis نباید تخمین قیمت را بشکند؛ quoteId بدون ذخیره برنمیگردد.
+      } catch (error) {
+        // Without both stores, do not expose a quote ID that cannot create a trip.
+        console.warn('[pricing] fare quote persistence failed:', error.message);
       }
     }
 
