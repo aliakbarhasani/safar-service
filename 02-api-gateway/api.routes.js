@@ -240,10 +240,18 @@ router.use('/api/v1/trips', iamAuthenticate, tripRouter);
 async function fetchTripById(tripId) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT t.id, t.passenger_id, t.driver_id, d.user_id AS driver_user_id
-       FROM trips t
-       LEFT JOIN drivers d ON d.id = t.driver_id AND d.deleted_at IS NULL
-      WHERE t.id = $1`,
+    `SELECT
+       t.id, t.passenger_id, t.driver_id, d.user_id AS driver_user_id,
+       t.lifecycle_status AS status, t.service_type,
+       t.origin_address, t.origin_latitude AS origin_lat, t.origin_longitude AS origin_lng,
+       t.destination_address, t.destination_latitude AS dest_lat, t.destination_longitude AS dest_lng,
+       t.estimated_cost, t.final_cost, t.currency_id,
+       t.created_at, t.started_at, t.finished_at, t.cancel_reason,
+       d.first_name AS driver_first_name, d.last_name AS driver_last_name,
+       d.vehicle_type AS driver_vehicle_type
+     FROM trips t
+     LEFT JOIN drivers d ON d.id = t.driver_id AND d.deleted_at IS NULL
+     WHERE t.id = $1`,
     [tripId]
   );
   const row = rows && rows[0];
@@ -253,6 +261,22 @@ async function fetchTripById(tripId) {
     passengerId: row.passenger_id,
     driverId: row.driver_id,
     driverUserId: row.driver_user_id,
+    status: row.status,
+    serviceType: row.service_type,
+    origin: { address: row.origin_address, latitude: row.origin_lat, longitude: row.origin_lng },
+    destination: { address: row.destination_address, latitude: row.dest_lat, longitude: row.dest_lng },
+    estimatedCost: row.estimated_cost,
+    finalCost: row.final_cost,
+    currencyId: row.currency_id,
+    createdAt: row.created_at,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    cancelReason: row.cancel_reason,
+    driver: row.driver_id ? {
+      firstName: row.driver_first_name,
+      lastName: row.driver_last_name,
+      vehicleType: row.driver_vehicle_type,
+    } : null,
   };
 }
 router.get(
@@ -264,12 +288,16 @@ router.get(
     const resource = req.resource;
     if (!resource) return res.status(404).json({ success: false, error: 'trip not found' });
 
-    // این مسیر هنوز DTO کامل و امنِ جزئیات سفر را پیاده‌سازی نکرده است.
-    // به‌جای پاسخ 200 گمراه‌کننده با تنها یک شناسه، عدم آماده‌بودن قابلیت را صریح اعلام می‌کنیم.
-    return res.status(501).json({
-      success: false,
-      code: 'TRIP_READ_NOT_IMPLEMENTED',
-      error: 'خواندن جزئیات سفر هنوز پیاده‌سازی نشده است.',
+    // شناسه‌های داخلی مالکیت برای ABAC هستند؛ آن‌ها را به DTO عمومی برنمی‌گردانیم.
+    const {
+      passengerId: _passengerId,
+      driverId: _driverId,
+      driverUserId: _driverUserId,
+      ...tripDetails
+    } = resource;
+    return res.status(200).json({
+      success: true,
+      data: tripDetails,
     });
   }
 );
