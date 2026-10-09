@@ -41,6 +41,24 @@ class EventBus extends EventEmitter {
   }
 
   /**
+   * انتشار و انتظار برای تکمیل listenerهای async.
+   * OutboxRelay از این متد استفاده می‌کند تا شکست پردازشگرهای مالی
+   * قبل از علامت‌گذاری رویداد به‌عنوان PUBLISHED قابل تشخیص باشد.
+   */
+  async publishAsync(event, data) {
+    const store = requestContext.getStore();
+    const correlationId = store?.correlationId || null;
+    const envelope = {
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+      metadata: { correlationId },
+    };
+    const listeners = this.rawListeners(event);
+    return Promise.all(listeners.map((listener) => listener(envelope)));
+  }
+
+  /**
    * اشتراک در یک رویداد
    * @param {string} event - نام رویداد
    * @param {Function} handler - تابع پردازشگر
