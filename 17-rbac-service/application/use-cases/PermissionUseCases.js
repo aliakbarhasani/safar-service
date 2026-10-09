@@ -11,8 +11,9 @@
 const Permission = require('../../domain/entities/Permission');
 
 class PermissionUseCases {
-  constructor({ permissionRepository, authorizationService, auditRepository = null, cache = { map: null, fetchedAt: 0 }, cacheTtlMs = 30000 }) {
+  constructor({ permissionRepository, userRepository = null, authorizationService, auditRepository = null, cache = { map: null, fetchedAt: 0 }, cacheTtlMs = 30000 }) {
     this.permissionRepository = permissionRepository;
+    this.userRepository = userRepository;
     this.authorizationService = authorizationService;
     this.auditRepository = auditRepository;
     this._cache = cache;               // کش در حافظه با TTL برای عملکرد middleware
