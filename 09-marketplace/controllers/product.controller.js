@@ -57,7 +57,7 @@ class ProductController {
 
       const sellerId = await productService.getActiveSellerIdForUser(sellerUserId);
       if (!sellerId) {
-        return res.status(403).json({ error: 'An active, verified seller profile is required to publish products' });
+        return res.status(403).json({ error: 'An active seller profile is required to publish products' });
       }
 
       const product = await productService.createProduct({
