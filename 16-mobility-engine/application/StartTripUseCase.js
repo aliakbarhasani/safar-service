@@ -22,7 +22,7 @@ class StartTripUseCase {
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
-    async execute({ tripId, changedByUserId = null }) {
+    async execute({ tripId, changedByUserId = null, driverId = null, actorRole = 'driver' }) {
         if (!tripId) {
             const error = new Error('پارامتر tripId الزامی است.');
             error.code = 'START_TRIP_VALIDATION';
@@ -39,6 +39,15 @@ class StartTripUseCase {
             const row = await this.tripRepository.getTripByIdForUpdate(tripId, client);
             if (!row) {
                 throw new TripNotFoundError(tripId);
+            }
+
+            // SECURITY: راننده فقط می‌تواند سفر تخصیص‌یافته به پروفایل خودش را تغییر دهد.
+            if (String(actorRole).toLowerCase() !== 'super_admin'
+                && (!driverId || String(row.driver_id) !== String(driverId))) {
+                const error = new Error('این سفر به رانندهٔ احرازشده تخصیص نیافته است.');
+                error.code = 'TRIP_FORBIDDEN';
+                error.statusCode = 403;
+                throw error;
             }
 
             // ب) گذار دامنه: ARRIVED -> IN_PROGRESS (started_at ثبت میشود)
