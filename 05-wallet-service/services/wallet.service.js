@@ -1323,24 +1323,30 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     throw new Error('tripId, passengerId and driverId are required for trip payment');
   }
 
-  // کمیسیون از Config خوانده میشود؛ مگر آنکه صراحتاً تزریق شود.
   const rate = (commissionRate == null)
     ? parseFloat((config.trip.commissionRates || {}).general) || 15
     : Number(commissionRate);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    throw new Error('Commission rate must be a finite number between 0 and 100');
+  }
+
   const commission = Math.round(amount * (rate / 100));
   const driverAmount = amount - commission;
   const referenceId = `trip-payment:${tripId}`;
+  const passengerReferenceId = `${referenceId}:passenger`;
+  const platformReferenceId = `${referenceId}:platform`;
+  const driverReferenceId = `${referenceId}:driver`;
   const platformUserId = (config.wallet || {}).platformUserId || 'system-platform';
 
-  return await pg.transaction(async (client) => {
-    if (referenceId) {
-      const existing = await Transaction.findByReferenceId(`${referenceId}:passenger`, client);
-      if (existing) {
-        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
-      }
+  const result = await pg.transaction(async (client) => {
+    // The transaction table has a unique reference_id index. Check the exact
+    // passenger reference and rely on that index to serialize concurrent retries.
+    const existing = await Transaction.findByReferenceId(passengerReferenceId, client);
+    if (existing) {
+      throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
     }
 
-    // ---- 1) کسر کرایه از کیف پول مسافر (اجازه بدهی) ----
+    // 1) Charge passenger. Debt is recorded when the available balance is insufficient.
     const pWallet = await getOrCreateWallet(client, passengerId, currencyId);
     const pBalBefore = parseFloat(pWallet.balance);
     const pAvailBefore = parseFloat(pWallet.available_balance);
@@ -1358,7 +1364,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       amount, currencyId, type: 'DEBIT',
       description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
       status: debt ? 'pending' : 'success',
-      referenceId: `${referenceId}:passenger`,
+      referenceId: passengerReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
       walletId: pWallet.id, transactionId: pTx.id,
@@ -1368,12 +1374,11 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       frozenBefore: pFrozenBefore, frozenAfter: pFrozenAfter,
       operationType: 'trip_payment',
       description: `TRIP_PAYMENT trip ${tripId}${debt ? ' (debt)' : ''}`,
-      referenceId,
+      referenceId: passengerReferenceId,
     }, client);
 
-    // ---- 2) کمیسیون سیستم به کیف پول پلتفرم (فقط اگر > 0) ----
+    // 2) Credit platform commission.
     let platformCommissionId = null;
-
     if (commission > 0) {
       const plWallet = await getOrCreateWallet(client, platformUserId, currencyId);
       const plBalBefore = parseFloat(plWallet.balance);
@@ -1391,7 +1396,7 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
         amount: commission, currencyId, type: 'CREDIT',
         description: `TRIP_COMMISSION trip ${tripId}`,
         status: 'success',
-        referenceId: `${referenceId}:platform`,
+        referenceId: platformReferenceId,
       }, client);
       await Transaction.createLedgerEntry({
         walletId: plWallet.id, transactionId: plTx.id,
@@ -1401,20 +1406,20 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
         frozenBefore: plFrozenBefore, frozenAfter: plFrozenAfter,
         operationType: 'commission',
         description: `TRIP_COMMISSION trip ${tripId}`,
-        referenceId,
+        referenceId: platformReferenceId,
       }, client);
       platformCommissionId = plTx.id;
     }
 
-    // ---- 3) واریز مابقی به کیف پول راننده ----
+    // 3) Credit the driver's net revenue.
     const dWallet = await getOrCreateWallet(client, driverId, currencyId);
-    const dBAlBefore = parseFloat(dWallet.balance);
+    const dBalBefore = parseFloat(dWallet.balance);
     const dAvailBefore = parseFloat(dWallet.available_balance);
     const dFrozenBefore = parseFloat(dWallet.frozen_balance);
 
     const dUpdated = await Wallet.creditAvailableBalance(dWallet.id, driverAmount, client);
     if (!dUpdated) throw new Error('Failed to credit driver wallet');
-    const dBAlAfter = parseFloat(dUpdated.balance);
+    const dBalAfter = parseFloat(dUpdated.balance);
     const dAvailAfter = parseFloat(dUpdated.available_balance);
     const dFrozenAfter = parseFloat(dUpdated.frozen_balance);
 
@@ -1423,21 +1428,18 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       amount: driverAmount, currencyId, type: 'CREDIT',
       description: `TRIP_REVENUE trip ${tripId}`,
       status: 'success',
-      referenceId: `${referenceId}:driver`,
+      referenceId: driverReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
       walletId: dWallet.id, transactionId: dTx.id,
       creditAmount: driverAmount, debitAmount: 0, currencyId,
-      balanceBefore: dBAlBefore, balanceAfter: dBAlAfter,
+      balanceBefore: dBalBefore, balanceAfter: dBalAfter,
       availableBefore: dAvailBefore, availableAfter: dAvailAfter,
       frozenBefore: dFrozenBefore, frozenAfter: dFrozenAfter,
       operationType: 'trip_revenue',
       description: `TRIP_REVENUE trip ${tripId}`,
-      referenceId,
+      referenceId: driverReferenceId,
     }, client);
-
-    publishBalanceChangedEvent(pWallet.id, passengerId, amount, 'DEBIT', currencyId, pAvailAfter, pFrozenAfter, pTx.id, `TRIP_PAYMENT trip ${tripId}`);
-    publishBalanceChangedEvent(dWallet.id, driverId, driverAmount, 'CREDIT', currencyId, dAvailAfter, dFrozenAfter, dTx.id, `TRIP_REVENUE trip ${tripId}`);
 
     return {
       success: true,
@@ -1452,8 +1454,27 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
       passengerTransactionId: pTx.id,
       driverTransactionId: dTx.id,
       platformCommissionId,
+      events: [
+        { walletId: pWallet.id, userId: passengerId, amount, type: 'DEBIT', availableBalance: pAvailAfter, frozenBalance: pFrozenAfter, transactionId: pTx.id, description: `TRIP_PAYMENT trip ${tripId}` },
+        { walletId: dWallet.id, userId: driverId, amount: driverAmount, type: 'CREDIT', availableBalance: dAvailAfter, frozenBalance: dFrozenAfter, transactionId: dTx.id, description: `TRIP_REVENUE trip ${tripId}` },
+      ],
     };
   });
+
+  // Publish only after PostgreSQL has committed. Event delivery must not make
+  // a committed financial operation look like a failed transaction.
+  for (const event of result.events) {
+    try {
+      publishBalanceChangedEvent(
+        event.walletId, event.userId, event.amount, event.type, currencyId,
+        event.availableBalance, event.frozenBalance, event.transactionId, event.description
+      );
+    } catch (error) {
+      console.error('[WalletService] Failed to publish WalletBalanceChanged after trip settlement:', error && error.message);
+    }
+  }
+  const { events, ...publicResult } = result;
+  return publicResult;
 }
 
 /**
