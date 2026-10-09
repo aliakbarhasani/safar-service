@@ -145,6 +145,7 @@ class CreateTripUseCase {
 
             // مصرف یک‌باره پیش‌فاکتور: Quote مختصات‌دار از Redis و Quote قدیمی از SQL.
             const tripReferenceId = referenceId || `trip:${quoteId}`;
+            let quoteStatus = 'CONSUMED';
             if (this.fareQuoteStore) {
                 if (typeof this.fareQuoteStore.consume !== 'function') {
                     const error = new Error('مصرف اتمیک پیش‌فاکتور در دسترس نیست.');
@@ -154,7 +155,8 @@ class CreateTripUseCase {
                 }
                 // The matching SQL quote row is required by trips.quote_id FK and
                 // is consumed in this same PostgreSQL transaction for audit integrity.
-                await this.pricingRepository.consumeQuote(quoteId, tripReferenceId, client);
+                const consumedSqlQuote = await this.pricingRepository.consumeQuote(quoteId, tripReferenceId, client);
+                quoteStatus = consumedSqlQuote.status || 'CONSUMED';
 
                 const consumedFareQuote = await this.fareQuoteStore.consume(quoteId);
                 if (!consumedFareQuote) {
@@ -180,6 +182,7 @@ class CreateTripUseCase {
                     tripReferenceId,
                     client,
                 );
+                quoteStatus = consumed.status || 'CONSUMED';
                 quoteFare = Number(consumed.customer_final_amount);
                 if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
                     const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
@@ -242,7 +245,7 @@ class CreateTripUseCase {
                 rideId: savedTrip.id,
                 status: savedTrip.status,
                 quoteId: savedTrip.quote_id,
-                quoteStatus: consumed.status,
+                quoteStatus,
                 serviceType: savedTrip.service_type,
                 passengerId: savedTrip.passenger_id,
                 driverId: savedTrip.driver_id,
