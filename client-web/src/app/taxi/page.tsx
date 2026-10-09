@@ -22,27 +22,35 @@ const InteractiveMap = dynamic(
 export default function TaxiPage() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
-  const [selectedCoords, setSelectedCoords] = useState(null);
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const [dropoffCoords, setDropoffCoords] = useState(null);
+  const [locationTarget, setLocationTarget] = useState("pickup");
 
   // States for API integration
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
 
   const handleLocationSelect = (lat, lng) => {
-    setSelectedCoords({ lat, lng });
-    setPickup(`موقعیت انتخابی (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-    // Clear error messages if the user starts interacting again
+    const coords = { lat, lng };
+    const label = `موقعیت انتخابی (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    if (locationTarget === "pickup") {
+      setPickupCoords(coords);
+      setPickup(label);
+    } else {
+      setDropoffCoords(coords);
+      setDropoff(label);
+    }
     if (statusMessage?.type === "error") setStatusMessage(null);
   };
 
   const handleSearchRide = async () => {
     // 1. Validation
-    if (!selectedCoords) {
-      setStatusMessage({ type: "error", text: "لطفاً مبدأ خود را از روی نقشه انتخاب کنید." });
+    if (!pickupCoords) {
+      setStatusMessage({ type: "error", text: "لطفاً دکمهٔ انتخاب مبدأ را بزنید و مبدأ را روی نقشه مشخص کنید." });
       return;
     }
-    if (!dropoff.trim()) {
-      setStatusMessage({ type: "error", text: "لطفاً مقصد خود را وارد کنید." });
+    if (!dropoffCoords) {
+      setStatusMessage({ type: "error", text: "لطفاً دکمهٔ انتخاب مقصد را بزنید و مقصد را روی نقشه مشخص کنید." });
       return;
     }
 
@@ -54,8 +62,9 @@ export default function TaxiPage() {
     try {
       const response = await requestTaxiRide({
         pickup: pickup,
-        pickupCoords: selectedCoords,
+        pickupCoords: pickupCoords,
         dropoff: dropoff,
+        dropoffCoords: dropoffCoords,
       });
 
       if (response.success) {
@@ -91,9 +100,33 @@ export default function TaxiPage() {
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
           <h2 className="text-lg font-semibold text-gray-700">انتخاب مبدأ و مقصد روی نقشه</h2>
-          <p className="text-sm text-gray-500">برای تعیین مبدأ، روی نقطه مورد نظر در نقشه زیر کلیک کنید.</p>
+          <p className="text-sm text-gray-500">ابتدا مبدأ یا مقصد را انتخاب کنید، سپس نقطهٔ آن را روی نقشه بزنید.</p>
 
-          <InteractiveMap onLocationSelect={handleLocationSelect} />
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setLocationTarget("pickup")}
+              className={`rounded-xl px-4 py-2 border font-medium transition-colors ${locationTarget === "pickup" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-gray-700 border-gray-300"}`}
+            >
+              انتخاب مبدأ
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocationTarget("dropoff")}
+              className={`rounded-xl px-4 py-2 border font-medium transition-colors ${locationTarget === "dropoff" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-gray-700 border-gray-300"}`}
+            >
+              انتخاب مقصد
+            </button>
+            <span className="self-center text-sm text-gray-500">
+              در حال انتخاب: {locationTarget === "pickup" ? "مبدأ" : "مقصد"}
+            </span>
+          </div>
+
+          <InteractiveMap
+            onLocationSelect={handleLocationSelect}
+            pickupCoords={pickupCoords}
+            dropoffCoords={dropoffCoords}
+          />
 
           <div className="space-y-3 pt-2">
             <div className="relative">
@@ -103,8 +136,8 @@ export default function TaxiPage() {
               <input
                 type="text"
                 value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-                placeholder="مبدأ خود را انتخاب یا وارد کنید..."
+                readOnly
+                placeholder="مبدأ را از روی نقشه انتخاب کنید..."
                 className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -116,11 +149,8 @@ export default function TaxiPage() {
               <input
                 type="text"
                 value={dropoff}
-                onChange={(e) => {
-                  setDropoff(e.target.value);
-                  if (statusMessage?.type === "error") setStatusMessage(null);
-                }}
-                placeholder="مقصد خود را وارد کنید..."
+                readOnly
+                placeholder="مقصد را از روی نقشه انتخاب کنید..."
                 className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
