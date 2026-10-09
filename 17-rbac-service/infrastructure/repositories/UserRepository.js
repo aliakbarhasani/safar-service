@@ -10,6 +10,16 @@ class UserRepository {
     this.pool = pool;
   }
 
+  /** دریافت حداقل اطلاعات جاری کاربر برای احراز هویت RBAC. */
+  async findById(userId) {
+    if (!/^[0-9a-fA-F-]{36}$/.test(String(userId || ''))) return null;
+    const { rows } = await this.pool.query(
+      'SELECT id, phone_number, role, status FROM users WHERE id = $1 AND deleted_at IS NULL LIMIT 1',
+      [userId],
+    );
+    return rows[0] || null;
+  }
+
   /** نقش کاربر بر اساس شناسه (UUID) — برای fallback وقتی نقش در توکن نیست */
   async getRoleById(userId) {
     if (!/^[0-9a-fA-F-]{36}$/.test(String(userId || ''))) return null;
