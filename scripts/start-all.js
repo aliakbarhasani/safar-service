@@ -18,6 +18,7 @@ let stopping = false;
 function stopAll(exitCode = 0) {
   if (stopping) return;
   stopping = true;
+  process.exitCode = exitCode;
   for (const child of children) {
     if (child.exitCode === null && !child.killed) {
       try { child.kill('SIGTERM'); } catch (_) { /* already exited */ }
