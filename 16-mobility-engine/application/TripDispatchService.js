@@ -32,6 +32,7 @@ class TripDispatchService {
     eventBus = null,
     dispatchTimeoutQueue = null,
     tripOfferRepository = null,
+    tripRepository = null,
     ttlSeconds = DISPATCH_TTL_SECONDS,
     radiusKm = DISPATCH_RADIUS_KM,
   } = {}) {
@@ -45,6 +46,7 @@ class TripDispatchService {
     this.eventBus = eventBus;
     this.dispatchTimeoutQueue = dispatchTimeoutQueue;
     this.tripOfferRepository = tripOfferRepository;
+    this.tripRepository = tripRepository;
     this.ttlSeconds = ttlSeconds;
     this.radiusKm = radiusKm;
   }
@@ -56,7 +58,7 @@ class TripDispatchService {
    * @param {number} originLat - عرض جغرافیایی مبدأ
    * @returns {Promise<{status: string, driverId?: string, tripId: string}>}
    */
-  async dispatchTrip(tripId, originLon, originLat) {
+  async dispatchTrip(tripId, originLon, originLat, { excludeDriverIds = [] } = {}) {
     if (!tripId) throw new Error('tripId is required');
     if (originLon == null || originLat == null) {
       throw new Error('originLon and originLat are required');
@@ -87,7 +89,7 @@ class TripDispatchService {
     }
 
     // ۲) انتخاب اولین راننده ONLINE و AVAILABLE
-    const selectedDriver = await this._selectAvailableDriver(nearbyDrivers, tripId);
+    const selectedDriver = await this._selectAvailableDriver(nearbyDrivers, tripId, excludeDriverIds);
 
     if (!selectedDriver) {
       this._publishEvent('NoDriverFound', {
@@ -172,19 +174,46 @@ class TripDispatchService {
       return { status: 'ALREADY_RESOLVED', tripId };
     }
 
-    // حذف راننده قبلی و شروع جستجوی مجدد
-    await this.redis.del(dispatchKey);
+    // Do not re-dispatch trips that were accepted, cancelled, or completed.
+    if (!this.tripRepository || typeof this.tripRepository.getTripById !== 'function') {
+      const error = new Error('Trip repository is required to safely retry dispatch timeouts.');
+      error.code = 'DISPATCH_TRIP_LOOKUP_UNAVAILABLE';
+      error.statusCode = 503;
+      throw error;
+    }
+    const trip = await this.tripRepository.getTripById(tripId);
+    const status = String(trip && trip.status || '').toUpperCase();
+    if (!trip || !['REQUESTED', 'SEARCHING'].includes(status)) {
+      await this.redis.del(dispatchKey);
+      return { status: 'ALREADY_RESOLVED', tripId };
+    }
 
-    // انتشار رویداد برای جستجوی مجدد (با راننده بعدی)
+    // The acceptance path holds this lock through the successful state change.
+    // If it exists, don't race an in-flight acceptance with another offer.
+    const acceptanceLock = await this.redis.get(`trip_lock:${tripId}`);
+    if (acceptanceLock) {
+      return { status: 'ALREADY_RESOLVED', tripId };
+    }
+
+    await this.redis.del(dispatchKey);
     this._publishEvent('TripDispatchTimeout', {
       tripId,
-      previousDriverId: existingDriverId,
-      message: 'Driver did not accept within timeout, retrying with next driver',
+      previousDriverId: String(existingDriverId),
+      message: 'Driver did not accept within timeout; trying the next available driver',
     });
 
-    // پیدا کردن مختصات سفر از طریق یک get کردن ساده (در نسخه کامل از tripRepository)
-    // برای سادگی، رویداد را منتشر می‌کنیم و UseCase اصلی dispatchTrip را دوباره فراخوانی می‌کند
-    return { status: 'RETRY_INITIATED', tripId, previousDriverId: existingDriverId };
+    const originLng = Number(trip.origin_lng);
+    const originLat = Number(trip.origin_lat);
+    if (!Number.isFinite(originLng) || !Number.isFinite(originLat)) {
+      const error = new Error('Trip origin coordinates are unavailable for dispatch retry.');
+      error.code = 'DISPATCH_ORIGIN_MISSING';
+      error.statusCode = 503;
+      throw error;
+    }
+
+    return this.dispatchTrip(tripId, originLng, originLat, {
+      excludeDriverIds: [String(existingDriverId)],
+    });
   }
 
   /**
@@ -194,8 +223,10 @@ class TripDispatchService {
    * @returns {Promise<{driverId: string, distanceKm: number}|null>}
    * @private
    */
-  async _selectAvailableDriver(nearbyDrivers, tripId) {
+  async _selectAvailableDriver(nearbyDrivers, tripId, excludeDriverIds = []) {
+    const excluded = new Set((excludeDriverIds || []).map(String));
     for (const driver of nearbyDrivers) {
+      if (excluded.has(String(driver.driverId))) continue;
       try {
         const driverInfo = await this.driverService.findById(driver.driverId);
         // DriverService's canonical operational state is "online", not "available".
