@@ -99,9 +99,25 @@ class EndTripUseCase {
                     client,
                 );
 
-                await client.query('COMMIT');
-
                 const currency = updated.currency_id || 'IRT';
+
+                // ثبت پایدار رویداد در همان تراکنش سفر؛ اگر درج Outbox شکست بخورد،
+                // تکمیل سفر هم rollback می‌شود تا وضعیت مالی از وضعیت سفر جدا نشود.
+                if (this.tripRepository.outboxRepository) {
+                    await this.tripRepository.outboxRepository.insert({
+                        aggregateId: String(tripId),
+                        eventType: TripDomainEvents.TripCompleted,
+                        payload: {
+                            tripId: String(tripId),
+                            passengerId: updated.passenger_id,
+                            driverId: updated.driver_id,
+                            amount: fare,
+                            currency,
+                        },
+                    }, client);
+                }
+
+                await client.query('COMMIT');
                 // هـ) انتشار رویداد دامنه پس از Commit (مصرف توسط Wallet)
                 this.emitEvent(TripDomainEvents.TripCompleted, {
                     tripId,
