@@ -24,7 +24,7 @@ function makeDriverService(driverStatuses = {}) {
     findById: jest.fn().mockImplementation((id) => {
       const status = driverStatuses[id];
       if (!status) return Promise.resolve(null);
-      return Promise.resolve({ id, operationalStatus: status });
+      return Promise.resolve({ id, operationalStatus: status, accountStatus: 'verified' });
     }),
   };
 }
