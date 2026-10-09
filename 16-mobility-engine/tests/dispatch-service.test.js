@@ -99,7 +99,7 @@ describe('TripDispatchService', () => {
       expect(value).toBe('driver-1');
       expect(nxFlag).toBe('NX');
       expect(exFlag).toBe('EX');
-      expect(exValue).toBe(15);
+      expect(exValue).toBe(25);
 
       expect(eventBus.publish).toHaveBeenCalledTimes(1);
       expect(eventBus.events[0].event).toBe('TripProposedToDriver');
