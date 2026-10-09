@@ -1,15 +1,7 @@
-// Centralized auth token persistence layer.
-//
-// استراتژی ذخیره‌سازی Token (طبق فاز ۲):
-//  - Backend کوکی HttpOnly ست نمی‌کند، بنابراین به‌جای اتکای تنها به
-//    localStorage (که برای middleware و رندر اولیه در دسترس نیست)، توکن در یک
-//    کوکی ساده (بدون HttpOnly) هم نگه‌داری می‌شود تا (الف) middleware بتواند
-//    مسیرهای محافظت‌شده را در Edge چک کند و (ب) رندر اولیه به localStorage
-//    وابسته نباشد. کوکی فقط برای جلسه فعلی مشتری است و در این مرحله
-//    رمزنگاری نمی‌شود (پیاده‌سازی کامل روی کوکی HttpOnly برای بعدی).
-//
-// NOTE: این ماژول به‌گونه‌ای طراحی شده که در دو روال client و middleware
-// کوکی را به شکل سازگار بخواند.
+// Centralized client-side user display storage.
+// The backend sets the access token as an HttpOnly cookie. JavaScript must not
+// read, write, or persist that token. Middleware reads it server-side, while
+// API requests send it using credentials: "include".
 
 export const AUTH_TOKEN_COOKIE = "access_token";
 const USER_STORAGE_KEY = "user";
