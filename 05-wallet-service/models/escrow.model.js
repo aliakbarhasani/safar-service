@@ -90,19 +90,24 @@ async function create(data, client = null) {
     INSERT INTO ${TABLE}
     (trip_id, payer_id, payee_id, amount, currency_id, platform_commission, net_amount,
      source_wallet_id, destination_wallet_id, platform_wallet_id, description)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    SELECT $1, $2, $3, $4, c.id, $6, $7, $8, $9, $10, $11
+    FROM currencies c
+    WHERE c.code = $5 OR c.id::text = $5
+    ORDER BY CASE WHEN c.code = $5 THEN 0 ELSE 1 END
+    LIMIT 1
     RETURNING ${COLUMNS_SELECT}
   `;
   const params = [
-    tripId, payerId, payeeId, amount, currencyId, platformCommission, netAmount,
+    tripId, payerId, payeeId, amount, String(currencyId), platformCommission, netAmount,
     sourceWalletId, destinationWalletId, platformWalletId, description
   ];
 
-  if (client) {
-    const result = await client.query(queryText, params);
-    return result.rows[0];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
+  if (!result.rows[0]) {
+    throw new Error(`Unknown currency code or ID: ${currencyId}`);
   }
-  const result = await pg.query(queryText, params);
   return result.rows[0];
 }
 
