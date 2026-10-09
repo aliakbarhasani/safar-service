@@ -25,11 +25,18 @@ function authorize(requiredPermission, resourceExtractorFn = null) {
 
   return async function authorizeMiddleware(req, res, next) {
     const user = req.user;
+    // Legacy session JWTs expose userId and may carry lowercase role names;
+    // normalize only the policy view while preserving req.user for controllers.
+    const policyUser = user ? {
+      ...user,
+      id: user.id || user.userId || user.sub || null,
+      role: String(user.role || '').toUpperCase(),
+    } : null;
 
     // نبود کاربر (توکن احراز نشده/ناموفق) → 401
-    if (!user || !user.id) {
+    if (!policyUser || !policyUser.id) {
       // SUPER_ADMIN role بدون id هنوز مجاز است (کاربر سیستمی)
-      if (!(user && user.role === 'SUPER_ADMIN')) {
+      if (!(policyUser && policyUser.role === 'SUPER_ADMIN')) {
         return res.status(401).json({ success: false, error: 'Unauthorized: no authenticated user' });
       }
     }
@@ -37,14 +44,14 @@ function authorize(requiredPermission, resourceExtractorFn = null) {
     let resource = null;
     try {
       if (typeof resourceExtractorFn === 'function') {
-        resource = await resourceExtractorFn(req, user);
+        resource = await resourceExtractorFn(req, policyUser);
       }
     } catch (extractErr) {
       // عدم یافتن منبع = عدم مجاور به آن
       return res.status(404).json({ success: false, error: extractErr.message || 'Resource not found' });
     }
 
-    const decision = policyEngine.evaluate(user, requiredPermission, resource);
+    const decision = policyEngine.evaluate(policyUser, requiredPermission, resource);
 
     if (!decision.allowed) {
       return res.status(403).json({
