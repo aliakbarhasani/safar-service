@@ -43,12 +43,13 @@ async function findById(id) {
 /**
  * یافتن کیف پول کاربر بر اساس ارز
  */
-async function findByUserAndCurrency(userId, currencyId) {
-  const result = await pg.query(
-    `SELECT ${COLUMNS_SELECT} FROM ${TABLE} 
-     WHERE user_id = $1 AND currency_id = $2 AND deleted_at IS NULL`,
-    [userId, currencyId]
-  );
+async function findByUserAndCurrency(userId, currencyId, client = null) {
+  const queryText = `SELECT ${COLUMNS_SELECT} FROM ${TABLE} 
+     WHERE user_id = $1 AND currency_id = $2 AND deleted_at IS NULL`;
+  const params = [userId, currencyId];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
   return result.rows[0] || null;
 }
 
@@ -68,7 +69,7 @@ async function findAllByUser(userId) {
 /**
  * ایجاد کیف پول جدید
  */
-async function create(data) {
+async function create(data, client = null) {
   const {
     userId, currencyId,
     walletType = 'user',
@@ -78,13 +79,14 @@ async function create(data) {
     status = 'active'
   } = data;
 
-  const result = await pg.query(
-    `INSERT INTO ${TABLE} 
+  const queryText = `INSERT INTO ${TABLE} 
      (user_id, currency_id, wallet_type, balance, available_balance, frozen_balance, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING ${COLUMNS_SELECT}`,
-    [userId, currencyId, walletType, balance, availableBalance, frozenBalance, status]
-  );
+     RETURNING ${COLUMNS_SELECT}`;
+  const params = [userId, currencyId, walletType, balance, availableBalance, frozenBalance, status];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
   return result.rows[0];
 }
 
