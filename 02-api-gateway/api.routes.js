@@ -285,7 +285,7 @@ async function fetchTripById(tripId) {
 }
 router.get(
   '/api/v1/trips/:id',
-  iamAuthenticate,
+  authenticateSession,
   iamAuthorize('trip:read:own', async (req) => fetchTripById(req.params.id)),
   async (req, res) => {
     // پس از عبور authorize، منبع در req.resource موجود است.
@@ -318,7 +318,7 @@ const findNearbyDriversUseCase = new FindNearbyDriversUseCase({ geoRepository })
 const locationRoutes = createLocationRoutes({
   geoRepository,
   findNearbyDriversUseCase,
-  iamAuthenticate,
+  iamAuthenticate: authenticateSession,
   authorize: iamAuthorize,
   logger: console,
 });
@@ -434,7 +434,7 @@ const configController = new ConfigController({
 const adminConfigRoutes = createConfigRoutes({
   configController,
   // (P11-2) سیاست ABAC: احراز هویت Stateless (IAM) + مجوز admin:config:write
-  authenticate: iamAuthenticate,
+  authenticate: authenticateSession,
   authorize: (_, _extractor) => iamAuthorize('admin:config:write'),
 });
 router.use('/api/v1/admin/configs', adminConfigRoutes);
