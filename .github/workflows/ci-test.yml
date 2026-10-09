@@ -30,6 +30,7 @@ jobs:
         run: |
           node --check 05-wallet-service/models/wallet.model.js
           node --check 05-wallet-service/models/transaction.model.js
+          node --check 05-wallet-service/models/escrow.model.js
           node --check 05-wallet-service/services/wallet.service.js
           node --check 05-wallet-service/__tests__/trip-completed-handler.test.js
           node --check 05-wallet-service/__tests__/wallet-model-currency.test.js
