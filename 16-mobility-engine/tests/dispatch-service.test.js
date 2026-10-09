@@ -74,7 +74,7 @@ describe('TripDispatchService', () => {
         { driverId: 'driver-1', distanceKm: 0.5 },
         { driverId: 'driver-2', distanceKm: 1.2 },
       ]);
-      const driverService = makeDriverService({ 'driver-1': 'available' });
+      const driverService = makeDriverService({ 'driver-1': 'online' });
       const redis = makeRedis();
       const eventBus = makeEventBus();
 
@@ -109,7 +109,7 @@ describe('TripDispatchService', () => {
 
     test('should not create a second offer when the trip already has a dispatch key', async () => {
       const locationService = makeLocationService([{ driverId: 'driver-1', distanceKm: 0.5 }]);
-      const driverService = makeDriverService({ 'driver-1': 'available' });
+      const driverService = makeDriverService({ 'driver-1': 'online' });
       const redis = makeRedis();
       const eventBus = makeEventBus();
       const tripOfferRepository = { createOffer: jest.fn().mockResolvedValue({ status: 'PENDING' }) };
@@ -155,7 +155,7 @@ describe('TripDispatchService', () => {
       const driverService = makeDriverService({
         'driver-busy': 'busy',
         'driver-offline': 'offline',
-        'driver-available': 'available',
+        'driver-available': 'online',
       });
       const redis = makeRedis();
       const eventBus = makeEventBus();
