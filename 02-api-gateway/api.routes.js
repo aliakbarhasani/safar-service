@@ -344,6 +344,7 @@ const tripDispatchService = new TripDispatchService({
   redisClient: pricingRedisClient,
   eventBus: mobilityEventBus,
   tripOfferRepository,
+  tripRepository,
 });
 
 // The timeout queue was implemented but never bootstrapped, so unaccepted offers
