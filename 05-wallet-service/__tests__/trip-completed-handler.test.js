@@ -289,13 +289,11 @@ describe('walletService.refundFunds (atomic refund)', () => {
 
   test('allocates the full penalty to the platform when no driver is assigned', async () => {
     jest.clearAllMocks();
-    Wallet.findByUserAndCurrency
-      .mockResolvedValueOnce({
-        id: 'passenger-wallet', balance: '20000', available_balance: '20000',
-        frozen_balance: '0', status: 'active',
-      })
-      .mockResolvedValueOnce(null);
-    Wallet.create.mockResolvedValueOnce({
+    Wallet.findByUserAndCurrency.mockResolvedValueOnce({
+      id: 'passenger-wallet', balance: '20000', available_balance: '20000',
+      frozen_balance: '0', status: 'active',
+    });
+    Wallet.findByTypeAndCurrency.mockResolvedValue({
       id: 'platform-wallet', balance: '0', available_balance: '0',
       frozen_balance: '0', status: 'active',
     });
@@ -317,6 +315,7 @@ describe('walletService.refundFunds (atomic refund)', () => {
     });
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledTimes(1);
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('platform-wallet', 10000, expect.anything());
+    expect(Wallet.findByTypeAndCurrency).toHaveBeenCalledWith('platform', 'IRT', expect.anything());
   });
 
   test('rejects refunding a credit transaction', async () => {
