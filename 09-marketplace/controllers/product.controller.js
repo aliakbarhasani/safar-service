@@ -34,7 +34,8 @@ class ProductController {
       const { id } = req.params;
       const product = await productService.getProductById(id);
 
-      if (!product) {
+      // Public catalog must never expose products hidden by the seller/admin.
+      if (!product || String(product.status || '').toLowerCase() !== 'active') {
         return res.status(404).json({ error: 'Product not found' });
       }
 
