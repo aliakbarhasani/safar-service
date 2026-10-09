@@ -72,6 +72,7 @@ const initMarketplaceDB = async () => {
     console.log('[MarketplaceDB] All tables initialized successfully');
   } catch (err) {
     console.error('[MarketplaceDB] Initialization error:', err.message);
+    if (process.env.NODE_ENV === 'production') throw err;
   }
 };
 
