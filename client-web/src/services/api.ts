@@ -1,6 +1,5 @@
 // API service layer - تمام ارتباطات با بک‌اند در اینجا انجام می‌شود
 import config from "@/config/app-config.json";
-import { getAuthToken } from "@/lib/auth";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || config.api?.baseUrl || "http://localhost:8000";
@@ -52,16 +51,10 @@ export interface CampaignDto {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken();
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
 
   let response: Response;
   try {
@@ -69,6 +62,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options,
       headers,
       cache: "no-store",
+      // Access token is HttpOnly; browser sends it as a cookie, never via JS.
+      credentials: "include",
     });
   } catch {
     throw new ApiError("ارتباط با سرور برقرار نشد", 0, "NETWORK_ERROR");
@@ -104,7 +99,7 @@ export const api = {
 // Convenience API functions used by pages (keep business logic in src/services)
 // قرارداد واحد بک‌اند: { success, status_code, message, data: { token, user } }
 export interface AuthDataDto {
-  token: string;
+  token?: string;
   user: {
     id: string;
     phoneNumber: string;
