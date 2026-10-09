@@ -130,16 +130,21 @@ async function create(data, client = null) {
   const queryText = `
     INSERT INTO ${TABLE}
     (wallet_id, trip_id, user_id, amount, currency_id, type, description, status, reference_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    SELECT $1, $2, $3, $4, c.id, $6, $7, $8, $9
+    FROM currencies c
+    WHERE c.code = $5 OR c.id::text = $5
+    ORDER BY CASE WHEN c.code = $5 THEN 0 ELSE 1 END
+    LIMIT 1
     RETURNING ${COLUMNS_SELECT}
   `;
-  const params = [walletId, tripId, userId, amount, currencyId, type, description, status, referenceId];
+  const params = [walletId, tripId, userId || null, amount, String(currencyId), type, description, status, referenceId];
 
-  if (client) {
-    const result = await client.query(queryText, params);
-    return result.rows[0];
+  const result = client
+    ? await client.query(queryText, params)
+    : await pg.query(queryText, params);
+  if (!result.rows[0]) {
+    throw new Error(`Unknown currency code or ID: ${currencyId}`);
   }
-  const result = await pg.query(queryText, params);
   return result.rows[0];
 }
 
@@ -161,17 +166,25 @@ async function createLedgerEntry(data, client) {
      currency_id, balance_before, balance_after,
      available_before, available_after, frozen_before, frozen_after,
      operation_type, description, reference_id, created_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    SELECT $1, $2, $3, $4, c.id, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+    FROM currencies c
+    WHERE c.code = $5 OR c.id::text = $5
+    ORDER BY CASE WHEN c.code = $5 THEN 0 ELSE 1 END
+    LIMIT 1
     RETURNING *
   `;
   const params = [
     walletId, transactionId, creditAmount, debitAmount,
-    currencyId, balanceBefore, balanceAfter,
+    String(currencyId), balanceBefore, balanceAfter,
     availableBefore, availableAfter, frozenBefore, frozenAfter,
     operationType, description, referenceId, createdBy
   ];
 
-  return await client.query(queryText, params);
+  const result = await client.query(queryText, params);
+  if (!result.rows[0]) {
+    throw new Error(`Unknown currency code or ID: ${currencyId}`);
+  }
+  return result;
 }
 
 module.exports = {
