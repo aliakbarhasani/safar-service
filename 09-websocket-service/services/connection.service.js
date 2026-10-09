@@ -12,8 +12,35 @@
  * @param {Object} [opts]
  * @param {EventEmitter} [opts.eventBus] - inject an EventBus (or mock) for testing
  */
-function registerConnectionHandlers(io, { eventBus = null } = {}) {
-  // Resolve EventBus lazily so tests can inject a mock.
+function registerConnectionHandlers(io, { eventBus = null, canAccessTrip = null, isAssignedDriver = null } = {}) {
+  // Authorization queries fail closed: DB errors never grant room access.
+  const queryTripAccess = async (tripId, userId, role) => {
+    const pool = require('../../01-core-system/database/db').getPool();
+    const { rows } = await pool.query(
+      `SELECT t.passenger_id::text AS passenger_id, d.user_id::text AS driver_user_id
+         FROM trips t LEFT JOIN drivers d ON d.id = t.driver_id
+        WHERE t.id::text = $1 LIMIT 1`,
+      [String(tripId)],
+    );
+    const trip = rows[0];
+    if (!trip) return false;
+    const normalizedRole = String(role || '').toLowerCase();
+    return normalizedRole === 'admin' || normalizedRole === 'super_admin'
+      || String(trip.passenger_id || '') === String(userId)
+      || String(trip.driver_user_id || '') === String(userId);
+  };
+  const queryAssignedDriver = async (tripId, userId) => {
+    const pool = require('../../01-core-system/database/db').getPool();
+    const { rows } = await pool.query(
+      `SELECT 1 FROM trips t JOIN drivers d ON d.id = t.driver_id
+        WHERE t.id::text = $1 AND d.user_id::text = $2 LIMIT 1`,
+      [String(tripId), String(userId)],
+    );
+    return rows.length > 0;
+  };
+  const hasTripAccess = canAccessTrip || queryTripAccess;
+  const isTripDriver = isAssignedDriver || queryAssignedDriver;
+
   let bus;
   try {
     // eslint-disable-next-line global-require
@@ -28,35 +55,52 @@ function registerConnectionHandlers(io, { eventBus = null } = {}) {
       `[WS] user connected: ${user.userId || user.id} (role: ${user.role}) — socket ${socket.id}`,
     );
 
-    // ── Join a trip room (client-driven) ─────────────────────────────────
-    socket.on('join:trip', (tripId) => {
-      if (tripId) {
-        socket.join(`trip:${tripId}`);
-        console.log(`[WS] ${user.userId || user.id} joined trip room ${tripId}`);
+    // Joining a trip room requires proof of passenger/assigned-driver ownership.
+    socket.on('join:trip', async (tripId) => {
+      const userId = user.userId || user.id;
+      if (!tripId || !userId) return;
+      try {
+        if (await hasTripAccess(tripId, userId, user.role)) {
+          socket.join(`trip:${tripId}`);
+          console.log(`[WS] ${userId} joined authorized trip room ${tripId}`);
+        } else {
+          console.warn(`[WS] denied trip room access for user ${userId}`);
+        }
+      } catch (err) {
+        console.warn('[WS] trip room authorization failed closed:', err.message);
       }
     });
 
     socket.on('leave:trip', (tripId) => {
-      if (tripId) {
-        socket.leave(`trip:${tripId}`);
-      }
+      if (tripId) socket.leave(`trip:${tripId}`);
     });
 
-    // ── دریافت موقعیت مکانی راننده (P4-2) ──────────────────────────────
-    // راننده موقعیت خود را ارسال می‌کند؛ سرور آن را به EventBus منتشر می‌کند
-    // و (در صورت وجود tripId) به اتاق سفر برادکست می‌کند تا مسافر روی نقشه ببیند
-    socket.on('DRIVER_LOCATION', (data) => {
+    // Only authenticated driver/courier accounts can publish valid GPS coordinates.
+    socket.on('DRIVER_LOCATION', async (data) => {
       const u = socket.user || {};
       const driverId = u.userId || u.id;
-      if (!driverId) return;
+      const role = String(u.role || '').toLowerCase();
+      if (!driverId || (!role.includes('driver') && !role.includes('courier'))) return;
 
-      const lat = parseFloat(data && data.lat);
-      const lng = parseFloat(data && data.lng);
+      const lat = Number(data && data.lat);
+      const lng = Number(data && data.lng);
       const tripId = data && data.tripId;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)
+          || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
-      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+      // A driver may only broadcast into a trip assigned to that driver's account.
+      if (tripId) {
+        try {
+          if (!(await isTripDriver(tripId, driverId))) {
+            console.warn('[WS] denied location broadcast for an unassigned trip');
+            return;
+          }
+        } catch (err) {
+          console.warn('[WS] trip driver verification failed closed:', err.message);
+          return;
+        }
+      }
 
-      // انتشار رویداد در EventBus تا سرویس Location آن را مصرف کند
       if (bus) {
         try {
           bus.emit('DriverLocationUpdated', {
@@ -71,13 +115,8 @@ function registerConnectionHandlers(io, { eventBus = null } = {}) {
         }
       }
 
-      // برادکست به اتاق سفر (در صورت وجود) تا مسافر موقعیت را روی نقشه ببیند
       if (tripId) {
-        socket.to(`trip:${tripId}`).emit('DRIVER_MOVED', {
-          lat,
-          lng,
-          driverId,
-        });
+        socket.to(`trip:${tripId}`).emit('DRIVER_MOVED', { lat, lng, driverId });
       }
     });
 
