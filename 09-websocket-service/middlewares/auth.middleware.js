@@ -16,28 +16,14 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 
-/**
- * Extract a bearer token from the handshake object.
- * @param {SocketHandshake} handshake
- * @returns {string|null}
- */
 function extractToken(handshake) {
   const auth = handshake.auth || {};
   if (auth.token) return auth.token;
-
   const header = handshake.headers && handshake.headers.authorization;
   if (header && header.startsWith('Bearer ')) return header.slice(7);
-
   return null;
 }
 
-/**
- * Verify a JWT and return the decoded payload (or null on failure).
- * SECURITY: فقط الگوریتم RS256 با کلید عمومی معتبر (config.jwt.publicKey)
- * و فقط access token پذیرفته می‌شود.
- * @param {string} token
- * @returns {Object|null}
- */
 function verifyToken(token) {
   try {
     const decoded = jwt.verify(token, config.jwt.publicKey, { algorithms: ['RS256'] });
@@ -48,38 +34,22 @@ function verifyToken(token) {
   }
 }
 
-/**
- * Socket.io middleware (io.use(...)).
- *
- * Calls next() on success, or next(Error) on failure — which causes
- * the client to receive a 'connect_error' event.
- */
 function authMiddleware(socket, next) {
   const token = extractToken(socket.handshake);
-
-  if (!token) {
-    return next(new Error('Authentication error: missing token'));
-  }
+  if (!token) return next(new Error('Authentication error: missing token'));
 
   const decoded = verifyToken(token);
-  if (!decoded) {
-    return next(new Error('Authentication error: invalid or expired access token'));
-  }
+  if (!decoded) return next(new Error('Authentication error: invalid or expired access token'));
 
-  // Normalise user identity (supports both {id} and {userId} payloads)
+  // IAM tokens use the standard JWT "sub" claim; legacy tokens may use id/userId.
   socket.user = {
-    id: decoded.userId || decoded.id || null,
-    userId: decoded.userId || decoded.id || null,
+    id: decoded.userId || decoded.id || decoded.sub || null,
+    userId: decoded.userId || decoded.id || decoded.sub || null,
     role: decoded.role || 'user',
   };
 
-  if (!socket.user.id) {
-    return next(new Error('Authentication error: token has no user identity'));
-  }
-
-  // Auto-join a per-user private room (for direct messaging)
+  if (!socket.user.id) return next(new Error('Authentication error: token has no user identity'));
   socket.join(socket.user.id);
-
   return next();
 }
 
