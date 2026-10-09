@@ -212,11 +212,12 @@ const pricingRedisClient = createRedisClient();
 const demandSupplyTracker = new DemandSupplyTracker(pricingRedisClient);
 const fareQuoteStore = new FareQuoteStore(pricingRedisClient);
 const createTripUseCase = new CreateTripUseCase({ tripRepository, pricingRepository, emitEvent: emitTripEvent, fareQuoteStore });
+const tripOfferRepository = new TripOfferRepository({ redisClient: pricingRedisClient });
 const acceptTripUseCase = new AcceptTripUseCase({
   tripRepository,
   emitEvent: emitTripEvent,
   // (P13-2) پیشنهاد سفر + قفل توزیع‌شده روی Redis (SETNX)
-  tripOfferRepository: new TripOfferRepository({ redisClient: pricingRedisClient }),
+  tripOfferRepository,
 });
 const arriveAtPickupUseCase = new ArriveAtPickupUseCase({ tripRepository, emitEvent: emitTripEvent });
 const startTripUseCase = new StartTripUseCase({ tripRepository, emitEvent: emitTripEvent });
@@ -310,14 +311,38 @@ const { RedisGeoRepository } = require('../17-location-service/infrastructure/Re
 const { FindNearbyDriversUseCase } = require('../17-location-service/application/FindNearbyDriversUseCase');
 const { createLocationRoutes } = require('../17-location-service/routes/location.routes');
 const geoRepository = new RedisGeoRepository({ redisClient: pricingRedisClient });
+const findNearbyDriversUseCase = new FindNearbyDriversUseCase({ geoRepository });
 const locationRoutes = createLocationRoutes({
   geoRepository,
-  findNearbyDriversUseCase: new FindNearbyDriversUseCase({ geoRepository }),
+  findNearbyDriversUseCase,
   iamAuthenticate,
   authorize: iamAuthorize,
   logger: console,
 });
 router.use('/api/v1/location', locationRoutes);
+
+// Connect trip creation to the real dispatch pipeline. The location use case
+// returns { drivers: [...] }; the dispatch service expects a driver list.
+const { TripDispatchService } = require('../16-mobility-engine/application/TripDispatchService');
+const { registerMobilityEventHandler } = require('../16-mobility-engine/application/MobilityEventHandler');
+const driverService = require('../07-driver-service/services/driver.service');
+const dispatchLocationService = {
+  async findNearbyDrivers(lon, lat, radiusKm) {
+    const result = await findNearbyDriversUseCase.execute({ lon, lat, radiusKm });
+    return (result.drivers || []).map((driver) => ({
+      ...driver,
+      distanceKm: driver.distanceKm ?? driver.distance ?? null,
+    }));
+  },
+};
+const tripDispatchService = new TripDispatchService({
+  locationService: dispatchLocationService,
+  driverService: { findById: (driverId) => driverService.getDriverById(driverId) },
+  redisClient: pricingRedisClient,
+  eventBus: mobilityEventBus,
+  tripOfferRepository,
+});
+registerMobilityEventHandler({ eventBus: mobilityEventBus, tripDispatchService, logger: console });
 
 // ===== (P13-2) مسیرهای توزیع سفر — 16-mobility-engine =====
 // POST /api/v1/dispatch/trips/:tripId/accept
