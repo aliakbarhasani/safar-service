@@ -13,8 +13,9 @@ class CampaignService {
         host: process.env.PG_HOST || '127.0.0.1',
         port: parseInt(process.env.PG_PORT, 10) || 5432,
         database: process.env.PG_DATABASE || 'safar_service',
-        user: process.env.PG_USER || 'postgres',
-        password: process.env.PG_PASSWORD || 'postgres',
+        // Never fall back to weak default database credentials in production.
+        user: process.env.PG_USER || (process.env.NODE_ENV === 'production' ? undefined : 'postgres'),
+        password: process.env.PG_PASSWORD || (process.env.NODE_ENV === 'production' ? undefined : 'postgres'),
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
