@@ -132,7 +132,14 @@ class AuthService {
   }
 
   async _storeRefreshToken(userId, role, refreshToken) {
-    if (!this.redis) return;
+    // Never report a successful login/rotation if the refresh token was not
+    // persisted. A silent no-op would issue credentials that cannot be renewed.
+    if (!this.redis || typeof this.redis.set !== 'function') {
+      const err = new Error('Refresh-token storage is not configured');
+      err.code = 'REFRESH_TOKEN_STORAGE_UNAVAILABLE';
+      err.statusCode = 503;
+      throw err;
+    }
     const record = JSON.stringify({ userId, role: role || 'user' });
     await this.redis.set(`${REFRESH_PREFIX}${refreshToken}`, record, 'EX', this.refreshTtl);
   }
