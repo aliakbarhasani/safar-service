@@ -98,10 +98,13 @@ const registrationRoutes = require('../13-auth-management/presentation/routes/Re
 router.use('/api/auth', registrationRoutes);
 
 // ===== IAM: صدور و چرخش توکن (24-iam-service, P11-1) =====
-// ساخت AuthService (کلید خصوصی RSA) — redis در time of use دوباره تنظیم می‌شود
+// IAM needs its own Redis connection for refresh-token storage. Without this
+// dependency, every refresh request would fail closed even when Redis is configured.
 const { AuthService } = require('../24-iam-service/application/AuthService');
+const { createRedisClient: createIamRedisClient } = require('../18-pricing-service/infrastructure/redisClient');
+const iamRedisClient = createIamRedisClient();
 const iamAuthRoutes = createIamAuthRoutes({
-  authService: new AuthService({ issuer: 'safar-iam' }),
+  authService: new AuthService({ issuer: 'safar-iam', redis: iamRedisClient }),
   logger: console,
 });
 router.use('/api/v1/auth', iamAuthRoutes);
