@@ -83,15 +83,16 @@ class AuthService {
       throw err;
     }
 
-    const record = await this._lookupRefreshToken(oldRefreshToken);
+    // Consume the refresh token atomically. A GET followed by DEL allows two
+    // concurrent refresh requests to both observe the same token and mint two
+    // valid sessions. Redis Lua makes lookup + revocation one indivisible step.
+    const record = await this._consumeRefreshToken(oldRefreshToken);
     if (!record) {
       const err = new Error('Invalid or expired refresh token');
       err.code = 'INVALID_REFRESH_TOKEN';
       err.statusCode = 401;
       throw err;
     }
-
-    await this._revokeRefreshToken(oldRefreshToken);
 
     const accessToken = this._issueAccessToken(record.userId, record.role);
     const newRefreshToken = this._generateRefreshToken();
@@ -136,15 +137,23 @@ class AuthService {
     await this.redis.set(`${REFRESH_PREFIX}${refreshToken}`, record, 'EX', this.refreshTtl);
   }
 
-  async _lookupRefreshToken(refreshToken) {
-    if (!this.redis) return null;
-    const raw = await this.redis.get(`${REFRESH_PREFIX}${refreshToken}`);
+  async _consumeRefreshToken(refreshToken) {
+    if (!this.redis || typeof this.redis.eval !== 'function') {
+      // Fail closed rather than use a non-atomic GET/DEL fallback.
+      const err = new Error('Atomic refresh-token storage is not configured');
+      err.code = 'REFRESH_TOKEN_STORAGE_UNAVAILABLE';
+      err.statusCode = 503;
+      throw err;
+    }
+
+    const key = `${REFRESH_PREFIX}${refreshToken}`;
+    const raw = await this.redis.eval(
+      "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value",
+      1,
+      key,
+    );
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (_) { return null; }
-  }
-
-  async _revokeRefreshToken(refreshToken) {
-    if (this.redis) await this.redis.del(`${REFRESH_PREFIX}${refreshToken}`);
   }
 }
 
