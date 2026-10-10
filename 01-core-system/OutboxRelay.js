@@ -113,7 +113,17 @@ class OutboxRelay {
           `[OutboxRelay] publish failed for ${row.event_type} (${row.id}):`,
           error && error.message,
         );
-        await this.outboxRepository.markFailed(row.id, error, { maxRetries: this.maxRetries });
+        // A database failure while recording the retry must not abort the
+        // remaining rows in this batch. The PROCESSING lease recovery in the
+        // repository will make this event eligible again after five minutes.
+        try {
+          await this.outboxRepository.markFailed(row.id, error, { maxRetries: this.maxRetries });
+        } catch (markFailedError) {
+          this.logger.error(
+            `[OutboxRelay] could not record failure for ${row.id}:`,
+            markFailedError && markFailedError.message,
+          );
+        }
       }
     }
 
