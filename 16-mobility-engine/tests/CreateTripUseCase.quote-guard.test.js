@@ -48,7 +48,7 @@ function buildDeps({ quote = VALID_QUOTE } = {}) {
         logStatusChange: jest.fn(async () => ({})),
     };
     const pricingRepository = {
-        consumeQuote: jest.fn(async () => ({ status: 'consumed' })),
+        consumeQuote: jest.fn(async () => ({ status: 'CONSUMED', customer_final_amount: quote ? quote.estimatedFare : 150000 })),
     };
     const fareQuoteStore = {
         get: jest.fn(async (id) => (quote && quote.quoteId === id ? quote : quote)),
@@ -123,6 +123,8 @@ describe('CreateTripUseCase - Fare Quote guard (P6-2)', () => {
 
         const eventNames = events.map((e) => e.event);
         expect(eventNames).toContain('TripCreated');
+        const { fareQuoteStore } = buildDeps();
+        expect(fareQuoteStore.consume).not.toHaveBeenCalled();
         });
 
     test('client-supplied price is ignored (no trusted price input path)', async () => {
