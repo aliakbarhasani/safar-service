@@ -130,12 +130,26 @@ class CalculateFareUseCase {
     // (P10-1) خواندن تنظیمات پویا از DynamicConfigStore (با fallback به config استاتیک)
     let rate, base;
     if (this.configStore) {
-      rate = perKmRate != null ? Number(perKmRate) : (await this.configStore.getConfig(CONFIG_KEYS.perKmRate, parseFloat((config.trip || {}).perKmRate) || 2000));
-      base = baseFare != null ? Number(baseFare) : (await this.configStore.getConfig(CONFIG_KEYS.baseFare, parseFloat((config.trip || {}).baseFare) || 15000));
+      const configuredRate = Number((config.trip || {}).perKmRate);
+      const configuredBase = Number((config.trip || {}).baseFare);
+      const fallbackRate = Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 2000;
+      const fallbackBase = Number.isFinite(configuredBase) && configuredBase >= 0 ? configuredBase : 15000;
+      rate = perKmRate != null ? Number(perKmRate) : (await this.configStore.getConfig(CONFIG_KEYS.perKmRate, fallbackRate));
+      base = baseFare != null ? Number(baseFare) : (await this.configStore.getConfig(CONFIG_KEYS.baseFare, fallbackBase));
     } else {
-      rate = perKmRate != null ? Number(perKmRate) : parseFloat((config.trip || {}).perKmRate) || 2000;
-      base = baseFare != null ? Number(baseFare) : (Number.isFinite(Number((config.trip || {}).baseFare)) ? Number((config.trip || {}).baseFare) : 15000);
+      const configuredRate = Number((config.trip || {}).perKmRate);
+      const configuredBase = Number((config.trip || {}).baseFare);
+      rate = perKmRate != null ? Number(perKmRate) : (Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 2000);
+      base = baseFare != null ? Number(baseFare) : (Number.isFinite(configuredBase) && configuredBase >= 0 ? configuredBase : 15000);
     }
+    if (![rate, base].every((value) => Number.isFinite(Number(value)) && Number(value) >= 0)) {
+      const err = new Error('تنظیمات کرایه معتبر نیست.');
+      err.code = 'FARE_CONFIG_INVALID';
+      err.statusCode = 503;
+      throw err;
+    }
+    rate = Number(rate);
+    base = Number(base);
 
     const geohash = ngeohash.encode(oLat, oLng, GEOHASH_PRECISION);
     const { ratio } = await this.tracker.getSupplyAndDemand(geohash, { supply });
