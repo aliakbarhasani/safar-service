@@ -44,6 +44,24 @@ describe('CalculateFareUseCase (P6-1)', () => {
     expect(res.estimatedFare).toBe(Math.round(config.trip.baseFare));
   });
 
+  test('rejects negative dynamic fare configuration instead of calculating a negative fare', async () => {
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      dynamicConfigStore: { getConfig: async (key, fallback) => key === 'trip.perKmRate' ? -1 : fallback },
+    });
+    await expect(uc.execute({ ...TEHRAN_A }))
+      .rejects.toMatchObject({ statusCode: 503, code: 'FARE_CONFIG_INVALID' });
+  });
+
+  test('preserves a zero base fare from dynamic configuration', async () => {
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      dynamicConfigStore: { getConfig: async (key, fallback) => key === 'trip.baseFare' ? 0 : fallback },
+    });
+    const res = await uc.execute({ ...TEHRAN_A, perKmRate: 0 });
+    expect(res.estimatedFare).toBe(0);
+  });
+
   test('surge ratio 1.5 is applied to final fare', async () => {
     const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(1.5) });
     const res = await uc.execute({ ...TEHRAN_A, perKmRate: 2000, baseFare: 15000 });
