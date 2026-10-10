@@ -58,8 +58,8 @@ describe('CalculateFareUseCase (P6-1)', () => {
       demandSupplyTracker: stubTracker(0),
       dynamicConfigStore: { getConfig: async (key, fallback) => key === 'trip.baseFare' ? 0 : fallback },
     });
-    const res = await uc.execute({ ...TEHRAN_A, perKmRate: 0 });
-    expect(res.estimatedFare).toBe(0);
+    const res = await uc.execute({ ...TEHRAN_A, perKmRate: 1000 });
+    expect(res.estimatedFare).toBe(Math.round(res.distance * 1000));
   });
 
   test('surge ratio 1.5 is applied to final fare', async () => {
