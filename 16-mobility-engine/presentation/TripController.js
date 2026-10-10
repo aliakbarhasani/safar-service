@@ -45,7 +45,7 @@ class TripController {
                 originAddress, destinationAddress, serviceType,
                 paymentMethod, countryId, referenceId,
             } = req.body;
-            const passengerId = (req.user && (req.user.userId || req.user.id)) || null;
+            const passengerId = (req.user && (req.user.userId || req.user.id || req.user.sub)) || null;
 
             const rawCoordinates = [originLat, originLng, destLat, destLng];
             const coordinates = rawCoordinates.map(Number);
