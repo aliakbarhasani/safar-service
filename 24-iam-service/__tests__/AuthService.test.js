@@ -51,6 +51,14 @@ describe('AuthService.refreshToken', () => {
     expect(redis.eval).toHaveBeenCalledTimes(2);
   });
 
+  test('does not issue tokens when refresh-token persistence is unavailable', async () => {
+    const service = new AuthService({ privateKeyPath: keyPath, redis: null });
+    await expect(service.login('user-1', 'passenger')).rejects.toMatchObject({
+      code: 'REFRESH_TOKEN_STORAGE_UNAVAILABLE',
+      statusCode: 503,
+    });
+  });
+
   test('fails closed if atomic Redis operations are unavailable', async () => {
     const service = new AuthService({ privateKeyPath: keyPath, redis: { get: jest.fn(), del: jest.fn() } });
     await expect(service.refreshToken('old-token')).rejects.toMatchObject({
