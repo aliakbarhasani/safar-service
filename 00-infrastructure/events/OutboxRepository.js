@@ -85,14 +85,37 @@ class OutboxRepository {
       throw error;
     }
 
+    // Recover claims abandoned by a crashed worker. A five-minute lease prevents
+    // PROCESSING rows from becoming permanently invisible after a process restart.
+    await this.pool.query(`
+      UPDATE outbox_events
+      SET status = $1, available_at = NOW(), updated_at = NOW()
+      WHERE status = $2 AND updated_at < NOW() - INTERVAL '5 minutes'
+    `, [OUTBOX_STATUS.PENDING, OUTBOX_STATUS.PROCESSING]);
+
+    // Claim rows atomically. FOR UPDATE SKIP LOCKED prevents two app instances
+    // from processing the same pending event at the same time.
     const query = `
-      SELECT id, aggregate_id, event_type, payload, status, retry_count, created_at
-      FROM outbox_events
-      WHERE status = $1 AND available_at <= NOW()
-      ORDER BY available_at ASC, created_at ASC
-      LIMIT $2
+      WITH candidates AS (
+        SELECT id
+        FROM outbox_events
+        WHERE status = $1 AND available_at <= NOW()
+        ORDER BY available_at ASC, created_at ASC
+        LIMIT $2
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE outbox_events AS events
+      SET status = $3, updated_at = NOW()
+      FROM candidates
+      WHERE events.id = candidates.id
+      RETURNING events.id, events.aggregate_id, events.event_type, events.payload,
+                events.status, events.retry_count, events.created_at
     `;
-    const { rows } = await this.pool.query(query, [OUTBOX_STATUS.PENDING, size]);
+    const { rows } = await this.pool.query(query, [
+      OUTBOX_STATUS.PENDING,
+      size,
+      OUTBOX_STATUS.PROCESSING,
+    ]);
     return rows;
   }
 
