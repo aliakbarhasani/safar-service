@@ -3,7 +3,7 @@
  *
  * Orchestrates trip creation inside a single DB transaction:
  *   1) validates serviceType against the central ServiceTypes dictionary,
- *   2) consumes the pricing quote (atomic, concurrency-safe),
+ *   2) validates the cached coordinate-bound quote and consumes SQL quote atomically,
  *   3) builds the rich Trip domain entity,
  *   4) persists the trip row (`trips`) + initial timeline row (`trip_timeline`),
  *   5) emits TRIP_REQUESTED / DRIVER_SEARCH_STARTED domain events,
@@ -158,24 +158,25 @@ class CreateTripUseCase {
                 const consumedSqlQuote = await this.pricingRepository.consumeQuote(quoteId, tripReferenceId, client);
                 quoteStatus = consumedSqlQuote.status || 'CONSUMED';
 
-                const consumedFareQuote = await this.fareQuoteStore.consume(quoteId);
-                if (!consumedFareQuote) {
-                    const error = new Error('قیمت منقضی شده است یا قبلاً استفاده شده است.');
-                    error.code = 'QUOTE_EXPIRED';
-                    error.statusCode = 410;
-                    throw error;
-                }
-                assertQuoteMatchesInput(consumedFareQuote, {
-                    originLat: coordinates[0], originLng: coordinates[1],
-                    destLat: coordinates[2], destLng: coordinates[3], serviceType,
-                });
-                quoteFare = Number(consumedFareQuote.estimatedFare);
-                if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
+                // PostgreSQL is the single source of truth for one-time consumption.
+                // Do not delete the Redis cache inside this transaction: Redis cannot
+                // roll back if trip persistence fails after the cache entry is removed.
+                const sqlFare = Number(consumedSqlQuote.customer_final_amount);
+                if (!Number.isFinite(sqlFare) || sqlFare <= 0) {
                     const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
                     error.code = 'INVALID_QUOTE';
                     error.statusCode = 400;
                     throw error;
                 }
+                // The coordinate-bound cache and SQL audit row are created together;
+                // reject inconsistent records rather than silently charging a different fare.
+                if (Math.abs(sqlFare - quoteFare) > 0.000001) {
+                    const error = new Error('اطلاعات قیمت پیش‌فاکتور با رکورد مالی مطابقت ندارد.');
+                    error.code = 'INVALID_QUOTE';
+                    error.statusCode = 400;
+                    throw error;
+                }
+                quoteFare = sqlFare;
             } else {
                 const consumed = await this.pricingRepository.consumeQuote(
                     quoteId,
