@@ -106,7 +106,7 @@ describe('CreateTripUseCase - Fare Quote guard (P6-2)', () => {
     });
 
     test('accepts a valid quote and stores the price ONLY from the quote', async () => {
-        const { useCase, tripRepository, events, client } = buildDeps();
+        const { useCase, tripRepository, events, client, fareQuoteStore } = buildDeps();
         const result = await useCase.execute(BASE_INPUT);
 
         expect(result.tripId).toBe('trip-1');
@@ -123,9 +123,8 @@ describe('CreateTripUseCase - Fare Quote guard (P6-2)', () => {
 
         const eventNames = events.map((e) => e.event);
         expect(eventNames).toContain('TripCreated');
-        const { fareQuoteStore } = buildDeps();
         expect(fareQuoteStore.consume).not.toHaveBeenCalled();
-        });
+    });
 
     test('client-supplied price is ignored (no trusted price input path)', async () => {
         const { useCase, tripRepository } = buildDeps();
@@ -134,4 +133,40 @@ describe('CreateTripUseCase - Fare Quote guard (P6-2)', () => {
         const record = tripRepository.createTrip.mock.calls[0][0];
         expect(record.estimated_cost).toBe(VALID_QUOTE.estimatedFare);
     });
+
+    test('does not consume the Redis cache when SQL transaction rolls back', async () => {
+        const { useCase, tripRepository, fareQuoteStore, client } = buildDeps();
+        tripRepository.createTrip.mockRejectedValueOnce(new Error('simulated database failure'));
+
+        await expect(useCase.execute(BASE_INPUT)).rejects.toThrow('simulated database failure');
+
+        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+        expect(fareQuoteStore.consume).not.toHaveBeenCalled();
+    });
+
+    test('rejects if cached fare differs from the authoritative SQL quote', async () => {
+        const client = { query: jest.fn(async () => ({ rows: [] })), release: jest.fn() };
+        const tripRepository = {
+            db: { connect: jest.fn(async () => client) },
+            createTrip: jest.fn(),
+            logStatusChange: jest.fn(),
+        };
+        const pricingRepository = {
+            consumeQuote: jest.fn(async () => ({ status: 'CONSUMED', customer_final_amount: 999 })),
+        };
+        const fareQuoteStore = {
+            get: jest.fn(async () => VALID_QUOTE),
+            consume: jest.fn(),
+        };
+        const useCase = new CreateTripUseCase({ tripRepository, pricingRepository, fareQuoteStore });
+
+        await expect(useCase.execute(BASE_INPUT)).rejects.toMatchObject({
+            code: 'INVALID_QUOTE',
+            statusCode: 400,
+        });
+        expect(tripRepository.createTrip).not.toHaveBeenCalled();
+        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+        expect(fareQuoteStore.consume).not.toHaveBeenCalled();
+    });
+
 });
