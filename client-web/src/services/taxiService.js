@@ -27,7 +27,11 @@ export async function requestTaxiRide(rideData) {
   const coordinates = [
     pickupCoords.lat, pickupCoords.lng, dropoffCoords.lat, dropoffCoords.lng,
   ].map(Number);
-  if (coordinates.some((value) => !Number.isFinite(value))) {
+  if (coordinates.some((value) => !Number.isFinite(value))
+    || coordinates[0] < -90 || coordinates[0] > 90
+    || coordinates[2] < -90 || coordinates[2] > 90
+    || coordinates[1] < -180 || coordinates[1] > 180
+    || coordinates[3] < -180 || coordinates[3] > 180) {
     throw new Error("مختصات مبدأ یا مقصد معتبر نیست.");
   }
 
@@ -66,11 +70,15 @@ export async function requestTaxiRide(rideData) {
     }),
   });
   const trip = await readApiResponse(tripResponse, "ثبت سفر ناموفق بود.");
+  const rideId = trip?.data?.tripId || trip?.data?.rideId || trip?.data?.id;
+  if (!rideId) {
+    throw new Error("پاسخ سرور شناسه سفر ندارد؛ وضعیت ثبت سفر را از بخش سفرهای من بررسی کنید.");
+  }
 
   return {
     success: true,
     message: trip?.message || "درخواست سفر با موفقیت ثبت شد.",
-    rideId: trip?.data?.tripId || trip?.data?.rideId,
+    rideId,
     quoteId,
     estimatedFare: estimate?.data?.estimatedFare,
     currency: estimate?.data?.currency || "IRT",
