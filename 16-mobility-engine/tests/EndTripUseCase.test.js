@@ -82,6 +82,12 @@ describe('EndTripUseCase (P5-1 trip completion)', () => {
     });
   });
 
+  test('propagates the stored promo code into TripCompleted settlement events', async () => {
+    const tripRow = { id: 'trip-1', status: 'IN_PROGRESS', passenger_id: 'user-pass', driver_id: 'user-driver', estimated_cost: 90000, currency_id: 'IRT', promo_code: 'SAVE10' };
+    const { emitted } = await runTrip({ tripRow, updatedRow: { ...COMPLETED_ROW, promo_code: 'SAVE10' }, finalFare: 90000 });
+    expect(emitted[0].data.promoCode).toBe('SAVE10');
+  });
+
   test('falls back to estimated_cost when no finalFare input', async () => {
     const tripRow = {
       id: 'trip-1',
