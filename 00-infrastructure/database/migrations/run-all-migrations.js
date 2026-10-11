@@ -154,12 +154,26 @@ function splitSQL(sql) {
       continue;
     }
 
-    // Ignore block comments when outside quoted values/identifiers.
+    // PostgreSQL block comments can nest; skip the full comment before
+    // considering semicolons so nested comments cannot split a statement.
     if (!inQuote && !inDoubleQuote && ch === '/' && next === '*') {
+      let commentDepth = 1;
       i += 2;
-      while (i < sql.length && !(sql[i] === '*' && i + 1 < sql.length && sql[i + 1] === '/')) i++;
-      if (i < sql.length) i++;
+      while (i < sql.length && commentDepth > 0) {
+        if (sql[i] === '/' && i + 1 < sql.length && sql[i + 1] === '*') {
+          commentDepth++;
+          i += 2;
+          continue;
+        }
+        if (sql[i] === '*' && i + 1 < sql.length && sql[i + 1] === '/') {
+          commentDepth--;
+          i += 2;
+          continue;
+        }
+        i++;
+      }
       current += ' ';
+      i--;
       continue;
     }
 
