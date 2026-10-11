@@ -52,6 +52,7 @@ class EndTripUseCase {
         return (async () => {
             const db = this.tripRepository.db;
             const client = await db.connect();
+            let committed = false;
             try {
                 await client.query('BEGIN');
 
@@ -115,14 +116,20 @@ class EndTripUseCase {
                 }
 
                 await client.query('COMMIT');
-                // هـ) انتشار رویداد دامنه پس از Commit (مصرف توسط Wallet)
-                this.emitEvent(TripDomainEvents.TripCompleted, {
-                    tripId,
-                    passengerId: updated.passenger_id,
-                    driverId: updated.driver_id,
-                    amount: fare,
-                    currency,
-                });
+                committed = true;
+                // هـ) انتشار سریع رویداد پس از Commit. Outbox منبع پایدار است؛
+                // شکست انتشار زنده نباید نتیجهٔ تراکنشِ commit‌شده را به خطا تبدیل کند.
+                try {
+                    this.emitEvent(TripDomainEvents.TripCompleted, {
+                        tripId,
+                        passengerId: updated.passenger_id,
+                        driverId: updated.driver_id,
+                        amount: fare,
+                        currency,
+                    });
+                } catch (publishError) {
+                    // OutboxRelay will retry durable delivery; don't report a false rollback.
+                }
 
                 return {
                     tripId: updated.id,
@@ -134,7 +141,13 @@ class EndTripUseCase {
                     currency,
                 };
             } catch (error) {
-                await client.query('ROLLBACK');
+                if (!committed) {
+                    try {
+                        await client.query('ROLLBACK');
+                    } catch (rollbackError) {
+                        // Preserve the original failure; the connection is released below.
+                    }
+                }
                 throw error;
             } finally {
                 client.release();
