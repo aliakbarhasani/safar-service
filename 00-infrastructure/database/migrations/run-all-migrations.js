@@ -188,11 +188,14 @@ function splitSQL(sql) {
       if (delimiterMatch) {
         const delimiter = delimiterMatch[0];
         const closeIdx = sql.indexOf(delimiter, i + delimiter.length);
-        if (closeIdx >= 0) {
-          current += sql.substring(i, closeIdx + delimiter.length);
-          i = closeIdx + delimiter.length - 1;
-          continue;
+        if (closeIdx < 0) {
+          const error = new Error(`Unterminated PostgreSQL dollar-quoted body (${delimiter}) in migration SQL.`);
+          error.code = 'MIGRATION_SQL_PARSE_ERROR';
+          throw error;
         }
+        current += sql.substring(i, closeIdx + delimiter.length);
+        i = closeIdx + delimiter.length - 1;
+        continue;
       }
     }
 
@@ -231,6 +234,16 @@ function splitSQL(sql) {
     }
 
     current += ch;
+  }
+
+  if (inQuote || inDoubleQuote) {
+    const error = new Error(
+      inQuote
+        ? 'Unterminated single-quoted string in migration SQL.'
+        : 'Unterminated quoted identifier in migration SQL.'
+    );
+    error.code = 'MIGRATION_SQL_PARSE_ERROR';
+    throw error;
   }
 
   const trimmed = current.trim();
