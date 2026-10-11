@@ -74,3 +74,13 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
+      - name: Run wallet transfer idempotency API tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 05-wallet-service/__tests__/wallet.controller.transfer.test.js
+
+      - name: Check wallet transfer API syntax
+        run: |
+          node --check 05-wallet-service/controllers/wallet.controller.js
+          node --check 05-wallet-service/__tests__/wallet.controller.transfer.test.js
+
