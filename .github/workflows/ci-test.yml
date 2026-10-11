@@ -74,7 +74,7 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
-      - name: Run migration error-classification tests
+      - name: Run migration atomicity regression tests
         env:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js
