@@ -4,6 +4,9 @@ const {
   executeMigration,
   findMissingMigrationFiles,
   splitSQL,
+  calculateChecksum,
+  validateMigrationLedger,
+  ensureMigrationLedger,
 } = require('../run-all-migrations');
 
 describe('atomic migration execution', () => {
@@ -17,6 +20,21 @@ describe('atomic migration execution', () => {
       ['BEGIN'],
       ['CREATE TABLE sample(id int)'],
       ['CREATE INDEX sample_id_idx ON sample(id)'],
+      ['COMMIT'],
+    ]);
+  });
+
+  test('writes the migration checksum in the same transaction before commit', async () => {
+    const client = { query: jest.fn().mockResolvedValue({ rows: [] }) };
+    const logger = { log: jest.fn(), error: jest.fn() };
+    const checksum = 'a'.repeat(64);
+
+    await executeMigration(client, '001.sql', ['CREATE TABLE sample(id int)'], logger, checksum);
+
+    expect(client.query.mock.calls).toEqual([
+      ['BEGIN'],
+      ['CREATE TABLE sample(id int)'],
+      ['INSERT INTO public.schema_migrations (migration_id, checksum) VALUES ($1, $2)', ['001.sql', checksum]],
       ['COMMIT'],
     ]);
   });
@@ -82,5 +100,63 @@ describe('required migration file validation', () => {
     const fileExists = jest.fn((filePath) => filePath.endsWith('001.sql'));
     expect(findMissingMigrationFiles(['001.sql', '002.sql', '003.sql'], '/migrations', fileExists))
       .toEqual(['002.sql', '003.sql']);
+  });
+});
+
+describe('migration ledger validation', () => {
+  const ids = ['001.sql', '002.sql', '003.sql'];
+  const checksums = new Map(ids.map((id) => [id, calculateChecksum(id)]));
+
+  test('returns only unapplied migrations in order', () => {
+    expect(validateMigrationLedger(ids, [
+      { migration_id: '001.sql', checksum: checksums.get('001.sql') },
+      { migration_id: '002.sql', checksum: checksums.get('002.sql') },
+    ], checksums)).toEqual(['003.sql']);
+  });
+
+  test('fails closed when an applied migration checksum changes', () => {
+    expect(() => validateMigrationLedger(ids, [
+      { migration_id: '001.sql', checksum: '0'.repeat(64) },
+    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_CHECKSUM_MISMATCH' }));
+  });
+
+  test('fails if the ledger references a migration removed from the runner order', () => {
+    expect(() => validateMigrationLedger(ids, [
+      { migration_id: '004.sql', checksum: '0'.repeat(64) },
+    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_LEDGER_UNKNOWN_ID' }));
+  });
+
+  test('fails if a later migration is marked applied while an earlier one is missing', () => {
+    expect(() => validateMigrationLedger(ids, [
+      { migration_id: '001.sql', checksum: checksums.get('001.sql') },
+      { migration_id: '003.sql', checksum: checksums.get('003.sql') },
+    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_LEDGER_ORDER_GAP' }));
+  });
+});
+
+describe('safe adoption of existing databases', () => {
+  test('refuses to create an empty ledger over an existing schema', async () => {
+    const client = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ ledger: null }] })
+        .mockResolvedValueOnce({ rows: [{ count: 3 }] }),
+    };
+
+    await expect(ensureMigrationLedger(client))
+      .rejects.toMatchObject({ code: 'MIGRATION_BASELINE_REQUIRED' });
+    expect(client.query).toHaveBeenCalledTimes(2);
+  });
+
+  test('creates the ledger for a fresh database', async () => {
+    const client = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ ledger: null }] })
+        .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+
+    await ensureMigrationLedger(client);
+    expect(client.query).toHaveBeenCalledTimes(3);
+    expect(client.query.mock.calls[2][0]).toContain('CREATE TABLE public.schema_migrations');
   });
 });
