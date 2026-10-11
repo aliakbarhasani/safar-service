@@ -32,13 +32,13 @@ function makeFakeTripRepo({ tripRow, updatedRow }) {
   return repo;
 }
 
-function runTrip({ tripRow, updatedRow, finalFare = null, changedByUserId = null }) {
+function runTrip({ tripRow, updatedRow, finalFare = null, changedByUserId = null, driverId = 'user-driver', actorRole = 'driver' }) {
   const repo = makeFakeTripRepo({ tripRow, updatedRow });
   const uc = new EndTripUseCase({
     tripRepository: repo,
     emitEvent: (event, data) => repo.emitted.push({ event, data }),
   });
-  return uc.execute({ tripId: 'trip-1', changedByUserId, finalFare }).then((result) => ({
+  return uc.execute({ tripId: 'trip-1', changedByUserId, finalFare, driverId, actorRole }).then((result) => ({
     result,
     emitted: repo.emitted,
     repo,
@@ -186,7 +186,7 @@ describe('EndTripUseCase (P5-1 trip completion)', () => {
     const tripRow = { id: 'trip-1', status: 'REQUESTED', passenger_id: 'p', driver_id: 'd' };
     const repo = makeFakeTripRepo({ tripRow, updatedRow: COMPLETED_ROW });
     const uc = new EndTripUseCase({ tripRepository: repo, emitEvent: () => {} });
-    await expect(uc.execute({ tripId: 'trip-1' })).rejects.toMatchObject({
+    await expect(uc.execute({ tripId: 'trip-1', driverId: 'd' })).rejects.toMatchObject({
       code: 'INVALID_RIDE_STATE_TRANSITION',
     });
     expect(repo.client.query).toHaveBeenCalledWith(expect.stringContaining('ROLLBACK'));
