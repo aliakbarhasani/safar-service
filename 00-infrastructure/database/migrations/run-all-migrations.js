@@ -142,35 +142,66 @@ function splitSQL(sql) {
   let current = '';
   let inQuote = false;
   let inDoubleQuote = false;
-  let inLineComment = false;
-  let inBlockComment = false;
 
   for (let i = 0; i < sql.length; i++) {
     const ch = sql[i];
     const next = i + 1 < sql.length ? sql[i + 1] : '';
 
-    if (!inQuote && !inDoubleQuote && !inBlockComment && ch === '-' && next === '-') {
-      inLineComment = true;
+    // Ignore line comments only when outside quoted values/identifiers.
+    if (!inQuote && !inDoubleQuote && ch === '-' && next === '-') {
       while (i < sql.length && sql[i] !== '\n') i++;
-      inLineComment = false;
+      current += ' ';
       continue;
     }
 
-    if (!inQuote && !inDoubleQuote && !inLineComment && ch === '/' && next === '*') {
-      inBlockComment = true;
+    // Ignore block comments when outside quoted values/identifiers.
+    if (!inQuote && !inDoubleQuote && ch === '/' && next === '*') {
       i += 2;
       while (i < sql.length && !(sql[i] === '*' && i + 1 < sql.length && sql[i + 1] === '/')) i++;
-      i++;
-      inBlockComment = false;
+      if (i < sql.length) i++;
+      current += ' ';
       continue;
     }
 
-    if (inLineComment || inBlockComment) {
+    // PostgreSQL dollar-quoted bodies may contain arbitrary semicolons.
+    if (!inQuote && !inDoubleQuote && ch === '$') {
+      const delimiterMatch = sql.slice(i).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/);
+      if (delimiterMatch) {
+        const delimiter = delimiterMatch[0];
+        const closeIdx = sql.indexOf(delimiter, i + delimiter.length);
+        if (closeIdx >= 0) {
+          current += sql.substring(i, closeIdx + delimiter.length);
+          i = closeIdx + delimiter.length - 1;
+          continue;
+        }
+      }
+    }
+
+    // SQL escapes a single quote inside a string by doubling it.
+    if (!inDoubleQuote && ch === "'") {
+      if (inQuote && next === "'") {
+        current += "''";
+        i++;
+        continue;
+      }
+      inQuote = !inQuote;
       current += ch;
       continue;
     }
 
-    if (!inQuote && !inDoubleQuote && ch === '
+    // SQL escapes a double quote inside an identifier by doubling it.
+    if (!inQuote && ch === '"') {
+      if (inDoubleQuote && next === '"') {
+        current += '""';
+        i++;
+        continue;
+      }
+      inDoubleQuote = !inDoubleQuote;
+      current += ch;
+      continue;
+    }
+
+    if (!inQuote && !inDoubleQuote && ch === ';') {
       const trimmed = current.trim();
       const upper = trimmed.toUpperCase();
       if (trimmed && !trimmed.startsWith('--') && upper !== 'BEGIN' && upper !== 'COMMIT') {
