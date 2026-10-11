@@ -77,6 +77,23 @@ describe('OtpRepository (in-memory fallback)', () => {
   });
 });
 
+
+describe('OtpRepository (database-backed lookup contract)', () => {
+  test('a missing OTP in an available database returns null in production mode', async () => {
+    const repo = new OtpRepository();
+    repo.allowInMemoryFallback = false;
+    repo.pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }) // _isDBReady()
+        .mockResolvedValueOnce({ rows: [] }), // no OTP for this phone/type
+      end: jest.fn(),
+    };
+
+    await expect(repo.findByPhoneNumber(PHONE, 'login')).resolves.toBeNull();
+    expect(repo.pool.query).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('VerifyOtpUseCase - OTP is not reusable after markUsed', () => {
   function buildUseCase(repo) {
     const userRepository = {
