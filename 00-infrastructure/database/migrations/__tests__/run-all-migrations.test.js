@@ -98,6 +98,11 @@ describe('SQL statement splitting', () => {
     expect(splitSQL('SELECT "odd;name" FROM sample; SELECT 2;'))
       .toEqual(['SELECT "odd;name" FROM sample', 'SELECT 2']);
   });
+
+  test('supports nested PostgreSQL block comments without splitting statements', () => {
+    const sql = 'SELECT 1 /* outer ; /* nested ; */ still outer ; */; SELECT 2;';
+    expect(splitSQL(sql)).toEqual(['SELECT 1', 'SELECT 2']);
+  });
 });
 
 describe('migration manifest integrity', () => {
