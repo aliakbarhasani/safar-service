@@ -15,10 +15,17 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [serverError, setServerError] = useState("");
 
-  // Persian digits to Latin digits for API
-  const toEnglishDigits = (value: string) => {
-    const faDigits = "۰۱۲۳۴۵۶۷۸۹";
-    return value.replace(/[۰-۹]/g, (d) => String(faDigits.indexOf(d)));
+  // Normalize Persian/Arabic digits and common Iranian phone formats to 09xxxxxxxxx.
+  const normalizeIranPhone = (value: string) => {
+    const digits = value
+      .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .replace(/[\s()-]/g, "");
+    if (digits.startsWith("+989")) return "0" + digits.slice(3);
+    if (digits.startsWith("00989")) return "0" + digits.slice(4);
+    if (digits.startsWith("989")) return "0" + digits.slice(2);
+    if (/^9\d{9}$/.test(digits)) return "0" + digits;
+    return digits;
   };
 
   const validatePhone = (phone: string) => {
@@ -30,7 +37,7 @@ export default function LoginPage() {
     setError("");
     setServerError("");
 
-    const normalizedPhone = toEnglishDigits(phoneNumber).trim();
+    const normalizedPhone = normalizeIranPhone(phoneNumber);
 
     if (!normalizedPhone) {
       setError(config.texts.auth.errors.required);
@@ -98,8 +105,10 @@ export default function LoginPage() {
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             error={error}
-            inputMode="numeric"
-            maxLength={11}
+            inputMode="tel"
+            maxLength={20}
+            dir="ltr"
+            autoComplete="tel"
           />
 
           {serverError && (
