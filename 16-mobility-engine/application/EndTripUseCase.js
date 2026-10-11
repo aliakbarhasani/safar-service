@@ -120,7 +120,7 @@ class EndTripUseCase {
                 // هـ) انتشار سریع رویداد پس از Commit. Outbox منبع پایدار است؛
                 // شکست انتشار زنده نباید نتیجهٔ تراکنشِ commit‌شده را به خطا تبدیل کند.
                 try {
-                    this.emitEvent(TripDomainEvents.TripCompleted, {
+                    await this.emitEvent(TripDomainEvents.TripCompleted, {
                         tripId,
                         passengerId: updated.passenger_id,
                         driverId: updated.driver_id,
