@@ -26,6 +26,26 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Verify critical proxy-addr advisory is remediated
+        run: |
+          node -e "const p = require('./node_modules/proxy-addr/package.json'); if (p.version !== '2.0.8') { console.error('Expected proxy-addr 2.0.8, found ' + p.version); process.exit(1); } console.log('proxy-addr ' + p.version + ' installed');"
+          npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
+          node - "$RUNNER_TEMP/npm-audit.json" <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const proxyAddr = report.vulnerabilities && report.vulnerabilities['proxy-addr'];
+          if (proxyAddr) {
+            console.error('npm audit still reports proxy-addr:', JSON.stringify(proxyAddr));
+            process.exit(1);
+          }
+          const counts = report.metadata && report.metadata.vulnerabilities || {};
+          if (Number(counts.critical || 0) > 0) {
+            console.error('Critical npm audit findings remain:', counts.critical);
+            process.exit(1);
+          }
+          console.log('npm audit reports no proxy-addr advisory and no remaining critical findings.');
+          NODE
+
       - name: Check wallet source and regression-test syntax
         run: |
           node --check 05-wallet-service/models/wallet.model.js
