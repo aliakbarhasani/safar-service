@@ -118,7 +118,12 @@ async function ensureMigrationLedger(client) {
   await client.query(`
     CREATE TABLE public.schema_migrations (
       migration_id TEXT PRIMARY KEY,
-      checksum CHAR(64) NOT NULL CHECK (checksum ~ '^[0-9a-f]{64}
+      checksum CHAR(64) NOT NULL CHECK (length(checksum) = 64),
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 /**
  * جدا کردن دستورات SQL با رعایت dollar-quoted strings و single quotes
  */
