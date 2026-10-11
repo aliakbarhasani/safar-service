@@ -20,9 +20,10 @@ class RequestOtpUseCase {
       throw new Error('Phone number is required');
     }
 
-    // SECURITY: ConsoleSmsProvider only logs codes and is never a real delivery
-    // channel. Do not generate or log OTPs in production without a real provider.
-    if (process.env.NODE_ENV === 'production' && this.smsProvider instanceof ConsoleSmsProvider) {
+    // SECURITY: ConsoleSmsProvider is a development/test adapter, not a delivery
+    // channel. Fail closed unless the environment explicitly permits this adapter.
+    const consoleProviderAllowed = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+    if (this.smsProvider instanceof ConsoleSmsProvider && !consoleProviderAllowed) {
       const error = new Error('OTP delivery provider is not configured.');
       error.code = 'SMS_PROVIDER_NOT_CONFIGURED';
       error.statusCode = 503;
