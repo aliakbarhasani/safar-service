@@ -7,6 +7,7 @@ const {
   calculateChecksum,
   validateMigrationLedger,
   ensureMigrationLedger,
+  MIGRATION_ORDER,
 } = require('../run-all-migrations');
 
 describe('atomic migration execution', () => {
@@ -86,6 +87,16 @@ describe('SQL statement splitting', () => {
 
   test('keeps semicolons inside single-quoted strings', () => {
     expect(splitSQL("SELECT 'a;b'; SELECT 2;")).toEqual(["SELECT 'a;b'", 'SELECT 2']);
+  });
+});
+
+describe('migration manifest integrity', () => {
+  test('registers the promo-code schema migration after the existing ordered history', () => {
+    expect(MIGRATION_ORDER[MIGRATION_ORDER.length - 1]).toBe('032_add_trip_promo_code.sql');
+  });
+
+  test('contains no duplicate migration filenames', () => {
+    expect(new Set(MIGRATION_ORDER).size).toBe(MIGRATION_ORDER.length);
   });
 });
 
