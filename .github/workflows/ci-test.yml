@@ -89,4 +89,6 @@ jobs:
           node --check 23-promo-service/handlers/TripCompleted.handler.js
           node --check 18-pricing-service/tests/CalculateFareUseCase.test.js
           node --check 23-promo-service/tests/TripCompleted.handler.test.js
+          node --check 16-mobility-engine/tests/EndTripUseCase.test.js
+          node --check 16-mobility-engine/tests/CreateTripUseCase.quote-guard.test.js
 
