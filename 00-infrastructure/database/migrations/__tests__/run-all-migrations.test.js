@@ -105,8 +105,7 @@ describe('SQL statement splitting', () => {
   });
 
   test('rejects unterminated PostgreSQL block comments', () => {
-    expect(() => splitSQL('SELECT 1 /* comment never closes'))
-      .toThrow(expect.objectContaining({ code: 'MIGRATION_SQL_PARSE_ERROR' }));
+    expectErrorCode(() => splitSQL('SELECT 1 /* comment never closes'), 'MIGRATION_SQL_PARSE_ERROR');
   });
 });
 
