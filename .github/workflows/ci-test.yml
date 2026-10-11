@@ -74,3 +74,11 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
+      - name: Run migration error-classification tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js
+
+      - name: Check migration runner syntax
+        run: node --check 00-infrastructure/database/migrations/run-all-migrations.js
+
