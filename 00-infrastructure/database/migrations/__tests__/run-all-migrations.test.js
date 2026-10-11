@@ -103,6 +103,11 @@ describe('SQL statement splitting', () => {
     const sql = 'SELECT 1 /* outer ; /* nested ; */ still outer ; */; SELECT 2;';
     expect(splitSQL(sql)).toEqual(['SELECT 1', 'SELECT 2']);
   });
+
+  test('rejects unterminated PostgreSQL block comments', () => {
+    expect(() => splitSQL('SELECT 1 /* comment never closes'))
+      .toThrow(expect.objectContaining({ code: 'MIGRATION_SQL_PARSE_ERROR' }));
+  });
 });
 
 describe('migration manifest integrity', () => {
