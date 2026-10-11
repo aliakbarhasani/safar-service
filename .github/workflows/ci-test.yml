@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -73,6 +73,15 @@ jobs:
         env:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
+
+      - name: Run promo validation lock-safety regression tests
+        env:
+          NODE_ENV: test
+        run: |
+          node --check 23-promo-service/application/ValidatePromoUseCase.js
+          node --check 23-promo-service/tests/ValidatePromoUseCase.test.js
+          node 23-promo-service/tests/ValidatePromoUseCase.test.js
+          npm test -- --runTestsByPath 23-promo-service/tests/TripCompleted.handler.test.js
 
       - name: Run pricing, discounted quote, and promo idempotency regression tests
         env:
