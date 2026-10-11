@@ -1,8 +1,8 @@
 /**
  * run-all-migrations.js - اجرای همه Migrationهای دیتابیس
- * 
+ *
  * Usage: node run-all-migrations.js
- * 
+ *
  * این اسکریپت تمام فایل‌های SQL را به ترتیب اجرا می‌کند
  * و وضعیت هر Migration را گزارش می‌دهد
  */
@@ -20,6 +20,7 @@ const IDEMPOTENT_MIGRATION_ERROR_CODES = new Set(['42710', '42P07', '42P04', '42
 function isIdempotentMigrationError(error) {
   return Boolean(error && IDEMPOTENT_MIGRATION_ERROR_CODES.has(String(error.code || '')));
 }
+
 const MIGRATION_ORDER = [
   '001_initial_global_schema.sql',
   '002_extended_global_schema.sql',
@@ -54,6 +55,10 @@ const MIGRATION_ORDER = [
   '031_wallet_currency_integrity.sql',
 ];
 
+function findMissingMigrationFiles(migrationOrder, directory = MIGRATIONS_DIR, fileExists = fs.existsSync) {
+  return migrationOrder.filter((filename) => !fileExists(path.join(directory, filename)));
+}
+
 /**
  * جدا کردن دستورات SQL با رعایت dollar-quoted strings و single quotes
  */
@@ -64,32 +69,32 @@ function splitSQL(sql) {
   let inQuote = false;
   let inLineComment = false;
   let inBlockComment = false;
-  
+
   for (let i = 0; i < sql.length; i++) {
     const ch = sql[i];
     const next = i + 1 < sql.length ? sql[i + 1] : '';
-    
-    // Line comment -- (skip entire line)
+
     if (!inDollar && !inQuote && !inBlockComment && ch === '-' && next === '-') {
       inLineComment = true;
-      while (i < sql.length && sql[i] !== '\n') i++;
+      while (i < sql.length && sql[i] !== '\\n') i++;
       inLineComment = false;
       continue;
     }
-    
-    // Block comment /* */
+
     if (!inDollar && !inQuote && !inLineComment && ch === '/' && next === '*') {
       inBlockComment = true;
       i += 2;
       while (i < sql.length && !(sql[i] === '*' && i + 1 < sql.length && sql[i + 1] === '/')) i++;
-      i++; // skip */
+      i++;
       inBlockComment = false;
       continue;
     }
-    
-    if (inLineComment || inBlockComment) { current += ch; continue; }
-    
-    // Dollar-quoted string $$...$$ or $tag$...$tag$
+
+    if (inLineComment || inBlockComment) {
+      current += ch;
+      continue;
+    }
+
     if (!inQuote && ch === '$') {
       const endIdx = sql.indexOf('$', i + 1);
       if (endIdx > i) {
@@ -103,11 +108,13 @@ function splitSQL(sql) {
         }
       }
     }
-    
-    // Single quote
-    if (!inDollar && ch === "'") { inQuote = !inQuote; current += ch; continue; }
-    
-    // Semicolon at top level = statement separator
+
+    if (!inDollar && ch === "'") {
+      inQuote = !inQuote;
+      current += ch;
+      continue;
+    }
+
     if (!inDollar && !inQuote && ch === ';') {
       const trimmed = current.trim();
       const upper = trimmed.toUpperCase();
@@ -117,86 +124,103 @@ function splitSQL(sql) {
       current = '';
       continue;
     }
-    
+
     current += ch;
   }
-  
+
   const trimmed = current.trim();
   if (trimmed && !trimmed.startsWith('--')) statements.push(trimmed);
   return statements;
 }
 
 async function runAllMigrations() {
+  // A missing file must never be silently skipped: doing so can leave a
+  // partially upgraded schema while reporting a successful migration run.
+  const missingFiles = findMissingMigrationFiles(MIGRATION_ORDER);
+  if (missingFiles.length > 0) {
+    const error = new Error(`Required migration file(s) missing: ${missingFiles.join(', ')}`);
+    error.code = 'MIGRATION_FILES_MISSING';
+    throw error;
+  }
+
   const client = new Client({
-    host: config.pg.host, port: config.pg.port,
-    database: config.pg.database, user: config.pg.user,
+    host: config.pg.host,
+    port: config.pg.port,
+    database: config.pg.database,
+    user: config.pg.user,
     password: config.pg.password,
     connectionTimeoutMillis: 5000,
   });
+
   await client.connect();
 
-  console.log('==============================================');
-  console.log('  SAFAR SERVICE - ALL DATABASE MIGRATIONS');
-  console.log('==============================================');
-  console.log(`Host: ${config.pg.host}:${config.pg.port}`);
-  console.log(`Database: ${config.pg.database}`);
-  console.log(`Total migrations: ${MIGRATION_ORDER.length}`);
-  console.log('----------------------------------------------');
+  try {
+    console.log('==============================================');
+    console.log('  SAFAR SERVICE - ALL DATABASE MIGRATIONS');
+    console.log('==============================================');
+    console.log(`Host: ${config.pg.host}:${config.pg.port}`);
+    console.log(`Database: ${config.pg.database}`);
+    console.log(`Total migrations: ${MIGRATION_ORDER.length}`);
+    console.log('----------------------------------------------');
 
-  let totalSuccess = 0, totalFail = 0;
+    let totalSuccess = 0;
+    let totalFail = 0;
 
-  for (const migrationFile of MIGRATION_ORDER) {
-    const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
-    if (!fs.existsSync(migrationPath)) { console.log(`⚠ ${migrationFile} not found, skipping...`); continue; }
-    
-    console.log(`\n⏳ ${migrationFile}...`);
-    const sql = fs.readFileSync(migrationPath, 'utf-8');
-    const statements = splitSQL(sql);
-    console.log(`  📄 ${statements.length} statements`);
-    
-    let fileOk = 0, fileFail = 0;
-    for (const stmt of statements) {
-      try {
-        await client.query(stmt);
-        fileOk++;
-      } catch (err) {
-        // Ignore only PostgreSQL SQLSTATEs that unambiguously mean an idempotent
-        // DDL object already exists. Do not match the word "duplicate" in text:
-        // 23505 (unique_violation) and data conflicts must fail the migration.
-        if (isIdempotentMigrationError(err)) {
+    for (const migrationFile of MIGRATION_ORDER) {
+      const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
+      console.log(`\\n⏳ ${migrationFile}...`);
+      const sql = fs.readFileSync(migrationPath, 'utf-8');
+      const statements = splitSQL(sql);
+      console.log(`  📄 ${statements.length} statements`);
+
+      let fileOk = 0;
+      let fileFail = 0;
+      for (const stmt of statements) {
+        try {
+          await client.query(stmt);
           fileOk++;
-          console.warn(`  ⚠ ignored idempotent DDL conflict [${err.code}]`);
-        } else {
-          console.error(`  ✗ [${err.code || 'NO_SQLSTATE'}] ${String(err.message || err).substring(0, 150)}`);
-          fileFail++;
+        } catch (err) {
+          // Ignore only narrowly identified DDL object-exists errors. Data
+          // conflicts and unknown errors must fail the migration run.
+          if (isIdempotentMigrationError(err)) {
+            fileOk++;
+            console.warn(`  ⚠ ignored idempotent DDL conflict [${err.code}]`);
+          } else {
+            console.error(`  ✗ [${err.code || 'NO_SQLSTATE'}] ${String(err.message || err).substring(0, 150)}`);
+            fileFail++;
+          }
         }
       }
+
+      totalSuccess += fileOk;
+      totalFail += fileFail;
+      console.log(`  ✓ ${fileOk} ok, ${fileFail} errors`);
     }
-    totalSuccess += fileOk; totalFail += fileFail;
-    console.log(`  ✓ ${fileOk} ok, ${fileFail} errors`);
-  }
 
-    console.log('\n==============================================');
-  console.log(`  Total: ${totalSuccess} ok, ${totalFail} errors`);
-  console.log('==============================================');
-  await client.end();
+    console.log('\\n==============================================');
+    console.log(`  Total: ${totalSuccess} ok, ${totalFail} errors`);
+    console.log('==============================================');
 
-  // (P0) Fail-Fast: a migration run that produced uncategorized errors must
-  // surface a non-zero exit code so CI actually FAILS on real failures.
-  // NOTE: idempotent "already exists"/"duplicate" errors are counted as OK
-  // above (the ignoreList), so they deliberately do NOT trigger this path.
-  if (totalFail > 0) {
-    console.error(`\n✗ Migration run ABORTED — ${totalFail} uncategorized error(s).`);
-    process.exitCode = 1;
+    if (totalFail > 0) {
+      const error = new Error(`Migration run aborted — ${totalFail} SQL statement(s) failed.`);
+      error.code = 'MIGRATION_SQL_FAILED';
+      throw error;
+    }
+  } finally {
+    await client.end();
   }
 }
 
-// Running the migration is a CLI side effect; exporting helpers must remain safe for tests.
 if (require.main === module) {
-  runAllMigrations().catch((e) => {
-    console.error(e);
-    process.exit(1);
+  runAllMigrations().catch((error) => {
+    console.error(`Migration runner failed [${error.code || 'UNKNOWN'}]: ${error.message || error}`);
+    process.exitCode = 1;
   });
 }
 
-module.exports = { runAllMigrations, splitSQL, isIdempotentMigrationError };
+module.exports = {
+  runAllMigrations,
+  splitSQL,
+  isIdempotentMigrationError,
+  findMissingMigrationFiles,
+};
