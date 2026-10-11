@@ -18,15 +18,22 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
 
-  // Persian digits to Latin digits for API
-  const toEnglishDigits = (value: string) => {
-    const faDigits = "۰۱۲۳۴۵۶۷۸۹";
-    return value.replace(/[۰-۹]/g, (d) => String(faDigits.indexOf(d)));
+  // Normalize Persian/Arabic digits and common Iranian phone formats to 09xxxxxxxxx.
+  const normalizeIranPhone = (value: string) => {
+    const digits = value
+      .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .replace(/[\s()-]/g, "");
+    if (digits.startsWith("+989")) return "0" + digits.slice(3);
+    if (digits.startsWith("00989")) return "0" + digits.slice(4);
+    if (digits.startsWith("989")) return "0" + digits.slice(2);
+    if (/^9\d{9}$/.test(digits)) return "0" + digits;
+    return digits;
   };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const normalizedPhone = toEnglishDigits(phoneNumber).trim();
+    const normalizedPhone = normalizeIranPhone(phoneNumber);
 
     if (!firstName.trim()) {
       newErrors.firstName = config.texts.auth.errors.required;
@@ -71,13 +78,13 @@ export default function RegisterPage() {
               return `pw-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
             })();
       await registerUser({
-        phoneNumber: toEnglishDigits(phoneNumber).trim(),
+        phoneNumber: normalizeIranPhone(phoneNumber),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim() || undefined,
         password: generatedPassword,
       });
-      localStorage.setItem("login_phone", toEnglishDigits(phoneNumber).trim());
+      localStorage.setItem("login_phone", normalizeIranPhone(phoneNumber));
       router.push("/auth/otp");
     } catch (err: any) {
       const status = err?.status ?? err?.response?.status;
@@ -146,8 +153,9 @@ export default function RegisterPage() {
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             error={errors.phoneNumber}
-            inputMode="numeric"
-            maxLength={11}
+            inputMode="tel"
+            maxLength={20}
+            autoComplete="tel"
             dir="ltr"
           />
 
