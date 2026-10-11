@@ -101,11 +101,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-[#1e40af] via-[#1e3a8a] to-[#0f172a] p-4">
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-[#0f766e] via-[#115e59] to-[#0f172a] p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
         {/* Logo */}
         <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#3b82f6] flex items-center justify-center shadow-lg">
+          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#0f766e] to-[#14b8a6] flex items-center justify-center shadow-lg">
             <svg
               className="w-9 h-9 text-white"
               fill="none"
@@ -188,7 +188,7 @@ export default function RegisterPage() {
           {config.texts.auth.loginLink}{" "}
           <Link
             href="/auth/login"
-            className="text-[#1e40af] font-medium hover:underline"
+            className="text-[#0f766e] font-medium hover:underline"
           >
             {config.texts.auth.loginTitle}
           </Link>
