@@ -316,7 +316,7 @@ module.exports = {
   MIGRATION_ORDER,
 };
 ) {
-      const delimiterMatch = sql.slice(i).match(/^\\$[A-Za-z_][A-Za-z0-9_]*\\$|^\\$\\$/);
+      const delimiterMatch = sql.slice(i).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/);
       if (delimiterMatch) {
         const delimiter = delimiterMatch[0];
         const closeIdx = sql.indexOf(delimiter, i + delimiter.length);
