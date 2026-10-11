@@ -88,6 +88,16 @@ describe('SQL statement splitting', () => {
   test('keeps semicolons inside single-quoted strings', () => {
     expect(splitSQL("SELECT 'a;b'; SELECT 2;")).toEqual(["SELECT 'a;b'", 'SELECT 2']);
   });
+
+  test('keeps semicolons inside strings with escaped single quotes', () => {
+    expect(splitSQL("SELECT 'can''t;split'; SELECT 2;"))
+      .toEqual(["SELECT 'can''t;split'", 'SELECT 2']);
+  });
+
+  test('keeps semicolons inside quoted identifiers', () => {
+    expect(splitSQL('SELECT "odd;name" FROM sample; SELECT 2;'))
+      .toEqual(['SELECT "odd;name" FROM sample', 'SELECT 2']);
+  });
 });
 
 describe('migration manifest integrity', () => {
