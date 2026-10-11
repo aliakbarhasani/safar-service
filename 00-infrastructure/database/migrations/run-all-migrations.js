@@ -172,6 +172,11 @@ function splitSQL(sql) {
         }
         i++;
       }
+      if (commentDepth > 0) {
+        const error = new Error('Unterminated PostgreSQL block comment in migration SQL.');
+        error.code = 'MIGRATION_SQL_PARSE_ERROR';
+        throw error;
+      }
       current += ' ';
       i--;
       continue;
