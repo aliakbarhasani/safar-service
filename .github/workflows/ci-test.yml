@@ -74,3 +74,19 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
+      - name: Run pricing, discounted quote, and promo idempotency regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 18-pricing-service/tests/CalculateFareUseCase.test.js 16-mobility-engine/tests/CreateTripUseCase.quote-guard.test.js 16-mobility-engine/tests/EndTripUseCase.test.js 23-promo-service/tests/TripCompleted.handler.test.js
+
+      - name: Check changed pricing and promo source syntax
+        run: |
+          node --check 18-pricing-service/application/CalculateFareUseCase.js
+          node --check 15-pricing-engine/infrastructure/PricingRepository.js
+          node --check 16-mobility-engine/application/CreateTripUseCase.js
+          node --check 16-mobility-engine/infrastructure/TripRepository.js
+          node --check 16-mobility-engine/application/EndTripUseCase.js
+          node --check 23-promo-service/handlers/TripCompleted.handler.js
+          node --check 18-pricing-service/tests/CalculateFareUseCase.test.js
+          node --check 23-promo-service/tests/TripCompleted.handler.test.js
+
