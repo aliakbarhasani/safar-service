@@ -146,13 +146,20 @@ class PricingRepository {
         quoteId,
         serviceType,
         estimatedFare,
+        discountAmount = 0,
+        finalFare = null,
         currencyCode = 'IRT',
         expiresAt,
         inputSnapshot = {},
         calculationSnapshot = {},
     } = {}) {
         const amount = Number(estimatedFare);
-        if (!quoteId || !serviceType || !Number.isFinite(amount) || amount <= 0 || !expiresAt) {
+        const discount = Number(discountAmount);
+        const customerFinalAmount = finalFare == null ? amount - discount : Number(finalFare);
+        if (!quoteId || !serviceType || !Number.isFinite(amount) || amount <= 0
+            || !Number.isFinite(discount) || discount < 0 || discount > amount
+            || !Number.isFinite(customerFinalAmount) || customerFinalAmount <= 0 || customerFinalAmount > amount
+            || Math.abs((amount - discount) - customerFinalAmount) > 0.01 || !expiresAt) {
             const error = new Error('saveFareQuote requires quoteId, serviceType, positive amount, and expiresAt.');
             error.code = 'FARE_QUOTE_VALIDATION';
             error.statusCode = 400;
@@ -171,9 +178,9 @@ class PricingRepository {
                     input_snapshot, calculation_snapshot, expires_at
                 ) VALUES (
                     $1, $2, $3, $4, $5,
-                    $6, 0, 0, 0,
-                    $6, $6, 'CREATED',
-                    $7::jsonb, $8::jsonb, $9
+                    $6, $7, 0, 0,
+                    $8, $9, 'CREATED',
+                    $10::jsonb, $11::jsonb, $12
                 )`,
                 [
                     quoteId,
@@ -182,6 +189,9 @@ class PricingRepository {
                     serviceType,
                     currencyCode,
                     amount,
+                    discount,
+                    customerFinalAmount,
+                    customerFinalAmount,
                     JSON.stringify(inputSnapshot),
                     JSON.stringify(calculationSnapshot),
                     expiresAt,
