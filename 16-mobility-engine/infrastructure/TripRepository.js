@@ -38,6 +38,7 @@ const SELECT_COLUMNS = `
             passenger_id,
             driver_id,
             quote_id,
+            promo_code,
             lifecycle_status AS status,
             service_type,
             origin_address,
@@ -87,7 +88,7 @@ class TripRepository {
                 destination_address, destination_latitude, destination_longitude,
                 payment_method,
                 estimated_cost, final_cost, commission_amount, driver_earning,
-                country_id
+                country_id, promo_code
             ) VALUES (
                 $1, $2, $3,
                 $4, $5, $5,
@@ -97,7 +98,7 @@ class TripRepository {
                 COALESCE($13::trip_payment_method, 'wallet'),
                 COALESCE($14, 0), COALESCE($15, 0),
                 COALESCE($16, 0), COALESCE($17, 0),
-                $18
+                $18, $19
             )
             RETURNING ${SELECT_COLUMNS}
         `;
@@ -120,6 +121,7 @@ class TripRepository {
             record.commission_amount ?? null,
             record.driver_earning ?? null,
             record.country_id || null,
+            record.promo_code || null,
         ];
         const result = await client.query(query, values);
         return result.rows[0];
