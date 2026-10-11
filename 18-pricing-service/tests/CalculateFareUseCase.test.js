@@ -89,6 +89,29 @@ describe('CalculateFareUseCase (P6-1)', () => {
       .rejects.toMatchObject({ statusCode: 400, code: 'FARE_INVALID_COORDS' });
   });
 
+  test('requires an authenticated user when a promo code is supplied', async () => {
+    const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(0), promoService: { execute: jest.fn() } });
+    await expect(uc.execute({ ...TEHRAN_A, promoCode: 'SAVE10' })).rejects.toMatchObject({ statusCode: 401, code: 'PROMO_AUTH_REQUIRED' });
+  });
+
+  test('uses the validated discounted amount in Redis and SQL quotes', async () => {
+    const saveFareQuote = jest.fn(async () => {});
+    const fareQuoteStore = { ttlSeconds: 300, save: jest.fn(async () => {}) };
+    const promoService = { execute: jest.fn(async ({ code, userId, fare }) => ({ valid: true, code, userId, originalFare: fare, discountAmount: 5000, finalFare: fare - 5000 })) };
+    const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(0), fareQuoteStore, promoService, pricingRepository: { saveFareQuote } });
+    const res = await uc.execute({ ...TEHRAN_A, promoCode: 'SAVE10', userId: 'passenger-1', perKmRate: 2000, baseFare: 15000 });
+    expect(promoService.execute).toHaveBeenCalledWith({ code: 'SAVE10', userId: 'passenger-1', fare: res.estimatedFare });
+    expect(res.discountAmount).toBe(5000);
+    expect(res.finalFare).toBe(res.estimatedFare - 5000);
+    expect(saveFareQuote).toHaveBeenCalledWith(expect.objectContaining({ estimatedFare: res.estimatedFare, discountAmount: 5000, finalFare: res.finalFare }));
+    expect(fareQuoteStore.save).toHaveBeenCalledWith(expect.objectContaining({ estimatedFare: res.estimatedFare, discountAmount: 5000, finalFare: res.finalFare, promoCode: 'SAVE10', passengerId: 'passenger-1' }));
+  });
+
+  test('does not hide promo validation failures behind a full-price quote', async () => {
+    const uc = new CalculateFareUseCase({ demandSupplyTracker: stubTracker(0), promoService: { execute: jest.fn(async () => { throw Object.assign(new Error('expired'), { code: 'EXPIRED', statusCode: 400 }); }) } });
+    await expect(uc.execute({ ...TEHRAN_A, promoCode: 'OLD', userId: 'passenger-1' })).rejects.toMatchObject({ code: 'EXPIRED', statusCode: 400 });
+  });
+
   test('computeSurge / haversineKm pure helpers', () => {
     expect(computeSurge(0.9)).toBe(1.0);
     expect(computeSurge(1)).toBe(1.0);
