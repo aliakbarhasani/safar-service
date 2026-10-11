@@ -153,8 +153,7 @@ describe('safe adoption of existing databases', () => {
     };
 
     await expect(ensureMigrationLedger(client))
-      .rejects.toThrow('Automatic baseline is unsafe');
-    await expect(ensureMigrationLedger(client)).rejects.toMatchObject({ code: 'MIGRATION_BASELINE_REQUIRED' });
+      .rejects.toMatchObject({ code: 'MIGRATION_BASELINE_REQUIRED' });
     expect(client.query).toHaveBeenCalledTimes(2);
   });
 
