@@ -13,6 +13,13 @@ const { Client } = require('pg');
 const config = require('../../../14-config-system/server.config');
 
 const MIGRATIONS_DIR = __dirname;
+
+// PostgreSQL codes that specifically indicate an existing schema object.
+const IDEMPOTENT_MIGRATION_ERROR_CODES = new Set(['42710', '42P07', '42P04', '42701']);
+
+function isIdempotentMigrationError(error) {
+  return Boolean(error && IDEMPOTENT_MIGRATION_ERROR_CODES.has(String(error.code || '')));
+}
 const MIGRATION_ORDER = [
   '001_initial_global_schema.sql',
   '002_extended_global_schema.sql',
@@ -153,11 +160,14 @@ async function runAllMigrations() {
         await client.query(stmt);
         fileOk++;
       } catch (err) {
-        const ignoreList = ['already exists', 'duplicate', '42710', '42P07', '42P04'];
-        if (ignoreList.some(e => err.message.includes(e) || err.code === e)) {
-          fileOk++; // count as success when already exists
+        // Ignore only PostgreSQL SQLSTATEs that unambiguously mean an idempotent
+        // DDL object already exists. Do not match the word "duplicate" in text:
+        // 23505 (unique_violation) and data conflicts must fail the migration.
+        if (isIdempotentMigrationError(err)) {
+          fileOk++;
+          console.warn(`  ⚠ ignored idempotent DDL conflict [${err.code}]`);
         } else {
-          console.error(`  ✗ ${err.message.substring(0, 150)}`);
+          console.error(`  ✗ [${err.code || 'NO_SQLSTATE'}] ${String(err.message || err).substring(0, 150)}`);
           fileFail++;
         }
       }
@@ -181,9 +191,12 @@ async function runAllMigrations() {
   }
 }
 
-// Wrap the invocation so a rejection (e.g. PostgreSQL unreachable on connect)
-// does not surface as an unhandled promise rejection with exit code 0.
-runAllMigrations().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Running the migration is a CLI side effect; exporting helpers must remain safe for tests.
+if (require.main === module) {
+  runAllMigrations().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+module.exports = { runAllMigrations, splitSQL, isIdempotentMigrationError };
