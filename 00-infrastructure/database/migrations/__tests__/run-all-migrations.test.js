@@ -1,26 +1,73 @@
 'use strict';
 
 const {
-  isIdempotentMigrationError,
+  executeMigration,
   findMissingMigrationFiles,
+  splitSQL,
 } = require('../run-all-migrations');
 
-describe('migration error classification', () => {
-  test.each(['42710', '42P07', '42P04', '42701'])('recognizes known existing-object SQLSTATE %s', (code) => {
-    expect(isIdempotentMigrationError({ code, message: 'object exists' })).toBe(true);
+describe('atomic migration execution', () => {
+  test('commits only after every statement succeeds', async () => {
+    const client = { query: jest.fn().mockResolvedValue({ rows: [] }) };
+    const logger = { log: jest.fn(), error: jest.fn() };
+
+    await executeMigration(client, '001.sql', ['CREATE TABLE sample(id int)', 'CREATE INDEX sample_id_idx ON sample(id)'], logger);
+
+    expect(client.query.mock.calls).toEqual([
+      ['BEGIN'],
+      ['CREATE TABLE sample(id int)'],
+      ['CREATE INDEX sample_id_idx ON sample(id)'],
+      ['COMMIT'],
+    ]);
   });
 
-  test('does not ignore unique violations even when the message contains duplicate', () => {
-    expect(isIdempotentMigrationError({ code: '23505', message: 'duplicate key value violates unique constraint' })).toBe(false);
+  test('rolls back the whole migration on a data conflict and propagates the error', async () => {
+    const conflict = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    const client = {
+      query: jest.fn(async (sql) => {
+        if (sql === 'INSERT INTO sample VALUES (1)') throw conflict;
+        return { rows: [] };
+      }),
+    };
+    const logger = { log: jest.fn(), error: jest.fn() };
+
+    await expect(executeMigration(client, '002.sql', ['CREATE TABLE sample(id int)', 'INSERT INTO sample VALUES (1)'], logger))
+      .rejects.toMatchObject({ code: '23505', migrationFile: '002.sql' });
+
+    expect(client.query.mock.calls).toEqual([
+      ['BEGIN'],
+      ['CREATE TABLE sample(id int)'],
+      ['INSERT INTO sample VALUES (1)'],
+      ['ROLLBACK'],
+    ]);
+    expect(client.query).not.toHaveBeenCalledWith('COMMIT');
   });
 
-  test('does not ignore an arbitrary error merely because the message says already exists', () => {
-    expect(isIdempotentMigrationError({ code: 'XX000', message: 'relation already exists in application state' })).toBe(false);
+  test('keeps the original SQL failure if rollback also fails', async () => {
+    const original = Object.assign(new Error('schema drift'), { code: '42701' });
+    const rollback = new Error('connection lost during rollback');
+    const client = {
+      query: jest.fn(async (sql) => {
+        if (sql === 'ALTER TABLE sample ADD COLUMN id int') throw original;
+        if (sql === 'ROLLBACK') throw rollback;
+        return { rows: [] };
+      }),
+    };
+    const logger = { log: jest.fn(), error: jest.fn() };
+
+    await expect(executeMigration(client, '003.sql', ['ALTER TABLE sample ADD COLUMN id int'], logger))
+      .rejects.toMatchObject({ code: '42701', migrationFile: '003.sql', rollbackError: rollback });
+  });
+});
+
+describe('SQL statement splitting', () => {
+  test('keeps semicolons inside dollar-quoted procedural blocks', () => {
+    const sql = "DO $$ BEGIN PERFORM ';'; PERFORM 2; END $$; SELECT 3;";
+    expect(splitSQL(sql)).toEqual(["DO $$ BEGIN PERFORM ';'; PERFORM 2; END $$", 'SELECT 3']);
   });
 
-  test('fails closed for missing or unknown SQLSTATE values', () => {
-    expect(isIdempotentMigrationError(new Error('already exists'))).toBe(false);
-    expect(isIdempotentMigrationError(null)).toBe(false);
+  test('keeps semicolons inside single-quoted strings', () => {
+    expect(splitSQL("SELECT 'a;b'; SELECT 2;")).toEqual(["SELECT 'a;b'", 'SELECT 2']);
   });
 });
 
