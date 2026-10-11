@@ -100,12 +100,21 @@ async function ensureMigrationLedger(client) {
   if (result.rows[0].ledger) return;
 
   const existing = await client.query(`
-    SELECT COUNT(*)::int AS count
-    FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
-      AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-      AND n.nspname NOT LIKE 'pg_toast%'
+    SELECT (
+      SELECT COUNT(*)
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_toast%'
+    ) + (
+      SELECT COUNT(*)
+      FROM pg_type t
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE t.typtype IN ('e', 'd', 'r')
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_toast%'
+    ) AS count
   `);
   if (Number(existing.rows[0].count) > 0) {
     const error = new Error(
