@@ -14,13 +14,6 @@ const config = require('../../../14-config-system/server.config');
 
 const MIGRATIONS_DIR = __dirname;
 
-// PostgreSQL codes that specifically indicate an existing schema object.
-const IDEMPOTENT_MIGRATION_ERROR_CODES = new Set(['42710', '42P07', '42P04', '42701']);
-
-function isIdempotentMigrationError(error) {
-  return Boolean(error && IDEMPOTENT_MIGRATION_ERROR_CODES.has(String(error.code || '')));
-}
-
 const MIGRATION_ORDER = [
   '001_initial_global_schema.sql',
   '002_extended_global_schema.sql',
@@ -133,9 +126,29 @@ function splitSQL(sql) {
   return statements;
 }
 
+async function executeMigration(client, migrationFile, statements, logger = console) {
+  await client.query('BEGIN');
+  try {
+    for (const statement of statements) {
+      await client.query(statement);
+    }
+    await client.query('COMMIT');
+    logger.log(`  ✓ committed ${statements.length} statements`);
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+      logger.error(`  ✗ rollback failed for ${migrationFile}: ${String(rollbackError.message || rollbackError).slice(0, 150)}`);
+    }
+    error.migrationFile = migrationFile;
+    throw error;
+  }
+}
+
 async function runAllMigrations() {
-  // A missing file must never be silently skipped: doing so can leave a
-  // partially upgraded schema while reporting a successful migration run.
+  // Never silently skip a required migration: that can leave a partial schema
+  // while reporting success.
   const missingFiles = findMissingMigrationFiles(MIGRATION_ORDER);
   if (missingFiles.length > 0) {
     const error = new Error(`Required migration file(s) missing: ${missingFiles.join(', ')}`);
@@ -153,7 +166,6 @@ async function runAllMigrations() {
   });
 
   await client.connect();
-
   try {
     console.log('==============================================');
     console.log('  SAFAR SERVICE - ALL DATABASE MIGRATIONS');
@@ -163,49 +175,25 @@ async function runAllMigrations() {
     console.log(`Total migrations: ${MIGRATION_ORDER.length}`);
     console.log('----------------------------------------------');
 
-    let totalSuccess = 0;
-    let totalFail = 0;
-
+    let completedMigrations = 0;
     for (const migrationFile of MIGRATION_ORDER) {
       const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
       console.log(`\n⏳ ${migrationFile}...`);
       const sql = fs.readFileSync(migrationPath, 'utf-8');
       const statements = splitSQL(sql);
       console.log(`  📄 ${statements.length} statements`);
-
-      let fileOk = 0;
-      let fileFail = 0;
-      for (const stmt of statements) {
-        try {
-          await client.query(stmt);
-          fileOk++;
-        } catch (err) {
-          // Ignore only narrowly identified DDL object-exists errors. Data
-          // conflicts and unknown errors must fail the migration run.
-          if (isIdempotentMigrationError(err)) {
-            fileOk++;
-            console.warn(`  ⚠ ignored idempotent DDL conflict [${err.code}]`);
-          } else {
-            console.error(`  ✗ [${err.code || 'NO_SQLSTATE'}] ${String(err.message || err).substring(0, 150)}`);
-            fileFail++;
-          }
-        }
+      try {
+        await executeMigration(client, migrationFile, statements);
+        completedMigrations++;
+      } catch (error) {
+        console.error(`  ✗ migration failed and was rolled back [${error.code || 'NO_SQLSTATE'}]: ${String(error.message || error).slice(0, 200)}`);
+        throw error;
       }
-
-      totalSuccess += fileOk;
-      totalFail += fileFail;
-      console.log(`  ✓ ${fileOk} ok, ${fileFail} errors`);
     }
 
     console.log('\n==============================================');
-    console.log(`  Total: ${totalSuccess} ok, ${totalFail} errors`);
+    console.log(`  Completed: ${completedMigrations}/${MIGRATION_ORDER.length} migrations`);
     console.log('==============================================');
-
-    if (totalFail > 0) {
-      const error = new Error(`Migration run aborted — ${totalFail} SQL statement(s) failed.`);
-      error.code = 'MIGRATION_SQL_FAILED';
-      throw error;
-    }
   } finally {
     await client.end();
   }
@@ -221,6 +209,6 @@ if (require.main === module) {
 module.exports = {
   runAllMigrations,
   splitSQL,
-  isIdempotentMigrationError,
+  executeMigration,
   findMissingMigrationFiles,
 };
