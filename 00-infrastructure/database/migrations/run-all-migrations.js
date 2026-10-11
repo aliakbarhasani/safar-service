@@ -418,69 +418,12 @@ async function executeMigration(client, migrationFile, statements, logger = cons
   }
 }
 
-async function runAllMigrations() {
-  // Never silently skip a required migration: that can leave a partial schema
-  // while reporting success.
-  const missingFiles = findMissingMigrationFiles(MIGRATION_ORDER);
-  if (missingFiles.length > 0) {
-    const error = new Error(`Required migration file(s) missing: ${missingFiles.join(', ')}`);
-    error.code = 'MIGRATION_FILES_MISSING';
-    throw error;
-  }
-
-  const client = new Client({
-    host: config.pg.host,
-    port: config.pg.port,
-    database: config.pg.database,
-    user: config.pg.user,
-    password: config.pg.password,
-    connectionTimeoutMillis: 5000,
-  });
-
-  await client.connect();
-  try {
-    console.log('==============================================');
-    console.log('  SAFAR SERVICE - ALL DATABASE MIGRATIONS');
-    console.log('==============================================');
-    console.log(`Host: ${config.pg.host}:${config.pg.port}`);
-    console.log(`Database: ${config.pg.database}`);
-    console.log(`Total migrations: ${MIGRATION_ORDER.length}`);
-    console.log('----------------------------------------------');
-
-    let completedMigrations = 0;
-    for (const migrationFile of MIGRATION_ORDER) {
-      const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
-      console.log(`\n⏳ ${migrationFile}...`);
-      const sql = fs.readFileSync(migrationPath, 'utf-8');
-      const statements = splitSQL(sql);
-      console.log(`  📄 ${statements.length} statements`);
-      try {
-        await executeMigration(client, migrationFile, statements);
-        completedMigrations++;
-      } catch (error) {
-        console.error(`  ✗ migration failed and was rolled back [${error.code || 'NO_SQLSTATE'}]: ${String(error.message || error).slice(0, 200)}`);
-        throw error;
-      }
-    }
-
-    console.log('\n==============================================');
-    console.log(`  Completed: ${completedMigrations}/${MIGRATION_ORDER.length} migrations`);
-    console.log('==============================================');
-  } finally {
-    await client.end();
-  }
-}
-
-if (require.main === module) {
-  runAllMigrations().catch((error) => {
-    console.error(`Migration runner failed [${error.code || 'UNKNOWN'}]: ${error.message || error}`);
-    process.exitCode = 1;
-  });
-}
-
 module.exports = {
   runAllMigrations,
   splitSQL,
   executeMigration,
   findMissingMigrationFiles,
+  calculateChecksum,
+  validateMigrationLedger,
+  ensureMigrationLedger,
 };
