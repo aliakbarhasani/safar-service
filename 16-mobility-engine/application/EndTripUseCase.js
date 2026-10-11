@@ -8,17 +8,14 @@
  * that the Wallet `TripCompleted` subscriber consumes to process the
  * passenger payment / driver revenue / platform commission.
  *
- * Fare resolution (P5-1, intentionally simple for now):
- *   1. use an explicit `finalFare` input if provided, else
- *   2. use the quote's `estimated_cost` when available, else
- *   3. compute a simple distance-based fare = haversineKm * perKmRate,
- *      clamped to the trip's `defaultCost`.
+ * Fare resolution: use a validated server-authoritative final fare, or the
+ * persisted estimate created from the pricing quote. Never invent a settlement
+ * amount from straight-line distance when the authoritative fare is missing.
  */
 
 const Trip = require('../domain/models/Trip');
 const { TripNotFoundError } = require('../domain/errors/RideErrors');
 const TripDomainEvents = require('../domain/events/TripDomainEvents');
-const config = require('../../14-config-system/server.config');
 
 /** Haversine distance in kilometres between two lat/lng points. */
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -145,19 +142,28 @@ class EndTripUseCase {
         })();
     }
 
-    /** Fare fallback chain: input -> estimated_cost -> distance-based simple calc. */
+    /**
+     * Resolve settlement amount only from a valid, server-authoritative fare.
+     * Missing pricing data must stop settlement rather than silently charge a
+     * guessed amount.
+     */
     _resolveFare(finalFare, row) {
-        if (finalFare != null && Number(finalFare) > 0) {
-            return Math.round(Number(finalFare));
+        if (finalFare != null) {
+            const amount = Number(finalFare);
+            if (Number.isFinite(amount) && amount > 0) return Math.round(amount);
+            const error = new Error('مبلغ کرایهٔ نهایی معتبر نیست.');
+            error.code = 'INVALID_FINAL_FARE';
+            error.statusCode = 400;
+            throw error;
         }
-        if (row.estimated_cost && Number(row.estimated_cost) > 0) {
-            return Math.round(Number(row.estimated_cost));
-        }
-        const perKmRate = parseFloat((config.trip || {}).perKmRate) || 2000;
-        const km = haversineKm(row.origin_lat, row.origin_lng, row.dest_lat, row.dest_lng);
-        const computed = Math.round(km * perKmRate);
-        const floor = parseInt((config.trip || {}).defaultCost, 10) || 0;
-        return Math.max(computed, floor);
+
+        const estimated = Number(row.estimated_cost);
+        if (Number.isFinite(estimated) && estimated > 0) return Math.round(estimated);
+
+        const error = new Error('قیمت معتبر برای تسویهٔ این سفر موجود نیست؛ ابتدا قیمت سفر را از سامانهٔ قیمت‌گذاری تأیید کنید.');
+        error.code = 'FINAL_FARE_UNAVAILABLE';
+        error.statusCode = 409;
+        throw error;
     }
 }
 
