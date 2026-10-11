@@ -129,7 +129,11 @@ class CreateTripUseCase {
                 originLat: coordinates[0], originLng: coordinates[1],
                 destLat: coordinates[2], destLng: coordinates[3], serviceType,
             });
-            quoteFare = Number(fareQuote.estimatedFare);
+            if (fareQuote.promoCode && String(fareQuote.passengerId || '') !== String(passengerId)) {
+                const error = new Error('این پیش‌فاکتور تخفیف‌دار متعلق به حساب کاربری دیگری است.');
+                error.code = 'QUOTE_OWNER_MISMATCH'; error.statusCode = 403; throw error;
+            }
+            quoteFare = Number(fareQuote.finalFare == null ? fareQuote.estimatedFare : fareQuote.finalFare);
             if (!Number.isFinite(quoteFare) || quoteFare <= 0) {
                 const error = new Error('مبلغ پیش‌فاکتور معتبر نیست.');
                 error.code = 'INVALID_QUOTE';
@@ -210,6 +214,7 @@ class CreateTripUseCase {
 
             // ج) ذخیره سفر در جدول trips
             const tripRecord = trip.toDatabaseRecord();
+            tripRecord.promo_code = fareQuote && fareQuote.promoCode ? fareQuote.promoCode : null;
             const savedTrip = await this.tripRepository.createTrip(tripRecord, client);
 
             // د) ثبت تغییر وضعیت اولیه -> REQUESTED (trip_timeline)
