@@ -86,7 +86,7 @@ describe('SQL statement splitting', () => {
   });
 
   test('rejects an unterminated dollar-quoted body', () => {
-    expectErrorCode(() => splitSQL('DO $ BEGIN PERFORM 1;'), 'MIGRATION_SQL_PARSE_ERROR');
+    expectErrorCode(() => splitSQL('DO $$ BEGIN PERFORM 1;'), 'MIGRATION_SQL_PARSE_ERROR');
   });
 
   test('rejects unterminated single-quoted strings and quoted identifiers', () => {
