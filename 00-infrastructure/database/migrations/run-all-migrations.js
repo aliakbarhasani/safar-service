@@ -333,4 +333,5 @@ module.exports = {
   calculateChecksum,
   validateMigrationLedger,
   ensureMigrationLedger,
+  MIGRATION_ORDER,
 };
