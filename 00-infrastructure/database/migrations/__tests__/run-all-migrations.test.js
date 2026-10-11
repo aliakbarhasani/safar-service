@@ -81,8 +81,8 @@ describe('atomic migration execution', () => {
 
 describe('SQL statement splitting', () => {
   test('keeps semicolons inside dollar-quoted procedural blocks', () => {
-    const sql = "DO $ BEGIN PERFORM ';'; PERFORM 2; END $; SELECT 3;";
-    expect(splitSQL(sql)).toEqual(["DO $ BEGIN PERFORM ';'; PERFORM 2; END $", 'SELECT 3']);
+    const sql = "DO $ BEGIN PERFORM ';'; PERFORM 2; END; $; SELECT 3;";
+    expect(splitSQL(sql)).toEqual(["DO $ BEGIN PERFORM ';'; PERFORM 2; END; $", 'SELECT 3']);
   });
 
   test('rejects an unterminated dollar-quoted body', () => {
