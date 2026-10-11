@@ -302,120 +302,12 @@ async function runAllMigrations() {
   }
 }
 
+
 if (require.main === module) {
   runAllMigrations().catch((error) => {
     console.error(`Migration runner failed [${error.code || 'UNKNOWN'}]: ${error.message || error}`);
     process.exitCode = 1;
   });
-}
-
-module.exports = {
-  runAllMigrations,
-  splitSQL,
-  executeMigration,
-  findMissingMigrationFiles,
-  calculateChecksum,
-  validateMigrationLedger,
-  ensureMigrationLedger,
-};
-),
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-}
-
-/**
- * جدا کردن دستورات SQL با رعایت dollar-quoted strings و single quotes
- */
-function splitSQL(sql) {
-  const statements = [];
-  let current = '';
-  let inDollar = false;
-  let inQuote = false;
-  let inLineComment = false;
-  let inBlockComment = false;
-
-  for (let i = 0; i < sql.length; i++) {
-    const ch = sql[i];
-    const next = i + 1 < sql.length ? sql[i + 1] : '';
-
-    if (!inDollar && !inQuote && !inBlockComment && ch === '-' && next === '-') {
-      inLineComment = true;
-      while (i < sql.length && sql[i] !== '\n') i++;
-      inLineComment = false;
-      continue;
-    }
-
-    if (!inDollar && !inQuote && !inLineComment && ch === '/' && next === '*') {
-      inBlockComment = true;
-      i += 2;
-      while (i < sql.length && !(sql[i] === '*' && i + 1 < sql.length && sql[i + 1] === '/')) i++;
-      i++;
-      inBlockComment = false;
-      continue;
-    }
-
-    if (inLineComment || inBlockComment) {
-      current += ch;
-      continue;
-    }
-
-    if (!inQuote && ch === '$') {
-      const endIdx = sql.indexOf('$', i + 1);
-      if (endIdx > i) {
-        const tag = sql.substring(i + 1, endIdx);
-        const closeTag = '$' + tag + '$';
-        const closeIdx = sql.indexOf(closeTag, endIdx + 1);
-        if (closeIdx > i) {
-          current += sql.substring(i, closeIdx + closeTag.length);
-          i = closeIdx + closeTag.length - 1;
-          continue;
-        }
-      }
-    }
-
-    if (!inDollar && ch === "'") {
-      inQuote = !inQuote;
-      current += ch;
-      continue;
-    }
-
-    if (!inDollar && !inQuote && ch === ';') {
-      const trimmed = current.trim();
-      const upper = trimmed.toUpperCase();
-      if (trimmed && !trimmed.startsWith('--') && upper !== 'BEGIN' && upper !== 'COMMIT') {
-        statements.push(trimmed);
-      }
-      current = '';
-      continue;
-    }
-
-    current += ch;
-  }
-
-  const trimmed = current.trim();
-  if (trimmed && !trimmed.startsWith('--')) statements.push(trimmed);
-  return statements;
-}
-
-async function executeMigration(client, migrationFile, statements, logger = console) {
-  await client.query('BEGIN');
-  try {
-    for (const statement of statements) {
-      await client.query(statement);
-    }
-    await client.query('COMMIT');
-    logger.log(`  ✓ committed ${statements.length} statements`);
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (rollbackError) {
-      error.rollbackError = rollbackError;
-      logger.error(`  ✗ rollback failed for ${migrationFile}: ${String(rollbackError.message || rollbackError).slice(0, 150)}`);
-    }
-    error.migrationFile = migrationFile;
-    throw error;
-  }
 }
 
 module.exports = {
