@@ -194,14 +194,21 @@ class TripController {
             });
         } catch (error) {
             console.error('[TripController] completeTrip error:', error);
-            if (error.statusCode === 403) return res.status(403).json({ success: false, error: error.message });
+            if (error.statusCode === 403) return res.status(403).json({ success: false, code: error.code || null, error: error.message });
             if (error instanceof RideNotFoundError) {
                 return res.status(404).json({ success: false, error: error.message });
             }
             if (error instanceof InvalidRideStateTransitionError) {
                 return res.status(400).json({ success: false, error: error.message });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در تکمیل سفر.' });
+            if ([400, 409, 503].includes(Number(error.statusCode))) {
+                return res.status(Number(error.statusCode)).json({
+                    success: false,
+                    code: error.code || null,
+                    error: error.message || 'تکمیل سفر قابل پردازش نیست.',
+                });
+            }
+            return res.status(500).json({ success: false, error: 'خطای داخلی در تکمیل سفر.' });
         }
     }
 
