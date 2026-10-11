@@ -111,6 +111,7 @@ class EndTripUseCase {
                             driverId: updated.driver_id,
                             amount: fare,
                             currency,
+                            ...(updated.promo_code ? { promoCode: updated.promo_code } : {}),
                         },
                     }, client);
                 }
@@ -126,6 +127,7 @@ class EndTripUseCase {
                         driverId: updated.driver_id,
                         amount: fare,
                         currency,
+                        ...(updated.promo_code ? { promoCode: updated.promo_code } : {}),
                     });
                 } catch (publishError) {
                     // OutboxRelay will retry durable delivery; don't report a false rollback.
