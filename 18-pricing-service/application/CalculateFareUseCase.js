@@ -93,7 +93,7 @@ class CalculateFareUseCase {
    * @param {string} [input.promoCode] - optional promo code for discount (P10-2)
    * @returns {Promise<{ estimatedFare:number, distance:number, surgeMultiplier:number, geohash:string, discountAmount?:number, finalFare?:number, promoCode?:string }>}
    */
-  async execute({ originLat, originLng, destLat, destLng, serviceType = 'urban_taxi', perKmRate = null, baseFare = null, supply = null, promoCode = null }) {
+  async execute({ originLat, originLng, destLat, destLng, serviceType = 'urban_taxi', perKmRate = null, baseFare = null, supply = null, promoCode = null, userId = null }) {
     const oLat = Number(originLat);
     const oLng = Number(originLng);
     const dLat = Number(destLat);
@@ -158,24 +158,33 @@ class CalculateFareUseCase {
     const basePrice = distance * rate + base;
     const estimatedFare = Math.round(basePrice * surgeMultiplier);
 
-    const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio, serviceType };
+    const result = { estimatedFare, finalFare: estimatedFare, discountAmount: 0, distance, surgeMultiplier, geohash, demandRatio: ratio, serviceType };
 
-    // (P10-2) Promo code validation — if promoCode provided and promoService injected
-    if (promoCode && this.promoService) {
-      try {
-        const promoResult = await this.promoService.validate({
-          code: promoCode,
-          userId: null, // userId not available at estimate time; validated at trip creation
-          fare: estimatedFare,
-        });
-        if (promoResult && promoResult.valid) {
-          result.discountAmount = promoResult.discountAmount;
-          result.finalFare = estimatedFare - promoResult.discountAmount;
-          result.promoCode = promoCode;
-        }
-      } catch (_) {
-        // Promo validation failure should not break fare estimation
+    // Promo codes are user-scoped and affect the authoritative amount charged later.
+    // Fail closed: never silently return an undiscounted quote when a code was requested.
+    if (promoCode) {
+      if (!userId) {
+        const err = new Error('برای استفاده از کد تخفیف باید وارد حساب کاربری شوید.');
+        err.code = 'PROMO_AUTH_REQUIRED'; err.statusCode = 401; throw err;
       }
+      if (!this.promoService || typeof this.promoService.execute !== 'function') {
+        const err = new Error('سرویس تخفیف موقتاً در دسترس نیست.');
+        err.code = 'PROMO_SERVICE_UNAVAILABLE'; err.statusCode = 503; throw err;
+      }
+      const promoResult = await this.promoService.execute({ code: promoCode, userId, fare: estimatedFare });
+      const discountAmount = Number(promoResult && promoResult.discountAmount);
+      const finalFare = Number(promoResult && promoResult.finalFare);
+      if (!promoResult || promoResult.valid !== true || !Number.isFinite(discountAmount)
+        || discountAmount < 0 || discountAmount > estimatedFare || !Number.isFinite(finalFare)
+        || finalFare <= 0 || finalFare > estimatedFare
+        || Math.abs((estimatedFare - discountAmount) - finalFare) > 0.01) {
+        const err = new Error('پاسخ سرویس تخفیف معتبر نیست.');
+        err.code = 'PROMO_RESULT_INVALID'; err.statusCode = 503; throw err;
+      }
+      result.discountAmount = discountAmount;
+      result.finalFare = finalFare;
+      result.promoCode = String(promoResult.code || promoCode);
+      result.passengerId = String(userId);
     }
 
     // (P6-2) الگوی Fare Quote: ذخیره Quote ضد-دستکاری در Redis با TTL 5 دقیقه.
@@ -188,6 +197,10 @@ class CalculateFareUseCase {
         quoteId,
         serviceType,
         estimatedFare,
+        finalFare: result.finalFare,
+        discountAmount: result.discountAmount,
+        promoCode: result.promoCode || null,
+        passengerId: result.passengerId || null,
         distance,
         surgeMultiplier,
         geohash,
@@ -207,6 +220,8 @@ class CalculateFareUseCase {
             quoteId,
             serviceType,
             estimatedFare,
+            discountAmount: result.discountAmount,
+            finalFare: result.finalFare,
             currencyCode: 'IRT',
             expiresAt: quote.expiresAt,
             inputSnapshot: {
@@ -219,6 +234,9 @@ class CalculateFareUseCase {
             },
             calculationSnapshot: {
               estimatedFare,
+              finalFare: result.finalFare,
+              discountAmount: result.discountAmount,
+              promoCode: result.promoCode || null,
               distance,
               surgeMultiplier,
               geohash,
