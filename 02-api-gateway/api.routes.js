@@ -98,9 +98,8 @@ const registrationRoutes = require('../13-auth-management/presentation/routes/Re
 router.use('/api/auth', registrationRoutes);
 
 // ===== پروکسی پروفایل و تنظیمات کاربر (13-auth-management) =====
-// رابط وب از Gateway روی 3000 استفاده می‌کند، درحالی‌که سرویس احراز هویت
-// به‌صورت مستقل روی 3001 اجرا می‌شود. بدون این پروکسی، /api/v1/profile به 404 می‌رسد.
-// مسیر کامل، کوکی HttpOnly و بدنه درخواست باید بدون حذف بخش‌های URL عبور کنند.
+// رابط وب از Gateway استفاده می‌کند، درحالی‌که مسیرهای پروفایل در سرویس auth-management هستند.
+// این پروکسی مسیر نسخه‌دار، query string و بدنه درخواست را حفظ می‌کند.
 const profileProxy = createProxyMiddleware({
   target: process.env.AUTH_MANAGEMENT_URL || 'http://127.0.0.1:3001',
   changeOrigin: true,
@@ -503,7 +502,7 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
 
 // ===== نقشه حرارتی مناطق پرتقاضا (P6-2) — مخصوص رانندگان =====
 // مناطقی که surgeMultiplier > 1.0 دارند به همراه ضریب هر منطقه.
-router.get('/api/v1/pricing/heatmap', authenticate, async (req, res) => {
+router.get('/api/v1/pricing/heatmap', authenticate, authorize('driver', 'admin', 'super_admin'), async (req, res) => {
   try {
     const zones = await demandSupplyTracker.getActiveSurgeZones();
     return res.status(200).json({ success: true, data: zones });
