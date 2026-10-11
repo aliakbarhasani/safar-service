@@ -487,7 +487,7 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
 
 // ===== نقشه حرارتی مناطق پرتقاضا (P6-2) — مخصوص رانندگان =====
 // مناطقی که surgeMultiplier > 1.0 دارند به همراه ضریب هر منطقه.
-router.get('/api/v1/pricing/heatmap', authenticate, async (req, res) => {
+router.get('/api/v1/pricing/heatmap', authenticate, authorize('driver', 'admin', 'super_admin'), async (req, res) => {
   try {
     const zones = await demandSupplyTracker.getActiveSurgeZones();
     return res.status(200).json({ success: true, data: zones });
