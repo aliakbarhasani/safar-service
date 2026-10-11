@@ -85,28 +85,50 @@ async function withdraw(req, res) {
 /**
  * انتقال وجه بین دو کاربر
  * POST /api/wallets/transfer
- * Body: { receiverId, amount, currency?, description? }
+ * Body: { receiverId, amount, currency?, description?, referenceId? }
+ * Header: Idempotency-Key (preferred; required if body.referenceId is absent)
  */
 async function transfer(req, res) {
   try {
-    const senderId = req.user.userId || req.user.id;
-    const { receiverId, amount, currency, description } = req.body;
+    const senderId = req.user && (req.user.userId || req.user.id);
+    const { receiverId, amount, currency, description, referenceId: bodyReferenceId } = req.body || {};
+    const headerKey = req.headers && (req.headers['idempotency-key'] || req.headers['Idempotency-Key']);
+    const idempotencyKey = String(headerKey || bodyReferenceId || '').trim();
 
+    if (!senderId) {
+      return res.status(401).json({ success: false, code: 'WALLET_AUTH_REQUIRED', error: 'Authenticated sender is required' });
+    }
     if (!receiverId) {
       return res.status(400).json({ success: false, error: 'Receiver ID is required' });
     }
+    // Stable client key required for safe retries. Namespace it by operation and
+    // authenticated sender so keys cannot collide across users or wallet actions.
+    if (!/^[A-Za-z0-9._:-]{8,100}$/.test(idempotencyKey)) {
+      return res.status(400).json({
+        success: false,
+        code: 'IDEMPOTENCY_KEY_REQUIRED',
+        error: 'Provide an Idempotency-Key header or referenceId (8-100 safe characters).',
+      });
+    }
+    const transferReferenceId = 'wallet-transfer:' + String(senderId) + ':' + idempotencyKey;
 
     const result = await walletService.transferFunds(
       senderId,
       receiverId,
       amount,
       currency || 'IRT',
-      description || ''
+      description || '',
+      transferReferenceId
     );
 
     return res.json({ success: true, message: 'Transfer successful', data: result });
   } catch (err) {
-    return res.status(400).json({ success: false, error: err.message });
+    const duplicate = String(err && err.message || '').startsWith('Duplicate transaction:');
+    return res.status(duplicate ? 409 : 400).json({
+      success: false,
+      code: duplicate ? 'IDEMPOTENCY_KEY_REUSED' : null,
+      error: duplicate ? 'This transfer key has already been processed; do not submit a new transfer.' : err.message,
+    });
   }
 }
 
