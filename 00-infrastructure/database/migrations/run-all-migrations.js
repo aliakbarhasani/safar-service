@@ -69,9 +69,8 @@ function validateMigrationLedger(migrationOrder, appliedRows, checksums) {
       error.code = 'MIGRATION_LEDGER_UNKNOWN_ID';
       throw error;
     }
-    const expectedChecksum = checksums.get(row.migration_id);
-    if (row.checksum !== expectedChecksum) {
-      const error = new Error(`Checksum mismatch for applied migration ${row.migration_id}; restore the exact migration file or review the database before continuing.`);
+    if (row.checksum !== checksums.get(row.migration_id)) {
+      const error = new Error(`Checksum mismatch for applied migration ${row.migration_id}; review the database and restore the exact migration file before continuing.`);
       error.code = 'MIGRATION_CHECKSUM_MISMATCH';
       error.migrationFile = row.migration_id;
       throw error;
@@ -98,27 +97,28 @@ function validateMigrationLedger(migrationOrder, appliedRows, checksums) {
 
 async function ensureMigrationLedger(client) {
   const result = await client.query("SELECT to_regclass('public.schema_migrations') AS ledger");
-  if (!result.rows[0].ledger) {
-    const existing = await client.query(`
-      SELECT COUNT(*)::int AS count
-      FROM pg_class c
-      JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
-        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-        AND n.nspname NOT LIKE 'pg_toast%'
-    `);
-    if (Number(existing.rows[0].count) > 0) {
-      const error = new Error(
-        'Database already contains application objects but has no public.schema_migrations ledger. Automatic baseline is unsafe; back up the database and follow the migration adoption procedure before retrying.'
-      );
-      error.code = 'MIGRATION_BASELINE_REQUIRED';
-      throw error;
-    }
+  if (result.rows[0].ledger) return;
 
-    await client.query(`
-      CREATE TABLE public.schema_migrations (
-        migration_id TEXT PRIMARY KEY,
-        checksum CHAR(64) NOT NULL CHECK (checksum ~ '^[0-9a-f]{64}
+  const existing = await client.query(`
+    SELECT COUNT(*)::int AS count
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+      AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+      AND n.nspname NOT LIKE 'pg_toast%'
+  `);
+  if (Number(existing.rows[0].count) > 0) {
+    const error = new Error(
+      'Database already contains application objects but has no public.schema_migrations ledger. Automatic baseline is unsafe; back up the database and follow the migration adoption procedure before retrying.'
+    );
+    error.code = 'MIGRATION_BASELINE_REQUIRED';
+    throw error;
+  }
+
+  await client.query(`
+    CREATE TABLE public.schema_migrations (
+      migration_id TEXT PRIMARY KEY,
+      checksum CHAR(64) NOT NULL CHECK (checksum ~ '^[0-9a-f]{64}
 /**
  * جدا کردن دستورات SQL با رعایت dollar-quoted strings و single quotes
  */
@@ -234,12 +234,7 @@ async function runAllMigrations() {
 
   const migrations = MIGRATION_ORDER.map((migrationFile) => {
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, migrationFile), 'utf8');
-    return {
-      migrationFile,
-      sql,
-      statements: splitSQL(sql),
-      checksum: calculateChecksum(sql),
-    };
+    return { migrationFile, sql, statements: splitSQL(sql), checksum: calculateChecksum(sql) };
   });
   const checksums = new Map(migrations.map((migration) => [migration.migrationFile, migration.checksum]));
 
@@ -284,13 +279,7 @@ async function runAllMigrations() {
       console.log(`\n⏳ ${migration.migrationFile}...`);
       console.log(`  📄 ${migration.statements.length} statements`);
       try {
-        await executeMigration(
-          client,
-          migration.migrationFile,
-          migration.statements,
-          console,
-          migration.checksum
-        );
+        await executeMigration(client, migration.migrationFile, migration.statements, console, migration.checksum);
         completedThisRun++;
       } catch (error) {
         console.error(`  ✗ migration failed and was rolled back [${error.code || 'NO_SQLSTATE'}]: ${String(error.message || error).slice(0, 200)}`);
@@ -330,10 +319,9 @@ module.exports = {
   ensureMigrationLedger,
 };
 ),
-        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-  }
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 /**
