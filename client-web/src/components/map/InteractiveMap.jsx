@@ -19,6 +19,13 @@ L.Icon.Default.mergeOptions({
   shadowUrl,
 });
 
+/**
+ * @param {{
+ *   onLocationSelect: (lat: number, lng: number) => void;
+ *   pickupCoords?: { lat: number; lng: number } | null;
+ *   dropoffCoords?: { lat: number; lng: number } | null;
+ * }} props
+ */
 export default function InteractiveMap({ onLocationSelect, pickupCoords = null, dropoffCoords = null }) {
   const [position, setPosition] = useState([34.3419, 62.2031]); // Default: Herat, Afghanistan
 
