@@ -459,7 +459,11 @@ const adminConfigRoutes = createConfigRoutes({
 router.use('/api/v1/admin/configs', adminConfigRoutes);
 
 // عمومی: مسافر پیش از درخواست سفر، قیمت برآوردی و ضریب surge را می‌بیند
-router.get('/api/v1/trip/estimate', async (req, res) => {
+router.get('/api/v1/trip/estimate', (req, res, next) => {
+  // Estimates remain public, but user-specific promo validation requires identity.
+  if (!req.query.promoCode) return next();
+  return authenticateSession(req, res, next);
+}, async (req, res) => {
   const oLat = Number(req.query.originLat);
   const oLng = Number(req.query.originLng);
   const dLat = Number(req.query.destLat);
@@ -474,6 +478,7 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
       destLng: dLng,
       serviceType,
       promoCode,
+      userId: req.user && (req.user.userId || req.user.id || req.user.sub) || null,
     });
     // ثبت تقاضای منطقه مبدأ در پس‌زمینه (fire-and-forget؛ عدم block کردن پاسخ)
     if (Number.isFinite(oLat) && Number.isFinite(oLng)) {
