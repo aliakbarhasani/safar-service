@@ -45,6 +45,7 @@ const MIGRATION_ORDER = [
   '029_add_soft_delete_columns.sql',
   '030_wallet_debt_support.sql',
   '031_wallet_currency_integrity.sql',
+  '032_add_trip_promo_code.sql',
 ];
 
 /**
