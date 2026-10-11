@@ -51,6 +51,46 @@ jobs:
           NODE_ENV: test
         run: node 00-infrastructure/database/migrations/run-all-migrations.js
 
+      - name: Verify PostgreSQL migration repeatability
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          NODE_ENV: test
+        run: node 00-infrastructure/database/migrations/run-all-migrations.js
+
+      - name: Verify checksum drift fails closed on PostgreSQL
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          DATABASE_URL: postgres://test_user:test_password@127.0.0.1:5433/safar_test_db
+          NODE_ENV: test
+        run: |
+          set -euo pipefail
+          migration_file="00-infrastructure/database/migrations/001_initial_global_schema.sql"
+          expected_checksum="$(sha256sum "$migration_file" | awk '{print $1}')"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "UPDATE public.schema_migrations SET checksum = repeat('0', 64) WHERE migration_id = '001_initial_global_schema.sql'"
+          set +e
+          output="$(node 00-infrastructure/database/migrations/run-all-migrations.js 2>&1)"
+          status=$?
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "UPDATE public.schema_migrations SET checksum = '$expected_checksum' WHERE migration_id = '001_initial_global_schema.sql'"
+          if [ "$status" -eq 0 ]; then
+            echo "Expected migration runner to reject checksum drift, but it succeeded."
+            exit 1
+          fi
+          if ! printf '%s' "$output" | grep -q 'MIGRATION_CHECKSUM_MISMATCH'; then
+            printf '%s\n' "$output"
+            echo "Runner failed for a reason other than checksum drift."
+            exit 1
+          fi
+          echo "Checksum drift was rejected and the test ledger checksum was restored."
+
       - name: Install dependencies & run RBAC tests
         env:
           PG_HOST: 127.0.0.1
