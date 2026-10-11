@@ -76,7 +76,7 @@ function splitSQL(sql) {
 
     if (!inDollar && !inQuote && !inBlockComment && ch === '-' && next === '-') {
       inLineComment = true;
-      while (i < sql.length && sql[i] !== '\\n') i++;
+      while (i < sql.length && sql[i] !== '\n') i++;
       inLineComment = false;
       continue;
     }
@@ -168,7 +168,7 @@ async function runAllMigrations() {
 
     for (const migrationFile of MIGRATION_ORDER) {
       const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
-      console.log(`\\n⏳ ${migrationFile}...`);
+      console.log(`\n⏳ ${migrationFile}...`);
       const sql = fs.readFileSync(migrationPath, 'utf-8');
       const statements = splitSQL(sql);
       console.log(`  📄 ${statements.length} statements`);
@@ -197,7 +197,7 @@ async function runAllMigrations() {
       console.log(`  ✓ ${fileOk} ok, ${fileFail} errors`);
     }
 
-    console.log('\\n==============================================');
+    console.log('\n==============================================');
     console.log(`  Total: ${totalSuccess} ok, ${totalFail} errors`);
     console.log('==============================================');
 
