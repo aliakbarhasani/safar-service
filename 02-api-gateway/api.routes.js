@@ -97,6 +97,22 @@ const { authenticate: authenticateSession } = require('../13-auth-management/pre
 const registrationRoutes = require('../13-auth-management/presentation/routes/RegistrationRouter');
 router.use('/api/auth', registrationRoutes);
 
+// ===== پروکسی پروفایل و تنظیمات کاربر (13-auth-management) =====
+// رابط وب از Gateway روی 3000 استفاده می‌کند، درحالی‌که سرویس احراز هویت
+// به‌صورت مستقل روی 3001 اجرا می‌شود. بدون این پروکسی، /api/v1/profile به 404 می‌رسد.
+// مسیر کامل، کوکی HttpOnly و بدنه درخواست باید بدون حذف بخش‌های URL عبور کنند.
+const profileProxy = createProxyMiddleware({
+  target: process.env.AUTH_MANAGEMENT_URL || 'http://127.0.0.1:3001',
+  changeOrigin: true,
+  logLevel: 'warn',
+  pathRewrite: rewriteToServicePrefix('/api/v1/profile'),
+  on: {
+    proxyReq: fixRequestBody,
+    error: proxyErrorHandler('auth-management-profile'),
+  },
+});
+router.use('/api/v1/profile', profileProxy);
+
 // ===== IAM: صدور و چرخش توکن (24-iam-service, P11-1) =====
 // IAM needs its own Redis connection for refresh-token storage. Without this
 // dependency, every refresh request would fail closed even when Redis is configured.
