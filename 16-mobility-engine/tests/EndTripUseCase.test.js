@@ -145,6 +145,29 @@ describe('EndTripUseCase (P5-1 trip completion)', () => {
     expect(repo.client.query).not.toHaveBeenCalledWith('ROLLBACK');
   });
 
+  test('keeps committed settlement successful if asynchronous live event publishing rejects', async () => {
+    const tripRow = {
+      id: 'trip-1',
+      status: 'IN_PROGRESS',
+      passenger_id: 'user-pass',
+      driver_id: 'user-driver',
+      estimated_cost: 75000,
+      currency_id: 'IRT',
+    };
+    const repo = makeFakeTripRepo({ tripRow, updatedRow: COMPLETED_ROW });
+    const uc = new EndTripUseCase({
+      tripRepository: repo,
+      emitEvent: async () => { throw new Error('asynchronous publisher failure'); },
+    });
+
+    const result = await uc.execute({ tripId: 'trip-1', driverId: 'user-driver' });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.amount).toBe(75000);
+    expect(repo.client.query).toHaveBeenCalledWith('COMMIT');
+    expect(repo.client.query).not.toHaveBeenCalledWith('ROLLBACK');
+  });
+
   test('throws TripNotFoundError when the trip does not exist', async () => {
     const repo = makeFakeTripRepo({ tripRow: null, updatedRow: COMPLETED_ROW });
     const uc = new EndTripUseCase({ tripRepository: repo, emitEvent: () => {} });
