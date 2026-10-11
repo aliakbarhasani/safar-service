@@ -46,7 +46,7 @@ class RequestOtpUseCase {
     const message = `Your ${type} OTP code is: ${otpCode}. Valid for ${this.config.ttlSeconds} seconds.`;
     await this.smsProvider.send(phoneNumber, message);
 
-    const exposeOtpCode = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+    const exposeOtpCode = process.env.NODE_ENV === 'test';
 
     return {
       success: true,
