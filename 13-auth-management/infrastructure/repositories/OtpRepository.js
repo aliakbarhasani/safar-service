@@ -94,21 +94,25 @@ class OtpRepository {
           [phoneNumber, type]
         );
 
-        if (result.rows.length > 0) {
-          const row = result.rows[0];
-          return new OtpCode({
-            id: row.id,
-            phoneNumber: row.phone_number,
-            codeHash: row.code_hash,
-            type: row.type,
-            expiresAt: row.expires_at,
-            isUsed: row.is_used,
-            attempts: row.attempts,
-            maxAttempts: row.max_attempts,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at,
-          });
+        if (result.rows.length === 0) {
+          // A successful database lookup with no matching OTP is a normal miss,
+          // not a reason to consult process-local memory or fail production auth.
+          return null;
         }
+
+        const row = result.rows[0];
+        return new OtpCode({
+          id: row.id,
+          phoneNumber: row.phone_number,
+          codeHash: row.code_hash,
+          type: row.type,
+          expiresAt: row.expires_at,
+          isUsed: row.is_used,
+          attempts: row.attempts,
+          maxAttempts: row.max_attempts,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
       } catch (err) {
         console.warn('[OtpRepository] DB lookup failed:', err.message);
       }
