@@ -33,17 +33,21 @@ jobs:
           node - "$RUNNER_TEMP/npm-audit.json" <<'NODE'
           const fs = require('fs');
           const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (report.error || !report.metadata || !report.metadata.vulnerabilities) {
+            console.error('npm audit did not return a complete vulnerability report:', JSON.stringify(report.error || report));
+            process.exit(1);
+          }
           const proxyAddr = report.vulnerabilities && report.vulnerabilities['proxy-addr'];
           if (proxyAddr) {
             console.error('npm audit still reports proxy-addr:', JSON.stringify(proxyAddr));
             process.exit(1);
           }
-          const counts = report.metadata && report.metadata.vulnerabilities || {};
+          const counts = report.metadata.vulnerabilities;
           if (Number(counts.critical || 0) > 0) {
             console.error('Critical npm audit findings remain:', counts.critical);
             process.exit(1);
           }
-          console.log('npm audit reports no proxy-addr advisory and no remaining critical findings.');
+          console.log('npm audit returned a complete report with no proxy-addr advisory and no remaining critical findings.');
           NODE
 
       - name: Report root dependency audit findings
