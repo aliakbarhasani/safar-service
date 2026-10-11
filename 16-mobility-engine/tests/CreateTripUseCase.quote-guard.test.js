@@ -48,7 +48,7 @@ function buildDeps({ quote = VALID_QUOTE } = {}) {
         logStatusChange: jest.fn(async () => ({})),
     };
     const pricingRepository = {
-        consumeQuote: jest.fn(async () => ({ status: 'CONSUMED', customer_final_amount: quote ? quote.estimatedFare : 150000 })),
+        consumeQuote: jest.fn(async () => ({ status: 'CONSUMED', customer_final_amount: quote ? (quote.finalFare == null ? quote.estimatedFare : quote.finalFare) : 150000 })),
     };
     const fareQuoteStore = {
         get: jest.fn(async (id) => (quote && quote.quoteId === id ? quote : quote)),
@@ -124,6 +124,22 @@ describe('CreateTripUseCase - Fare Quote guard (P6-2)', () => {
         const eventNames = events.map((e) => e.event);
         expect(eventNames).toContain('TripCreated');
         expect(fareQuoteStore.consume).not.toHaveBeenCalled();
+    });
+
+    test('discounted quote amount is used and promo code is persisted with the trip', async () => {
+        const discountedQuote = { ...VALID_QUOTE, finalFare: 145000, discountAmount: 5000, promoCode: 'SAVE10', passengerId: PASSENGER_ID };
+        const { useCase, tripRepository } = buildDeps({ quote: discountedQuote });
+        await useCase.execute(BASE_INPUT);
+        const record = tripRepository.createTrip.mock.calls[0][0];
+        expect(record.estimated_cost).toBe(145000);
+        expect(record.promo_code).toBe('SAVE10');
+    });
+
+    test('rejects a discounted quote belonging to another passenger', async () => {
+        const discountedQuote = { ...VALID_QUOTE, finalFare: 145000, discountAmount: 5000, promoCode: 'SAVE10', passengerId: '22222222-2222-2222-2222-222222222222' };
+        const { useCase, tripRepository } = buildDeps({ quote: discountedQuote });
+        await expect(useCase.execute(BASE_INPUT)).rejects.toMatchObject({ code: 'QUOTE_OWNER_MISMATCH', statusCode: 403 });
+        expect(tripRepository.createTrip).not.toHaveBeenCalled();
     });
 
     test('client-supplied price is ignored (no trusted price input path)', async () => {
