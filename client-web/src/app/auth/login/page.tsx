@@ -21,10 +21,10 @@ export default function LoginPage() {
       .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
       .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
       .replace(/[\s()-]/g, "");
-    if (digits.startsWith("+989")) return \`0\${digits.slice(3)}\`;
-    if (digits.startsWith("00989")) return \`0\${digits.slice(4)}\`;
-    if (digits.startsWith("989")) return \`0\${digits.slice(2)}\`;
-    if (/^9\d{9}$/.test(digits)) return \`0\${digits}\`;
+    if (digits.startsWith("+989")) return "0" + digits.slice(3);
+    if (digits.startsWith("00989")) return "0" + digits.slice(4);
+    if (digits.startsWith("989")) return "0" + digits.slice(2);
+    if (/^9\d{9}$/.test(digits)) return "0" + digits;
     return digits;
   };
 
