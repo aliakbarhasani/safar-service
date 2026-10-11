@@ -103,6 +103,16 @@ describe('required migration file validation', () => {
   });
 });
 
+function expectErrorCode(callback, expectedCode) {
+  try {
+    callback();
+  } catch (error) {
+    expect(error.code).toBe(expectedCode);
+    return;
+  }
+  throw new Error(`Expected ${expectedCode} to be thrown`);
+}
+
 describe('migration ledger validation', () => {
   const ids = ['001.sql', '002.sql', '003.sql'];
   const checksums = new Map(ids.map((id) => [id, calculateChecksum(id)]));
@@ -115,22 +125,22 @@ describe('migration ledger validation', () => {
   });
 
   test('fails closed when an applied migration checksum changes', () => {
-    expect(() => validateMigrationLedger(ids, [
+    expectErrorCode(() => validateMigrationLedger(ids, [
       { migration_id: '001.sql', checksum: '0'.repeat(64) },
-    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_CHECKSUM_MISMATCH' }));
+    ], checksums), 'MIGRATION_CHECKSUM_MISMATCH');
   });
 
   test('fails if the ledger references a migration removed from the runner order', () => {
-    expect(() => validateMigrationLedger(ids, [
+    expectErrorCode(() => validateMigrationLedger(ids, [
       { migration_id: '004.sql', checksum: '0'.repeat(64) },
-    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_LEDGER_UNKNOWN_ID' }));
+    ], checksums), 'MIGRATION_LEDGER_UNKNOWN_ID');
   });
 
   test('fails if a later migration is marked applied while an earlier one is missing', () => {
-    expect(() => validateMigrationLedger(ids, [
+    expectErrorCode(() => validateMigrationLedger(ids, [
       { migration_id: '001.sql', checksum: checksums.get('001.sql') },
       { migration_id: '003.sql', checksum: checksums.get('003.sql') },
-    ], checksums)).toThrow(expect.objectContaining({ code: 'MIGRATION_LEDGER_ORDER_GAP' }));
+    ], checksums), 'MIGRATION_LEDGER_ORDER_GAP');
   });
 });
 
@@ -143,7 +153,8 @@ describe('safe adoption of existing databases', () => {
     };
 
     await expect(ensureMigrationLedger(client))
-      .rejects.toMatchObject({ code: 'MIGRATION_BASELINE_REQUIRED' });
+      .rejects.toThrow('Automatic baseline is unsafe');
+    await expect(ensureMigrationLedger(client)).rejects.toMatchObject({ code: 'MIGRATION_BASELINE_REQUIRED' });
     expect(client.query).toHaveBeenCalledTimes(2);
   });
 
