@@ -95,22 +95,27 @@ describe('EndTripUseCase (P5-1 trip completion)', () => {
     expect(emitted[0].data.amount).toBe(75000);
   });
 
-  test('computes a simple distance-based fare as final fallback', async () => {
+  test('refuses settlement when no authoritative fare is available', async () => {
     const tripRow = {
       id: 'trip-1',
       status: 'IN_PROGRESS',
       passenger_id: 'user-pass',
       driver_id: 'user-driver',
-      estimated_cost: 0, // force distance path
+      estimated_cost: 0,
       origin_lat: 35.6892, origin_lng: 51.389,
-      dest_lat: 35.832, dest_lng: 50.992, // ~40km
+      dest_lat: 35.832, dest_lng: 50.992,
       currency_id: 'IRT',
     };
-    // perKmRate default 2000 -> 40 * 2000 ~= 80000
-    const { emitted } = await runTrip({ tripRow, updatedRow: COMPLETED_ROW });
-    const amount = emitted[0].data.amount;
-    expect(amount).toBeGreaterThan(0);
-    expect(emitted[0].data.currency).toBe('IRT');
+    const repo = makeFakeTripRepo({ tripRow, updatedRow: COMPLETED_ROW });
+    const uc = new EndTripUseCase({ tripRepository: repo, emitEvent: () => {} });
+
+    await expect(uc.execute({ tripId: 'trip-1', driverId: 'user-driver' })).rejects.toMatchObject({
+      code: 'FINAL_FARE_UNAVAILABLE',
+      statusCode: 409,
+    });
+    expect(repo.client.query).toHaveBeenCalledWith(expect.stringContaining('ROLLBACK'));
+    expect(repo.updateTripStatus).not.toHaveBeenCalled();
+    expect(repo.emitted).toHaveLength(0);
   });
 
   test('throws TripNotFoundError when the trip does not exist', async () => {
