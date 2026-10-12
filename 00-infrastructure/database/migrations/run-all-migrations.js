@@ -141,11 +141,24 @@ function splitSQL(sql) {
   const statements = [];
   let current = '';
   let inQuote = false;
+  let inEscapeQuote = false;
   let inDoubleQuote = false;
 
   for (let i = 0; i < sql.length; i++) {
     const ch = sql[i];
     const next = i + 1 < sql.length ? sql[i + 1] : '';
+
+    // PostgreSQL E'...' strings allow backslash escapes. Consume escaped
+    // characters before checking quotes or semicolons, otherwise a valid
+    // escaped apostrophe can split a migration statement incorrectly.
+    if (inQuote && inEscapeQuote && ch === '\\\\') {
+      current += ch;
+      if (next) {
+        current += next;
+        i++;
+      }
+      continue;
+    }
 
     // Ignore line comments only when outside quoted values/identifiers.
     if (!inQuote && !inDoubleQuote && ch === '-' && next === '-') {
@@ -205,6 +218,11 @@ function splitSQL(sql) {
         current += "''";
         i++;
         continue;
+      }
+      if (!inQuote) {
+        inEscapeQuote = /(?:^|[^A-Za-z0-9_$])E$/i.test(current);
+      } else {
+        inEscapeQuote = false;
       }
       inQuote = !inQuote;
       current += ch;
