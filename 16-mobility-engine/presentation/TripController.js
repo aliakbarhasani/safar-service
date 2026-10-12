@@ -120,7 +120,7 @@ class TripController {
             if (error instanceof InvalidRideStateTransitionError) {
                 return res.status(400).json({ success: false, error: error.message });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در پذیرش سفر.' });
+            return res.status(500).json({ success: false, error: 'خطای داخلی در پذیرش سفر. لطفاً دوباره تلاش کنید.' });
         }
     }
 
@@ -147,7 +147,7 @@ class TripController {
             if (error instanceof InvalidRideStateTransitionError) {
                 return res.status(400).json({ success: false, error: error.message });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در ثبت رسیدن راننده.' });
+            return res.status(500).json({ success: false, error: 'خطای داخلی در ثبت رسیدن راننده. لطفاً دوباره تلاش کنید.' });
         }
     }
 
@@ -174,7 +174,7 @@ class TripController {
             if (error instanceof InvalidRideStateTransitionError) {
                 return res.status(400).json({ success: false, error: error.message });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در شروع سفر.' });
+            return res.status(500).json({ success: false, error: 'خطای داخلی در شروع سفر. لطفاً دوباره تلاش کنید.' });
         }
     }
 
@@ -268,7 +268,7 @@ class TripController {
                 || error instanceof InvalidRideStateTransitionError) {
                 return res.status(409).json({ success: false, error: error.message });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در لغو سفر.' });
+            return res.status(500).json({ success: false, error: 'خطای داخلی در لغو سفر. لطفاً دوباره تلاش کنید.' });
         }
     }
 }
