@@ -143,25 +143,31 @@ class CancelTripUseCase {
 
             await client.query('COMMIT');
 
-            // د) انتشار رویداد کانونیک TripCancelled (با جریمه) پس از Commit
-            this.emitEvent(TripDomainEvents.TripCancelled, {
-                tripId,
-                cancelledBy: cancelledByUserId || passengerId,
-                role,
-                penaltyAmount,
-                driverId,
-                passengerId,
-                reason: trip.cancelReason,
-            });
-            // رویدادهای قدیمی برای سازگاری عقب (releaseHold/P2-1 و ...)
-            this.emitEvent(role === 'driver' ? TripDomainEvents.TripCancelledByDriver : TripDomainEvents.TripCancelledByPassenger, {
-                tripId,
-                status: trip.status,
-                role,
-                passengerId,
-                driverId,
-                reason: trip.cancelReason,
-            });
+            // د) انتشار رویداد پس از Commit. پس از Commit دیگر امکان rollback وجود
+            // ندارد؛ شکست listener نباید پاسخ را به‌اشتباه به‌صورت لغو ناموفق نشان دهد.
+            // در صورت پیکربندی Outbox، Relay مسیر پایدار انتشار مجدد را فراهم می‌کند.
+            try {
+                this.emitEvent(TripDomainEvents.TripCancelled, {
+                    tripId,
+                    cancelledBy: cancelledByUserId || passengerId,
+                    role,
+                    penaltyAmount,
+                    driverId,
+                    passengerId,
+                    reason: trip.cancelReason,
+                });
+                // رویدادهای قدیمی برای سازگاری عقب (releaseHold/P2-1 و ...)
+                this.emitEvent(role === 'driver' ? TripDomainEvents.TripCancelledByDriver : TripDomainEvents.TripCancelledByPassenger, {
+                    tripId,
+                    status: trip.status,
+                    role,
+                    passengerId,
+                    driverId,
+                    reason: trip.cancelReason,
+                });
+            } catch (publishError) {
+                console.warn('[CancelTripUseCase] post-commit event publication failed:', publishError.message);
+            }
 
             return {
                 tripId: updated.id,
