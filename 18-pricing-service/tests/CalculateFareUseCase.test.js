@@ -100,29 +100,26 @@ describe('CalculateFareUseCase (P6-1)', () => {
     expect(promoService.execute).not.toHaveBeenCalled();
   });
 
-  test('uses the promo service execute contract and returns its validated discount', async () => {
+  test('fails closed for authenticated promo requests when no durable discount lifecycle exists', async () => {
     const promoService = {
-      execute: jest.fn(async ({ code, userId, fare }) => ({
+      execute: jest.fn(async () => ({
         valid: true,
-        code,
+        code: 'SAVE10',
         discountAmount: 500,
-        originalFare: fare,
-        finalFare: fare - 500,
+        finalFare: 100,
       })),
     };
     const uc = new CalculateFareUseCase({
       demandSupplyTracker: stubTracker(0),
       promoService,
     });
-    const res = await uc.execute({ ...TEHRAN_A, promoCode: 'SAVE10', userId: 'user-1' });
-    expect(promoService.execute).toHaveBeenCalledWith({
-      code: 'SAVE10',
+
+    await expect(uc.execute({
+      ...TEHRAN_A,
+      promoCode: 'SAVE10',
       userId: 'user-1',
-      fare: res.estimatedFare,
-    });
-    expect(res.discountAmount).toBe(500);
-    expect(res.finalFare).toBe(res.estimatedFare - 500);
-    expect(res.promoCode).toBe('SAVE10');
+    })).rejects.toMatchObject({ statusCode: 503, code: 'PROMO_QUOTE_UNSUPPORTED' });
+    expect(promoService.execute).not.toHaveBeenCalled();
   });
 
   test('does not discount a protected quote until promo data is persisted atomically', async () => {
@@ -140,46 +137,6 @@ describe('CalculateFareUseCase (P6-1)', () => {
     })).rejects.toMatchObject({ statusCode: 503, code: 'PROMO_QUOTE_UNSUPPORTED' });
     expect(promoService.execute).not.toHaveBeenCalled();
     expect(fareQuoteStore.save).not.toHaveBeenCalled();
-  });
-
-  test('rejects inconsistent promo discount totals', async () => {
-    const uc = new CalculateFareUseCase({
-      demandSupplyTracker: stubTracker(0),
-      promoService: {
-        execute: async ({ code, fare }) => ({
-          valid: true,
-          code,
-          discountAmount: 100,
-          originalFare: fare,
-          finalFare: fare,
-        }),
-      },
-    });
-    await expect(uc.execute({
-      ...TEHRAN_A,
-      promoCode: 'SAVE10',
-      userId: 'user-1',
-    })).rejects.toMatchObject({ statusCode: 503, code: 'PROMO_RESULT_INVALID' });
-  });
-
-  test('propagates promo validation errors instead of silently dropping the discount', async () => {
-    const promoService = {
-      execute: jest.fn(async () => {
-        const error = new Error('Promo code expired');
-        error.code = 'EXPIRED';
-        error.statusCode = 400;
-        throw error;
-      }),
-    };
-    const uc = new CalculateFareUseCase({
-      demandSupplyTracker: stubTracker(0),
-      promoService,
-    });
-    await expect(uc.execute({
-      ...TEHRAN_A,
-      promoCode: 'OLD',
-      userId: 'user-1',
-    })).rejects.toMatchObject({ statusCode: 400, code: 'EXPIRED' });
   });
 
   test('computeSurge / haversineKm pure helpers', () => {
