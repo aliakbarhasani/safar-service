@@ -1575,12 +1575,40 @@ async function refundEscrow(escrowId, reason = '') {
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
 
-    const amount = parseFloat(escrow.amount);
+    const amount = Number(escrow.amount);
     const currencyId = escrow.currency_id;
+    if (!Number.isFinite(amount) || amount <= 0 || !currencyId) {
+      throw new Error('Escrow amount or currency is invalid');
+    }
 
-    // Unfreeze: frozen -> available
+    // Verify the actual source wallet before moving funds so the audit record
+    // captures real balances and cannot silently credit a mismatched payer wallet.
+    const sourceWallet = await Wallet.findById(escrow.source_wallet_id, client);
+    if (!sourceWallet) throw new Error('Escrow source wallet not found');
+    if (String(sourceWallet.user_id) !== String(escrow.payer_id) ||
+        String(sourceWallet.currency_id) !== String(currencyId)) {
+      throw new Error('Escrow source wallet owner or currency does not match escrow');
+    }
+    const balanceBefore = Number(sourceWallet.balance);
+    const availableBefore = Number(sourceWallet.available_balance);
+    const frozenBefore = Number(sourceWallet.frozen_balance);
+    if (![balanceBefore, availableBefore, frozenBefore].every(Number.isFinite) ||
+        frozenBefore < amount) {
+      throw new Error('Escrow source wallet balances are invalid or insufficient');
+    }
+
+    // Unfreeze: frozen -> available; total balance must not change.
     const updatedWallet = await Wallet.unfreezeFrozen(escrow.source_wallet_id, amount, client);
     if (!updatedWallet) throw new Error('Failed to unfreeze escrow funds');
+    const balanceAfter = Number(updatedWallet.balance);
+    const availableAfter = Number(updatedWallet.available_balance);
+    const frozenAfter = Number(updatedWallet.frozen_balance);
+    if (![balanceAfter, availableAfter, frozenAfter].every(Number.isFinite) ||
+        Math.abs(balanceAfter - balanceBefore) > 0.000001 ||
+        Math.abs((availableAfter - availableBefore) - amount) > 0.000001 ||
+        Math.abs((frozenBefore - frozenAfter) - amount) > 0.000001) {
+      throw new Error('Escrow refund wallet balance transition is inconsistent');
+    }
 
     // ثبت دفتر کل
     const tx = await Transaction.create({
@@ -1591,10 +1619,9 @@ async function refundEscrow(escrowId, reason = '') {
 
     await Transaction.createLedgerEntry({
       walletId: escrow.source_wallet_id, transactionId: tx.id,
-      creditAmount: amount, debitAmount: 0, currencyId,
-      balanceBefore: parseFloat(escrow.amount), balanceAfter: parseFloat(escrow.amount),
-      availableBefore: parseFloat(escrow.amount) - amount, availableAfter: parseFloat(escrow.amount),
-      frozenBefore: amount, frozenAfter: 0,
+      // This is a reclassification from frozen to available, not new money.
+      creditAmount: 0, debitAmount: 0, currencyId,
+      balanceBefore, balanceAfter, availableBefore, availableAfter, frozenBefore, frozenAfter,
       operationType: 'refund',
       description: reason || 'Escrow refunded'
     }, client);
@@ -1628,11 +1655,37 @@ async function expireEscrow(escrowId) {
     if (!escrow) throw new Error(`Escrow not found: ${escrowId}`);
     if (escrow.status !== 'active') throw new Error(`Escrow is ${escrow.status}, not 'active'`);
 
-    const amount = parseFloat(escrow.amount);
+    const amount = Number(escrow.amount);
     const currencyId = escrow.currency_id;
+    if (!Number.isFinite(amount) || amount <= 0 || !currencyId) {
+      throw new Error('Escrow amount or currency is invalid');
+    }
+
+    const sourceWallet = await Wallet.findById(escrow.source_wallet_id, client);
+    if (!sourceWallet) throw new Error('Escrow source wallet not found');
+    if (String(sourceWallet.user_id) !== String(escrow.payer_id) ||
+        String(sourceWallet.currency_id) !== String(currencyId)) {
+      throw new Error('Escrow source wallet owner or currency does not match escrow');
+    }
+    const balanceBefore = Number(sourceWallet.balance);
+    const availableBefore = Number(sourceWallet.available_balance);
+    const frozenBefore = Number(sourceWallet.frozen_balance);
+    if (![balanceBefore, availableBefore, frozenBefore].every(Number.isFinite) ||
+        frozenBefore < amount) {
+      throw new Error('Escrow source wallet balances are invalid or insufficient');
+    }
 
     const updatedWallet = await Wallet.unfreezeFrozen(escrow.source_wallet_id, amount, client);
     if (!updatedWallet) throw new Error('Failed to unfreeze expired escrow');
+    const balanceAfter = Number(updatedWallet.balance);
+    const availableAfter = Number(updatedWallet.available_balance);
+    const frozenAfter = Number(updatedWallet.frozen_balance);
+    if (![balanceAfter, availableAfter, frozenAfter].every(Number.isFinite) ||
+        Math.abs(balanceAfter - balanceBefore) > 0.000001 ||
+        Math.abs((availableAfter - availableBefore) - amount) > 0.000001 ||
+        Math.abs((frozenBefore - frozenAfter) - amount) > 0.000001) {
+      throw new Error('Escrow expiry wallet balance transition is inconsistent');
+    }
 
     const tx = await Transaction.create({
       walletId: escrow.source_wallet_id, userId: escrow.payer_id,
@@ -1642,10 +1695,9 @@ async function expireEscrow(escrowId) {
 
     await Transaction.createLedgerEntry({
       walletId: escrow.source_wallet_id, transactionId: tx.id,
-      creditAmount: amount, debitAmount: 0, currencyId,
-      balanceBefore: parseFloat(escrow.amount), balanceAfter: parseFloat(escrow.amount),
-      availableBefore: 0, availableAfter: amount,
-      frozenBefore: amount, frozenAfter: 0,
+      // Expiry moves existing funds from frozen to available; it creates no balance.
+      creditAmount: 0, debitAmount: 0, currencyId,
+      balanceBefore, balanceAfter, availableBefore, availableAfter, frozenBefore, frozenAfter,
       operationType: 'expire',
       description: 'Escrow expired'
     }, client);

@@ -576,3 +576,77 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     expect(pg.transaction).not.toHaveBeenCalled();
   });
 });
+
+describe('walletService escrow refund/expiry ledger integrity', () => {
+  const sourceWallet = {
+    id: 'source-wallet', user_id: 'payer-1', currency_id: 'currency-irt',
+    status: 'active', balance: '10000', available_balance: '2000', frozen_balance: '8000',
+  };
+  const updatedWallet = {
+    ...sourceWallet, balance: '10000', available_balance: '5000', frozen_balance: '5000',
+  };
+  const escrow = {
+    id: 'escrow-refund-1', status: 'active', source_wallet_id: 'source-wallet',
+    payer_id: 'payer-1', currency_id: 'currency-irt', amount: '3000',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Wallet.findById.mockResolvedValue(sourceWallet);
+    Wallet.unfreezeFrozen.mockResolvedValue(updatedWallet);
+    Escrow.findById.mockResolvedValue(escrow);
+    Escrow.updateStatus.mockResolvedValue({ ...escrow, status: 'refunded' });
+    Transaction.create.mockImplementation(async (data) => ({ id: 'tx-escrow-return', ...data }));
+    Transaction.createLedgerEntry.mockResolvedValue({ rows: [] });
+    EventBus.publish.mockImplementation(() => {});
+    pg.transaction.mockImplementation(async (callback) => callback({
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    }));
+  });
+
+  test.each([
+    ['refundEscrow', 'refunded', 'refund'],
+    ['expireEscrow', 'expired', 'expire'],
+  ])('%s records a zero-sum unfreeze ledger entry', async (method, terminalStatus, operationType) => {
+    const result = await walletService[method]('escrow-refund-1', 'approved');
+
+    expect(result).toMatchObject({ success: true, escrowId: 'escrow-refund-1', status: terminalStatus, amount: 3000 });
+    expect(Wallet.findById).toHaveBeenCalledWith('source-wallet', expect.anything());
+    expect(Wallet.unfreezeFrozen).toHaveBeenCalledWith('source-wallet', 3000, expect.anything());
+    expect(Transaction.createLedgerEntry).toHaveBeenCalledWith(expect.objectContaining({
+      walletId: 'source-wallet',
+      creditAmount: 0,
+      debitAmount: 0,
+      balanceBefore: 10000,
+      balanceAfter: 10000,
+      availableBefore: 2000,
+      availableAfter: 5000,
+      frozenBefore: 8000,
+      frozenAfter: 5000,
+      operationType,
+    }), expect.anything());
+    expect(Escrow.updateStatus).toHaveBeenCalledWith('escrow-refund-1', terminalStatus, expect.any(Object), expect.anything());
+  });
+
+  test('rejects an escrow whose source wallet belongs to another payer', async () => {
+    Wallet.findById.mockResolvedValue({ ...sourceWallet, user_id: 'different-user' });
+
+    await expect(walletService.refundEscrow('escrow-refund-1', 'approved'))
+      .rejects.toThrow('Escrow source wallet owner or currency does not match escrow');
+
+    expect(Wallet.unfreezeFrozen).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
+    expect(Escrow.updateStatus).not.toHaveBeenCalled();
+  });
+
+  test('rejects an inconsistent unfreeze result before writing a ledger entry', async () => {
+    Wallet.unfreezeFrozen.mockResolvedValue({ ...updatedWallet, balance: '13000' });
+
+    await expect(walletService.expireEscrow('escrow-refund-1'))
+      .rejects.toThrow('Escrow expiry wallet balance transition is inconsistent');
+
+    expect(Transaction.create).not.toHaveBeenCalled();
+    expect(Transaction.createLedgerEntry).not.toHaveBeenCalled();
+    expect(Escrow.updateStatus).not.toHaveBeenCalled();
+  });
+});
