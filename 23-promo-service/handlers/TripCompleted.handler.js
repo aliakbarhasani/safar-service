@@ -82,6 +82,23 @@ class TripCompletedHandler {
       );
       const promo = promoResult.rows && promoResult.rows[0];
       if (!promo) throw this._error('Promo code was not found while recording usage', 'PROMO_CODE_NOT_FOUND');
+
+      // A concurrent delivery for the same trip may have committed while this
+      // transaction waited for the promo row lock. Re-check before limits so a
+      // legitimate duplicate is not misclassified as a user/global limit error.
+      const afterLock = await client.query(
+        'SELECT user_id, promo_code FROM promo_usages WHERE trip_id = $1 FOR UPDATE',
+        [tripId]
+      );
+      const committedUsage = afterLock.rows && afterLock.rows[0];
+      if (committedUsage) {
+        if (String(committedUsage.user_id) !== String(passengerId) || committedUsage.promo_code !== promoCode) {
+          throw this._error('Trip promo usage already exists with a different user or promo code', 'PROMO_USAGE_IDEMPOTENCY_CONFLICT');
+        }
+        await client.query('COMMIT');
+        return { consumed: false, duplicate: true, tripId, promoCode, userId: passengerId };
+      }
+
       if (!promo.is_active) throw this._error('Promo code is inactive', 'PROMO_CODE_INACTIVE');
       if (promo.expires_at && new Date(promo.expires_at).getTime() <= Date.now()) {
         throw this._error('Promo code has expired', 'PROMO_CODE_EXPIRED');
