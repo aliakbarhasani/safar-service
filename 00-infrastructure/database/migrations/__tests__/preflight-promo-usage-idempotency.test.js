@@ -1,6 +1,6 @@
 'use strict';
 
-const { runPreflight } = require('../preflight-promo-usage-idempotency');
+const { runPreflight } = require('../../../../scripts/preflight-promo-usage-idempotency');
 
 function makeClient({ table = 'promo_usages', duplicateTripIds = 0, excessRows = 0 } = {}) {
   return {
