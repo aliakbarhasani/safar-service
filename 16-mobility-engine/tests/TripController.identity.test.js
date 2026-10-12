@@ -35,4 +35,34 @@ describe('TripController passenger identity compatibility', () => {
       quoteId: 'quote-1',
     }));
   });
+
+  test('does not expose unexpected infrastructure error details to clients', async () => {
+    const internalError = new Error('password authentication failed for database user secret_user');
+    const createTripUseCase = { execute: jest.fn(async () => { throw internalError; }) };
+    const controller = new TripController({ createTripUseCase });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const req = {
+      user: { sub: 'passenger-1', role: 'PASSENGER' },
+      body: {
+        quoteId: 'quote-1',
+        serviceType: 'urban_taxi',
+        originLat: 35.7,
+        originLng: 51.3,
+        destLat: 35.71,
+        destLng: 51.31,
+      },
+    };
+    const res = makeResponse();
+
+    try {
+      await controller.createTrip(req, res);
+      expect(res.statusCode).toBe(500);
+      expect(res.body.error).toBe('خطای داخلی در ایجاد سفر. لطفاً دوباره تلاش کنید.');
+      expect(JSON.stringify(res.body)).not.toContain('password authentication failed');
+      expect(JSON.stringify(res.body)).not.toContain('secret_user');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
 });
