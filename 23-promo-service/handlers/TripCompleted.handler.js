@@ -36,48 +36,52 @@ class TripCompletedHandler {
    * @param {Object} data پیلود رویداد (سفر تکمیل‌شده)
    */
   async handle({ tripId, passengerId, promoCode }) {
-    if (!promoCode) return { consumed: false }; // سفر بدون کد تخفیف
+    if (!promoCode) return { consumed: false };
     if (!tripId || !passengerId) {
       throw new Error('TripCompleted payload must include tripId and passengerId');
     }
-
-    // برای اتمیسیته کامل، هر دو عملیات داخل یک تراکنش اجرا می‌شوند.
-    // اگر pool تزریق نشده بود، عملیاتِ جداگانه (بدون تراکنش) اجرا می‌شوند.
-    const runInTx = async (pool, fn) => {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const result = await fn(client);
-        await client.query('COMMIT');
-        return result;
-      } catch (err) {
-        try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
-        throw err;
-      } finally {
-        client.release();
-      }
-    };
-
-    const execute = async (executor) => {
-      // ثبت مصرف
-      await executor.query(
-        'INSERT INTO promo_usages (user_id, promo_code, trip_id) VALUES ($1, $2, $3)',
-        [passengerId, promoCode, tripId]
-      );
-      // افزایش اتمیک شمارنده کل کد
-      await executor.query(
-        'UPDATE promo_codes SET current_uses = current_uses + 1, updated_at = NOW() WHERE code = $1',
-        [promoCode]
-      );
-    };
-
-    if (this.pool && this.pool.connect) {
-      await runInTx(this.pool, execute);
-    } else {
-      await execute(this.promoCodeModel.pool || { query: () => { throw new Error('no pool'); } });
+    if (!this.pool || typeof this.pool.connect !== 'function') {
+      const error = new Error('Promo usage requires a PostgreSQL transaction-capable pool');
+      error.code = 'PROMO_USAGE_TRANSACTION_UNAVAILABLE';
+      throw error;
     }
 
-    return { consumed: true, tripId, promoCode, userId: passengerId };
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // A unique trip_id index plus INSERT ... ON CONFLICT makes event replay safe.
+      // The counter changes only when this event inserts the first usage row.
+      const inserted = await client.query(
+        'INSERT INTO promo_usages (user_id, promo_code, trip_id) VALUES ($1, $2, $3) ' +
+        'ON CONFLICT (trip_id) WHERE trip_id IS NOT NULL DO NOTHING RETURNING id',
+        [passengerId, promoCode, tripId]
+      );
+
+      if (!inserted.rows || inserted.rows.length === 0) {
+        await client.query('COMMIT');
+        return { consumed: false, duplicate: true, tripId, promoCode, userId: passengerId };
+      }
+
+      const updated = await client.query(
+        'UPDATE promo_codes SET current_uses = current_uses + 1, updated_at = NOW() ' +
+        'WHERE code = $1 RETURNING code',
+        [promoCode]
+      );
+      if (!updated.rows || updated.rows.length === 0) {
+        const error = new Error('Promo code disappeared while recording usage');
+        error.code = 'PROMO_CODE_NOT_FOUND';
+        throw error;
+      }
+
+      await client.query('COMMIT');
+      return { consumed: true, tripId, promoCode, userId: passengerId };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* preserve original error */ }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**
