@@ -78,7 +78,7 @@ describe('TripController passenger identity compatibility', () => {
     const controller = new TripController({ [dependency]: useCase });
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const req = {
-      user: { sub: 'admin-1', role: 'admin' },
+      user: { sub: 'driver-user-1', role: 'driver', driverId: 'driver-1' },
       params: { tripId: 'trip-1' },
       body: {},
     };
