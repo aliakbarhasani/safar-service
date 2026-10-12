@@ -26,6 +26,11 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Run JWT key generation safety tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 00-infrastructure/keys/__tests__/generate-keys.test.js
+
       - name: Verify critical proxy-addr advisory is remediated
         run: |
           node -e "const p = require('./node_modules/proxy-addr/package.json'); if (p.version !== '2.0.8') { console.error('Expected proxy-addr 2.0.8, found ' + p.version); process.exit(1); } console.log('proxy-addr ' + p.version + ' installed');"
