@@ -52,8 +52,15 @@ class FareQuoteStore {
     let raw = null;
     try {
       raw = await this.redis.get(this._key(quoteId));
-    } catch (_) {
-      return null;
+    } catch (cause) {
+      // A cache miss means the quote may be expired; a Redis outage does not.
+      // Preserve that distinction so trip creation does not misreport an outage
+      // as an expired quote and prompt users to repeat the same failing request.
+      const error = new Error('خواندن پیش‌فاکتور موقتاً در دسترس نیست؛ لطفاً دوباره تلاش کنید.');
+      error.code = 'FARE_QUOTE_STORE_UNAVAILABLE';
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
     }
     if (!raw) return null;
     try {
