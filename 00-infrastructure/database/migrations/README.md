@@ -34,3 +34,15 @@ Prefer a reviewed forward-fix migration for a live database. SQL rollback is not
 ## CI coverage
 
 The Backend CI job runs migrations against a clean, isolated PostgreSQL database, runs them a second time to verify repeatability, and deliberately alters a checksum to confirm drift is rejected. Unit tests cover transaction rollback, ledger ordering, unknown migration IDs, missing migration files, and unsafe automatic baselining. PostgreSQL integration tests verify that failed DDL/data changes roll back and failed migrations do not create ledger rows.
+
+## Promo usage idempotency migration (033)
+
+Migration `033_promo_usage_trip_idempotency.sql` adds a unique partial index on non-null `promo_usages.trip_id`. It intentionally does not delete or rewrite historical usage records. Existing duplicate trip IDs must be reviewed and reconciled manually before the index can be created.
+
+Before applying migration 033 to any existing/shared database, run the read-only preflight against the explicitly selected target database:
+
+```sh
+PG_HOST=... PG_PORT=5432 PG_DATABASE=... PG_USER=... PG_PASSWORD=... node scripts/preflight-promo-usage-idempotency.js
+```
+
+Set the environment variables in your shell or secret manager; do not commit credentials to the repository. The script refuses to connect unless host, database, username, and password are explicitly supplied. It opens a PostgreSQL `READ ONLY` transaction, reports only aggregate duplicate counts, and never changes data. Exit code `0` means no duplicate trip IDs were found; exit code `2` means stop and manually reconcile duplicates after a verified backup; exit code `1` means the check could not safely complete. A successful preflight is not a substitute for the normal migration backup and release checks.
