@@ -215,6 +215,7 @@ class CalculateFareUseCase {
         throw error;
       }
 
+      let sqlQuotePersisted = false;
       try {
         // SQL row and Redis payload share one ID: trips.quote_id has an FK to quotes.id.
         // Persist the audit/foreign-key record first; only expose the quote ID after
@@ -241,10 +242,21 @@ class CalculateFareUseCase {
             demandRatio: ratio,
           },
         });
+        sqlQuotePersisted = true;
         await this.fareQuoteStore.save(quote);
         result.quoteId = quoteId;
         result.expiresAt = quote.expiresAt;
       } catch (cause) {
+        // If SQL committed but Redis failed, expire the unreachable SQL quote so
+        // it cannot remain indefinitely in CREATED state. Preserve the original
+        // persistence error even if cleanup itself is temporarily unavailable.
+        if (sqlQuotePersisted && typeof this.pricingRepository.expireUnpublishedFareQuote === 'function') {
+          try {
+            await this.pricingRepository.expireUnpublishedFareQuote(quoteId);
+          } catch (cleanupError) {
+            console.warn('[pricing] failed to expire unpublished fare quote:', cleanupError && cleanupError.message);
+          }
+        }
         // Never return success when the quote cannot be consumed consistently.
         // Keep implementation details in server logs, not in the public response.
         console.warn('[pricing] fare quote persistence failed:', cause && cause.message);

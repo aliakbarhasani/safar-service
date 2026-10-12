@@ -127,7 +127,10 @@ describe('CalculateFareUseCase (P6-1)', () => {
       ttlSeconds: 300,
       save: jest.fn(async () => { throw new Error('redis unavailable'); }),
     };
-    const pricingRepository = { saveFareQuote: jest.fn(async () => 'quote-1') };
+    const pricingRepository = {
+      saveFareQuote: jest.fn(async () => 'quote-1'),
+      expireUnpublishedFareQuote: jest.fn(async () => true),
+    };
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const uc = new CalculateFareUseCase({
       demandSupplyTracker: stubTracker(0),
@@ -139,6 +142,33 @@ describe('CalculateFareUseCase (P6-1)', () => {
       await expect(uc.execute({ ...TEHRAN_A }))
         .rejects.toMatchObject({ statusCode: 503, code: 'FARE_QUOTE_PERSISTENCE_FAILED' });
       expect(pricingRepository.saveFareQuote).toHaveBeenCalledTimes(1);
+      expect(pricingRepository.expireUnpublishedFareQuote).toHaveBeenCalledTimes(1);
+      expect(pricingRepository.expireUnpublishedFareQuote).toHaveBeenCalledWith(expect.any(String));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('preserves the original Redis failure when orphan quote cleanup also fails', async () => {
+    const fareQuoteStore = {
+      ttlSeconds: 300,
+      save: jest.fn(async () => { throw new Error('redis unavailable'); }),
+    };
+    const pricingRepository = {
+      saveFareQuote: jest.fn(async () => 'quote-1'),
+      expireUnpublishedFareQuote: jest.fn(async () => { throw new Error('database cleanup unavailable'); }),
+    };
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      fareQuoteStore,
+      pricingRepository,
+    });
+
+    try {
+      await expect(uc.execute({ ...TEHRAN_A }))
+        .rejects.toMatchObject({ statusCode: 503, code: 'FARE_QUOTE_PERSISTENCE_FAILED' });
+      expect(pricingRepository.expireUnpublishedFareQuote).toHaveBeenCalledTimes(1);
     } finally {
       warnSpy.mockRestore();
     }
