@@ -3,9 +3,9 @@
 // Read-only preflight for migration 033_promo_usage_trip_idempotency.sql.
 // This script never changes data. It reports aggregate counts only and exits
 // with code 2 when duplicate historical trip usage rows need manual review.
+// Deliberately do not load .env: the operator must explicitly select the target DB.
 
 const { Client } = require('pg');
-require('dotenv').config();
 
 async function runPreflight(client) {
   let transactionOpen = false;
