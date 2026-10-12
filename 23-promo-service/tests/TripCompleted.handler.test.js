@@ -106,6 +106,29 @@ describe('Promo TripCompletedHandler', () => {
     expect(pool.client.query.mock.calls.some(([sql]) => sql === 'ROLLBACK')).toBe(true);
   });
 
+  test('reconciles a same-trip event that commits while waiting for the promo lock', async () => {
+    let priorLookups = 0;
+    const pool = makePool();
+    pool.client.query.mockImplementation(async (sql, params) => {
+      pool.queries.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.startsWith('SELECT user_id, promo_code FROM promo_usages')) {
+        priorLookups += 1;
+        return { rows: priorLookups === 1 ? [] : [{ user_id: 'user-1', promo_code: 'SAVE10' }] };
+      }
+      if (sql.startsWith('SELECT code, is_active, expires_at')) {
+        return { rows: [{ code: 'SAVE10', is_active: true, expires_at: null, max_uses_per_user: 1, global_max_uses: 1, current_uses: 1 }] };
+      }
+      return { rows: [] };
+    });
+    const handler = new TripCompletedHandler({ promoCodeModel: {}, promoUsageModel: {}, pool });
+
+    await expect(handler.handle(event())).resolves.toMatchObject({ consumed: false, duplicate: true });
+    expect(pool.client.query.mock.calls.some(([sql]) => sql.startsWith('INSERT INTO promo_usages'))).toBe(false);
+    expect(pool.client.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE promo_codes'))).toBe(false);
+    expect(pool.client.query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(true);
+  });
+
   test('enforces the global usage limit under the promo row lock', async () => {
     const pool = makePool({
       promoRows: [{ code: 'SAVE10', is_active: true, expires_at: null, max_uses_per_user: 1, global_max_uses: 5, current_uses: 5 }],
