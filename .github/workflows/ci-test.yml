@@ -221,6 +221,11 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
+      - name: Run wallet escrow release controller security tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 05-wallet-service/__tests__/wallet.controller.escrow.test.js
+
       - name: Run wallet transfer idempotency regression tests
         env:
           NODE_ENV: test
