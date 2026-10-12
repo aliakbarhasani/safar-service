@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -74,6 +74,46 @@ jobs:
           console.log('No proxy-addr advisory or critical findings remain; high/moderate findings are reported for remediation.');
           NODE
 
+      - name: Report root dependency audit findings
+        run: |
+          npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
+          node - "$RUNNER_TEMP/npm-audit.json" <<'NODE'
+          const fs = require('fs');
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          } catch (error) {
+            console.error('npm audit report step received invalid JSON; refusing to report incomplete results.');
+            process.exit(1);
+          }
+          if (!report || typeof report !== 'object' || Array.isArray(report) || report.error ||
+              !report.metadata || !report.metadata.vulnerabilities ||
+              typeof report.vulnerabilities !== 'object' || !report.vulnerabilities ||
+              Array.isArray(report.vulnerabilities)) {
+            console.error('npm audit report step received an incomplete report; refusing to report incomplete results.');
+            process.exit(1);
+          }
+          const vulnerabilities = report.vulnerabilities;
+          console.log(`Root dependency audit: ${Object.keys(vulnerabilities).length} vulnerable packages`);
+          for (const [name, item] of Object.entries(vulnerabilities)) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              console.error('npm audit report contains an invalid package entry; refusing to report incomplete results.');
+              process.exit(1);
+            }
+            const advisories = (Array.isArray(item.via) ? item.via : [])
+              .filter((entry) => entry && typeof entry === 'object')
+              .map((entry) => entry.title || entry.name || 'Advisory');
+            console.log([
+              String(item.severity || 'unknown').toUpperCase(),
+              name,
+              `direct=${Boolean(item.isDirect)}`,
+              `range=${item.range || 'unknown'}`,
+              `fixAvailable=${JSON.stringify(item.fixAvailable ?? null)}`,
+              `advisories=${advisories.join('; ') || 'see npm audit JSON'}`,
+            ].join(' | '));
+          }
+          NODE
+
       - name: Check wallet source and regression-test syntax
         run: |
           node --check 05-wallet-service/models/wallet.model.js
@@ -83,6 +123,7 @@ jobs:
           node --check 05-wallet-service/__tests__/trip-completed-handler.test.js
           node --check 05-wallet-service/__tests__/wallet-model-currency.test.js
           node --check 00-infrastructure/database/migrations/run-all-migrations.js
+          node --check 00-infrastructure/database/migrations/__tests__/run-all-migrations.integration.test.js
 
       - name: Generate ephemeral RS256 test keys
         env:
@@ -98,6 +139,59 @@ jobs:
           PG_PASSWORD: test_password
           NODE_ENV: test
         run: node 00-infrastructure/database/migrations/run-all-migrations.js
+      
+      - name: Verify PostgreSQL migration repeatability
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          NODE_ENV: test
+        run: node 00-infrastructure/database/migrations/run-all-migrations.js
+
+      - name: Verify PostgreSQL migration rollback and ledger atomicity
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          MIGRATION_INTEGRATION_TESTS: '1'
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 00-infrastructure/database/migrations/__tests__/run-all-migrations.integration.test.js
+
+
+
+      - name: Verify checksum drift fails closed on PostgreSQL
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          DATABASE_URL: postgres://test_user:test_password@127.0.0.1:5433/safar_test_db
+          NODE_ENV: test
+        run: |
+          set -euo pipefail
+          migration_file="00-infrastructure/database/migrations/001_initial_global_schema.sql"
+          expected_checksum="$(sha256sum "$migration_file" | awk '{print $1}')"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "UPDATE public.schema_migrations SET checksum = repeat('0', 64) WHERE migration_id = '001_initial_global_schema.sql'"
+          set +e
+          output="$(node 00-infrastructure/database/migrations/run-all-migrations.js 2>&1)"
+          status=$?
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "UPDATE public.schema_migrations SET checksum = '$expected_checksum' WHERE migration_id = '001_initial_global_schema.sql'"
+          if [ "$status" -eq 0 ]; then
+            echo "Expected migration runner to reject checksum drift, but it succeeded."
+            exit 1
+          fi
+          if ! printf '%s' "$output" | grep -q 'MIGRATION_CHECKSUM_MISMATCH'; then
+            printf '%s\n' "$output"
+            echo "Runner failed for a reason other than checksum drift."
+            exit 1
+          fi
+          echo "Checksum drift was rejected and the test ledger checksum was restored."
 
       - name: Install dependencies & run RBAC tests
         env:
