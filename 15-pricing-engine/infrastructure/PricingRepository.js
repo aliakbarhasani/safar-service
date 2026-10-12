@@ -207,6 +207,18 @@ class PricingRepository {
         }
     }
 
+    /** Expire an unpublished SQL quote only while it remains unconsumed. */
+    async expireUnpublishedFareQuote(quoteId) {
+        if (!quoteId) return false;
+        const result = await this.db.query(
+            `UPDATE quotes SET status = 'EXPIRED', updated_at = NOW()
+             WHERE id = $1 AND status = 'CREATED' AND consumed_at IS NULL
+             RETURNING id`,
+            [quoteId],
+        );
+        return Boolean(result.rows && result.rows.length > 0);
+    }
+
     async saveQuoteAndAudit(quoteEntity) {
         const client = await this.db.connect();
         try {
