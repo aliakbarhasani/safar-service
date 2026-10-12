@@ -207,32 +207,35 @@ async function releaseHold(req, res) {
 }
 
 /**
- * آزادسازی Escrow
+ * آزادسازی Escrow ثبت‌شده
  * POST /api/wallets/escrow/release
- * Body: { escrowWalletId, recipientId, currency?, description? }
- * SECURITY: کمیسیون پلتفرم از بدی پذیرفته نمی‌شود؛ سمت سرور (config.trip.commissionRates) محاسبه می‌شود.
+ * Body: { escrowId }
+ * SECURITY: گیرنده، مبلغ، کیف پول مقصد و کمیسیون فقط از رکورد Escrow معتبر در دیتابیس خوانده می‌شوند.
  */
 async function releaseEscrow(req, res) {
   try {
-    const { escrowWalletId, recipientId, currency, description } = req.body;
-
-    if (!escrowWalletId) {
-      return res.status(400).json({ success: false, error: 'Escrow wallet ID is required' });
+    const { escrowId } = (req && req.body) || {};
+    if (!escrowId) {
+      return res.status(400).json({
+        success: false,
+        code: 'ESCROW_ID_REQUIRED',
+        error: 'Escrow ID is required',
+      });
     }
-    if (!recipientId) {
-      return res.status(400).json({ success: false, error: 'Recipient ID is required' });
-    }
 
-    const result = await walletService.releaseEscrow(
-      escrowWalletId,
-      recipientId,
-      currency || 'IRT',
-      description || ''
-    );
-
+    // Never trust caller-selected recipient, wallet, amount, currency, or commission.
+    const result = await walletService.releaseEscrowFull(escrowId);
     return res.json({ success: true, message: 'Escrow released successfully', data: result });
   } catch (err) {
-    return res.status(400).json({ success: false, error: err.message });
+    const message = String(err && err.message || '');
+    const statusCode = /not found/i.test(message)
+      ? 404
+      : (/not 'active'|not active|no payee|invalid|reconcile|not configured|missing, inactive/i.test(message) ? 409 : 400);
+    return res.status(statusCode).json({
+      success: false,
+      code: statusCode === 404 ? 'ESCROW_NOT_FOUND' : (statusCode === 409 ? 'ESCROW_STATE_INVALID' : null),
+      error: message,
+    });
   }
 }
 
