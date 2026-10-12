@@ -18,6 +18,7 @@ function generateKeyPair({
   // JWTs and cause issuer/verifier key mismatches during a routine setup run.
   if ((hasPrivateKey || hasPublicKey) && !forceRegenerate) {
     if (hasPrivateKey && hasPublicKey) {
+      assertMatchingKeyPair(privateKeyPath, publicKeyPath, passphrase);
       return { generated: false, reason: 'keys-already-exist', privateKeyPath, publicKeyPath };
     }
     const error = new Error(
@@ -43,6 +44,26 @@ function generateKeyPair({
   fs.writeFileSync(privateKeyPath, privateKey, { mode: 0o600 });
   fs.writeFileSync(publicKeyPath, publicKey, { mode: 0o644 });
   return { generated: true, privateKeyPath, publicKeyPath, encrypted: Boolean(passphrase) };
+}
+
+function assertMatchingKeyPair(privateKeyPath, publicKeyPath, passphrase) {
+  try {
+    const privateKey = crypto.createPrivateKey({
+      key: fs.readFileSync(privateKeyPath, 'utf8'),
+      format: 'pem',
+      ...(passphrase ? { passphrase } : {}),
+    });
+    const actualPublicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString();
+    const storedPublicKey = crypto.createPublicKey(fs.readFileSync(publicKeyPath, 'utf8'))
+      .export({ type: 'spki', format: 'pem' }).toString();
+    if (actualPublicKey !== storedPublicKey) throw new Error('key mismatch');
+  } catch (_) {
+    const error = new Error(
+      'The existing JWT key pair is invalid or does not match. Restore a matching backup or explicitly rotate with FORCE_KEY_REGEN=true.',
+    );
+    error.code = 'JWT_KEY_PAIR_MISMATCH';
+    throw error;
+  }
 }
 
 if (require.main === module) {
