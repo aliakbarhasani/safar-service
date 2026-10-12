@@ -84,7 +84,9 @@ class TripController {
                     error: error.message || 'درخواست سفر قابل پردازش نیست.',
                 });
             }
-            return res.status(500).json({ success: false, error: error.message || 'خطای داخلی در ایجاد سفر.' });
+            // Unexpected infrastructure/programming errors must not leak database,
+            // provider, or configuration details to API clients.
+            return res.status(500).json({ success: false, error: 'خطای داخلی در ایجاد سفر. لطفاً دوباره تلاش کنید.' });
         }
     }
 
