@@ -89,6 +89,61 @@ describe('CalculateFareUseCase (P6-1)', () => {
       .rejects.toMatchObject({ statusCode: 400, code: 'FARE_INVALID_COORDS' });
   });
 
+  test('fails closed when quote storage is configured without the required SQL persistence', async () => {
+    const fareQuoteStore = { ttlSeconds: 300, save: jest.fn() };
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      fareQuoteStore,
+    });
+
+    await expect(uc.execute({ ...TEHRAN_A }))
+      .rejects.toMatchObject({ statusCode: 503, code: 'FARE_QUOTE_PERSISTENCE_UNAVAILABLE' });
+    expect(fareQuoteStore.save).not.toHaveBeenCalled();
+  });
+
+  test('does not return a usable estimate when SQL quote persistence fails', async () => {
+    const fareQuoteStore = { ttlSeconds: 300, save: jest.fn() };
+    const pricingRepository = {
+      saveFareQuote: jest.fn(async () => { throw new Error('database credentials leaked only to logs'); }),
+    };
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      fareQuoteStore,
+      pricingRepository,
+    });
+
+    try {
+      await expect(uc.execute({ ...TEHRAN_A }))
+        .rejects.toMatchObject({ statusCode: 503, code: 'FARE_QUOTE_PERSISTENCE_FAILED' });
+      expect(fareQuoteStore.save).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('does not return a usable estimate when Redis quote persistence fails', async () => {
+    const fareQuoteStore = {
+      ttlSeconds: 300,
+      save: jest.fn(async () => { throw new Error('redis unavailable'); }),
+    };
+    const pricingRepository = { saveFareQuote: jest.fn(async () => 'quote-1') };
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      fareQuoteStore,
+      pricingRepository,
+    });
+
+    try {
+      await expect(uc.execute({ ...TEHRAN_A }))
+        .rejects.toMatchObject({ statusCode: 503, code: 'FARE_QUOTE_PERSISTENCE_FAILED' });
+      expect(pricingRepository.saveFareQuote).toHaveBeenCalledTimes(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test('requires an authenticated user before accepting a promo code', async () => {
     const promoService = { execute: jest.fn() };
     const uc = new CalculateFareUseCase({
