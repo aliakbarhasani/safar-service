@@ -174,31 +174,15 @@ class CalculateFareUseCase {
       if (!userId) {
         throw promoError('برای استفاده از کد تخفیف ابتدا وارد حساب کاربری شوید.', 'PROMO_AUTH_REQUIRED', 401);
       }
-      if (this.fareQuoteStore) {
-        throw promoError('اعمال کد تخفیف روی پیش‌فاکتور هنوز به ثبت امن تخفیف در دیتابیس متصل نشده است.', 'PROMO_QUOTE_UNSUPPORTED', 503);
-      }
-      if (!this.promoService || typeof this.promoService.execute !== 'function') {
-        throw promoError('سرویس کد تخفیف موقتاً در دسترس نیست.', 'PROMO_SERVICE_UNAVAILABLE', 503);
-      }
 
-      const promoResult = await this.promoService.execute({
-        code: promoCode,
-        userId,
-        fare: estimatedFare,
-      });
-      if (!promoResult || promoResult.valid !== true ||
-          !Number.isFinite(Number(promoResult.discountAmount)) ||
-          !Number.isFinite(Number(promoResult.finalFare)) ||
-          Number(promoResult.discountAmount) < 0 ||
-          Number(promoResult.discountAmount) > estimatedFare ||
-          Number(promoResult.finalFare) < 0 ||
-          Number(promoResult.finalFare) > estimatedFare ||
-          Math.abs(Number(promoResult.finalFare) - (estimatedFare - Number(promoResult.discountAmount))) > 0.01) {
-        throw promoError('پاسخ سرویس کد تخفیف معتبر نیست.', 'PROMO_RESULT_INVALID', 503);
-      }
-      result.discountAmount = Number(promoResult.discountAmount);
-      result.finalFare = Number(promoResult.finalFare);
-      result.promoCode = promoResult.code || promoCode;
+      // FAIL CLOSED: the current quote persistence path writes the undiscounted
+      // fare to PostgreSQL and does not bind the promo/user/discount to the quote.
+      // Never return a discount that trip creation and settlement cannot honor.
+      throw promoError(
+        'اعمال کد تخفیف تا زمان ثبت اتمیک آن در پیش‌فاکتور و سفر غیرفعال است.',
+        'PROMO_QUOTE_UNSUPPORTED',
+        503,
+      );
     }
 
     // (P6-2) الگوی Fare Quote: ذخیره Quote ضد-دستکاری در Redis با TTL 5 دقیقه.
