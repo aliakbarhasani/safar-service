@@ -40,23 +40,24 @@ function makePromoCodeModel(overrides = {}) {
  *                نتیجه با CONCURRENT_REQUEST رد می‌شود.
  */
 function makeMockRedis({ preHeld = null, delDelay = 0 } = {}) {
-  const held = new Set();
+  const held = new Map();
   const redis = {
     held,
-    set: async (key) => {
-      if (held.has(key)) return null; // قفل از قبل گرفته شده (در اختیار دیگری)
-      held.add(key);
+    set: async (key, token) => {
+      if (held.has(key)) return null;
+      held.set(key, token);
       return 'OK';
     },
-    del: async (key) => {
+    eval: async (_script, _numKeys, key, token) => {
       if (delDelay > 0) await new Promise((resolve) => setTimeout(resolve, delDelay));
+      if (held.get(key) !== token) return 0;
       held.delete(key);
       return 1;
     },
   };
   if (preHeld) {
-    if (Array.isArray(preHeld)) preHeld.forEach((k) => held.add(k));
-    else held.add(preHeld);
+    if (Array.isArray(preHeld)) preHeld.forEach((k) => held.set(k, 'another-owner'));
+    else held.set(preHeld, 'another-owner');
   }
   return redis;
 }
@@ -131,6 +132,72 @@ test('CONCURRENCY: exactly one of two simultaneous calls succeeds, other rejecte
     `rejected should be CONCURRENT_REQUEST, got ${rejected[0].reason && rejected[0].reason.code}`);
   passed++;
 });
+test('SECURITY: fails closed when Redis is unavailable', async () => {
+  const uc = new ValidatePromoUseCase({
+    promoCodeModel: makePromoCodeModel(),
+    promoUsageModel: { countUserUsages: async () => 0 },
+    redisClient: null,
+  });
+  try {
+    await uc.execute({ code: 'SAVE10', userId: 'u1', fare: 50000 });
+    throw new Error('expected LOCK_UNAVAILABLE');
+  } catch (err) {
+    assert(err.code === 'LOCK_UNAVAILABLE', `code=${err.code}`);
+  }
+  passed++;
+});
+
+test('SECURITY: Redis acquisition errors do not fall back to unlocked validation', async () => {
+  const redis = makeMockRedis();
+  redis.set = async () => { throw new Error('Redis connection lost'); };
+  const uc = new ValidatePromoUseCase({
+    promoCodeModel: makePromoCodeModel(),
+    promoUsageModel: { countUserUsages: async () => 0 },
+    redisClient: redis,
+  });
+  try {
+    await uc.execute({ code: 'SAVE10', userId: 'u1', fare: 50000 });
+    throw new Error('expected LOCK_UNAVAILABLE');
+  } catch (err) {
+    assert(err.code === 'LOCK_UNAVAILABLE', `code=${err.code}`);
+  }
+  passed++;
+});
+
+test('SECURITY: release never deletes a lock owned by a newer request', async () => {
+  const redis = makeMockRedis();
+  const originalEval = redis.eval;
+  redis.eval = async (script, count, key, token) => {
+    // Simulate expiry and reacquisition before the old request releases.
+    redis.held.set(key, 'new-owner-token');
+    return originalEval(script, count, key, token);
+  };
+  const uc = new ValidatePromoUseCase({
+    promoCodeModel: makePromoCodeModel(),
+    promoUsageModel: { countUserUsages: async () => 0 },
+    redisClient: redis,
+  });
+  await uc.execute({ code: 'SAVE10', userId: 'u1', fare: 50000 });
+  assert(redis.held.get('lock:promo:SAVE10:user:u1') === 'new-owner-token',
+    'the newer owner lock must remain held');
+  passed++;
+});
+
+test('ERROR: authenticated user is required', async () => {
+  const uc = new ValidatePromoUseCase({
+    promoCodeModel: makePromoCodeModel(),
+    promoUsageModel: { countUserUsages: async () => 0 },
+    redisClient: makeMockRedis(),
+  });
+  try {
+    await uc.execute({ code: 'SAVE10', fare: 50000 });
+    throw new Error('expected MISSING_USER');
+  } catch (err) {
+    assert(err.code === 'MISSING_USER', `code=${err.code}`);
+  }
+  passed++;
+});
+
 test('ERROR: missing code', async () => {
   const uc = new ValidatePromoUseCase({ promoCodeModel: makePromoCodeModel(), promoUsageModel: { countUserUsages: async () => 0 }, redisClient: makeMockRedis() });
   try { await uc.execute({ userId: 'u1', fare: 50000 }); throw new Error('expected MISSING_CODE'); }

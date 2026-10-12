@@ -1,7 +1,10 @@
 'use strict';
 
+const crypto = require('crypto');
+
 const LOCK_TTL_SECONDS = 10;
 const LOCK_PREFIX = 'lock:promo';
+const RELEASE_LOCK_SCRIPT = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 class PromoValidationError extends Error {
   constructor(message, code) {
@@ -34,7 +37,10 @@ class ValidatePromoUseCase {
 
   async execute({ code, userId, fare }) {
     if (!code) throw new PromoValidationError('Promo code is required', 'MISSING_CODE');
-    if (fare == null || fare < 0) throw new PromoValidationError('Valid fare is required', 'INVALID_FARE');
+    if (!userId) throw new PromoValidationError('Authenticated user is required', 'MISSING_USER');
+    if (fare == null || !Number.isFinite(Number(fare)) || Number(fare) < 0) {
+      throw new PromoValidationError('Valid fare is required', 'INVALID_FARE');
+    }
 
     const promo = await this.promoCodeModel.findByCode(code);
     if (!promo) throw new PromoValidationError('Promo code not found', 'NOT_FOUND');
@@ -43,19 +49,20 @@ class ValidatePromoUseCase {
       throw new PromoValidationError('Promo code has expired', 'EXPIRED');
     }
 
-    // Distributed lock to prevent race conditions
+    // Fail closed: discounts must never be issued when the distributed lock
+    // cannot be acquired or safely released.
     const lockKey = `${LOCK_PREFIX}:${code}:user:${userId}`;
+    const lockToken = crypto.randomUUID();
+    if (!this.redis || typeof this.redis.set !== 'function' || typeof this.redis.eval !== 'function') {
+      throw new PromoValidationError('Promo validation is temporarily unavailable', 'LOCK_UNAVAILABLE');
+    }
+
     let lockAcquired = false;
-    if (this.redis && this.redis.set) {
-      try {
-        const result = await this.redis.set(lockKey, '1', 'NX', 'EX', LOCK_TTL_SECONDS);
-        lockAcquired = result === 'OK';
-      } catch (e) {
-        // If Redis fails, fall back to no-lock mode
-        lockAcquired = true;
-      }
-    } else {
-      lockAcquired = true;
+    try {
+      const result = await this.redis.set(lockKey, lockToken, 'NX', 'EX', LOCK_TTL_SECONDS);
+      lockAcquired = result === 'OK';
+    } catch (error) {
+      throw new PromoValidationError('Promo validation is temporarily unavailable', 'LOCK_UNAVAILABLE');
     }
 
     if (!lockAcquired) {
@@ -90,9 +97,14 @@ class ValidatePromoUseCase {
         finalFare,
       };
     } finally {
-      // Release lock
-      if (this.redis && this.redis.del && lockAcquired) {
-        try { await this.redis.del(lockKey); } catch (e) { /* ignore */ }
+      // Compare-and-delete prevents an expired/reacquired lock from being
+      // deleted by the request that originally held it.
+      if (lockAcquired) {
+        try {
+          await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockToken);
+        } catch (error) {
+          // The TTL is the safe fallback if Redis cannot release the owned lock.
+        }
       }
     }
   }
