@@ -205,40 +205,53 @@ class CalculateFareUseCase {
         createdAt: createdAt.toISOString(),
         expiresAt: expiresAt.toISOString(),
       };
+      // Trip creation requires the matching SQL row and Redis payload. Do not
+      // create a Redis-only quote or return a successful estimate that cannot be
+      // consumed by the authoritative PostgreSQL transaction.
+      if (!this.pricingRepository || typeof this.pricingRepository.saveFareQuote !== 'function') {
+        const error = new Error('ذخیره‌سازی امن پیش‌فاکتور در دسترس نیست؛ لطفاً دوباره تلاش کنید.');
+        error.code = 'FARE_QUOTE_PERSISTENCE_UNAVAILABLE';
+        error.statusCode = 503;
+        throw error;
+      }
+
       try {
         // SQL row and Redis payload share one ID: trips.quote_id has an FK to quotes.id.
         // Persist the audit/foreign-key record first; only expose the quote ID after
         // the coordinate-bound Redis payload is also stored successfully.
-        if (this.pricingRepository && typeof this.pricingRepository.saveFareQuote === 'function') {
-          await this.pricingRepository.saveFareQuote({
-            quoteId,
+        await this.pricingRepository.saveFareQuote({
+          quoteId,
+          serviceType,
+          estimatedFare,
+          currencyCode: 'IRT',
+          expiresAt: quote.expiresAt,
+          inputSnapshot: {
             serviceType,
+            originLat: oLat,
+            originLng: oLng,
+            destLat: dLat,
+            destLng: dLng,
+            distance,
+          },
+          calculationSnapshot: {
             estimatedFare,
-            currencyCode: 'IRT',
-            expiresAt: quote.expiresAt,
-            inputSnapshot: {
-              serviceType,
-              originLat: oLat,
-              originLng: oLng,
-              destLat: dLat,
-              destLng: dLng,
-              distance,
-            },
-            calculationSnapshot: {
-              estimatedFare,
-              distance,
-              surgeMultiplier,
-              geohash,
-              demandRatio: ratio,
-            },
-          });
-        }
+            distance,
+            surgeMultiplier,
+            geohash,
+            demandRatio: ratio,
+          },
+        });
         await this.fareQuoteStore.save(quote);
         result.quoteId = quoteId;
         result.expiresAt = quote.expiresAt;
-      } catch (error) {
-        // Without both stores, do not expose a quote ID that cannot create a trip.
-        console.warn('[pricing] fare quote persistence failed:', error.message);
+      } catch (cause) {
+        // Never return success when the quote cannot be consumed consistently.
+        // Keep implementation details in server logs, not in the public response.
+        console.warn('[pricing] fare quote persistence failed:', cause && cause.message);
+        const error = new Error('ذخیره‌سازی پیش‌فاکتور موقتاً ناموفق بود؛ لطفاً دوباره تلاش کنید.');
+        error.code = 'FARE_QUOTE_PERSISTENCE_FAILED';
+        error.statusCode = 503;
+        throw error;
       }
     }
 
