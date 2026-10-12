@@ -61,6 +61,26 @@ describe('wallet escrow release controller security', () => {
     expect(res.body.code).toBe('ESCROW_STATE_INVALID');
   });
 
+  test('treats a missing source wallet as an escrow integrity conflict, not missing escrow', async () => {
+    walletService.releaseEscrowFull.mockRejectedValue(new Error('Source wallet not found'));
+    const res = response();
+    await releaseEscrow({ body: { escrowId: 'escrow-1' } }, res);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body.code).toBe('ESCROW_STATE_INVALID');
+    expect(res.body.error).not.toContain('Source wallet');
+  });
+
+  test('hides unexpected internal errors and returns a server error', async () => {
+    walletService.releaseEscrowFull.mockRejectedValue(new Error('database connection password detail'));
+    const res = response();
+    await releaseEscrow({ body: { escrowId: 'escrow-1' } }, res);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body.code).toBe('ESCROW_RELEASE_FAILED');
+    expect(res.body.error).not.toContain('password');
+  });
+
   test('returns not found for an unknown escrow record', async () => {
     walletService.releaseEscrowFull.mockRejectedValue(new Error('Escrow not found: missing'));
     const res = response();
@@ -68,5 +88,6 @@ describe('wallet escrow release controller security', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.body.code).toBe('ESCROW_NOT_FOUND');
+    expect(res.body.error).toBe('Escrow not found');
   });
 });

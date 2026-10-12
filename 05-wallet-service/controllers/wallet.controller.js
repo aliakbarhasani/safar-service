@@ -228,13 +228,28 @@ async function releaseEscrow(req, res) {
     return res.json({ success: true, message: 'Escrow released successfully', data: result });
   } catch (err) {
     const message = String(err && err.message || '');
-    const statusCode = /not found/i.test(message)
-      ? 404
-      : (/not 'active'|not active|no payee|invalid|reconcile|not configured|missing, inactive/i.test(message) ? 409 : 400);
+    // Classify only known domain failures. A missing source/platform wallet is
+    // an escrow integrity problem, not a missing escrow; unknown errors are 500s.
+    const escrowMissing = /^Escrow not found:/i.test(message);
+    const escrowStateInvalid = [
+      /^Escrow is .* not 'active'$/i,
+      /^Escrow has no payee assigned/i,
+      /^Escrow amounts are invalid/i,
+      /^Source wallet not found$/i,
+      /^Failed to (deduct frozen amount from payer wallet|credit payee wallet|credit platform escrow commission|mark escrow as released)$/i,
+      /^Platform wallet is not configured on escrow/i,
+      /^Configured escrow platform wallet is missing/i,
+    ].some((pattern) => pattern.test(message));
+    const statusCode = escrowMissing ? 404 : (escrowStateInvalid ? 409 : 500);
     return res.status(statusCode).json({
       success: false,
-      code: statusCode === 404 ? 'ESCROW_NOT_FOUND' : (statusCode === 409 ? 'ESCROW_STATE_INVALID' : null),
-      error: message,
+      code: escrowMissing ? 'ESCROW_NOT_FOUND' :
+        (escrowStateInvalid ? 'ESCROW_STATE_INVALID' : 'ESCROW_RELEASE_FAILED'),
+      error: escrowMissing
+        ? 'Escrow not found'
+        : (escrowStateInvalid
+          ? 'Escrow is not in a releasable state or wallet reconciliation failed.'
+          : 'Escrow release failed; no release was completed.'),
     });
   }
 }
