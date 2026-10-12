@@ -494,7 +494,9 @@ router.get('/api/v1/trip/estimate', async (req, res) => {
     }
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
-    return res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    const { toPublicApiError } = require('./utils/public-error');
+    const response = toPublicApiError(error);
+    return res.status(response.statusCode).json(response.body);
   }
 });
 
