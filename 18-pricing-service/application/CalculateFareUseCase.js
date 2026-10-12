@@ -190,8 +190,10 @@ class CalculateFareUseCase {
           !Number.isFinite(Number(promoResult.discountAmount)) ||
           !Number.isFinite(Number(promoResult.finalFare)) ||
           Number(promoResult.discountAmount) < 0 ||
+          Number(promoResult.discountAmount) > estimatedFare ||
           Number(promoResult.finalFare) < 0 ||
-          Number(promoResult.finalFare) > estimatedFare) {
+          Number(promoResult.finalFare) > estimatedFare ||
+          Math.abs(Number(promoResult.finalFare) - (estimatedFare - Number(promoResult.discountAmount))) > 0.01) {
         throw promoError('پاسخ سرویس کد تخفیف معتبر نیست.', 'PROMO_RESULT_INVALID', 503);
       }
       result.discountAmount = Number(promoResult.discountAmount);
