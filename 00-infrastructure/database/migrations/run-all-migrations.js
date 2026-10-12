@@ -151,7 +151,7 @@ function splitSQL(sql) {
     // PostgreSQL E'...' strings allow backslash escapes. Consume escaped
     // characters before checking quotes or semicolons, otherwise a valid
     // escaped apostrophe can split a migration statement incorrectly.
-    if (inQuote && inEscapeQuote && ch === '\\\\') {
+    if (inQuote && inEscapeQuote && ch === '\\') {
       current += ch;
       if (next) {
         current += next;
