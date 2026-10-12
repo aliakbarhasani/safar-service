@@ -27,8 +27,15 @@ const TRIP_BASE = {
 };
 
 function makeTripRepository(dbRow) {
+  const db = new Pool();
+  const client = {
+    query: jest.fn().mockResolvedValue({ rows: [] }),
+    release: jest.fn(),
+  };
+  db.connect.mockResolvedValue(client);
   return {
-    db: new Pool(),
+    db,
+    client,
     getTripByIdForUpdate: jest.fn().mockResolvedValue(dbRow),
     updateTripStatus: jest.fn().mockImplementation(async (p) => ({
       id: p.tripId,
@@ -127,6 +134,26 @@ describe('CancelTripUseCase (P7-1: penalty & business rules)', () => {
     await expect(
       uc.execute({ tripId: 'trip-1', cancelledByRole: 'passenger', cancelledByUserId: 'stranger-9' }),
     ).rejects.toMatchObject({ code: 'UNAUTHORIZED_TRIP_CANCEL', statusCode: 403 });
+  });
+
+  test('post-commit event listener failure does not report a committed cancellation as failed', async () => {
+    const row = { ...TRIP_BASE, status: 'REQUESTED', driver_id: null };
+    repo = makeTripRepository(row);
+    useCase = new CancelTripUseCase({
+      tripRepository: repo,
+      emitEvent: () => { throw new Error('listener unavailable'); },
+    });
+
+    const result = await useCase.execute({
+      tripId: 'trip-1',
+      cancelledByRole: 'passenger',
+      cancelledByUserId: 'p1',
+    });
+
+    expect(result.status).toBe('CANCELLED');
+    expect(repo.client.query).toHaveBeenCalledWith('COMMIT');
+    expect(repo.client.query).not.toHaveBeenCalledWith('ROLLBACK');
+    expect(repo.client.release).toHaveBeenCalledTimes(1);
   });
 
   test('missing tripId -> 400', async () => {
