@@ -1019,14 +1019,38 @@ async function refundFunds(originalTransactionId, reason = '') {
   const result = await pg.transaction(async (client) => {
     // Lock the original transaction so concurrent refund requests serialize.
     const originalResult = await client.query(
-      `SELECT ${['id', 'wallet_id', 'trip_id', 'user_id', 'amount', 'currency_id', 'type', 'description', 'status', 'reference_id', 'created_at'].join(', ')}
-       FROM transactions WHERE id = $1 FOR UPDATE`,
+      `SELECT
+         t.id, t.wallet_id, t.trip_id, t.user_id, t.amount, t.currency_id,
+         t.type, t.description, t.status, t.reference_id, t.created_at,
+         EXISTS (
+           SELECT 1
+           FROM wallet_ledger wl
+           WHERE wl.transaction_id = t.id
+             AND wl.operation_type IN ('transfer_out', 'trip_payment', 'escrow_release')
+         ) AS is_multi_party_debit
+       FROM transactions t
+       WHERE t.id = $1
+       FOR UPDATE OF t`,
       [originalTransactionId]
     );
     const originalTx = originalResult.rows[0];
     if (!originalTx) throw new Error(`Original transaction not found: ${originalTransactionId}`);
     if (originalTx.type !== 'DEBIT' || originalTx.status !== 'success') {
       throw new Error('Only successful debit transactions can be refunded');
+    }
+
+    // A generic one-wallet credit is not a valid reversal for a multi-party
+    // operation: it would leave the receiver/platform credited and create money.
+    // Those flows must use their own coordinated reversal lifecycle.
+    const originalReferenceId = String(originalTx.reference_id || '');
+    const multiPartyReference =
+      originalReferenceId.startsWith('trip-payment:') ||
+      originalReferenceId.startsWith('escrow-release:') ||
+      originalReferenceId.startsWith('wallet-transfer:') ||
+      originalReferenceId.endsWith(':sender') ||
+      originalReferenceId.endsWith(':passenger');
+    if (originalTx.is_multi_party_debit === true || originalTx.is_multi_party_debit === 't' || multiPartyReference) {
+      throw new Error('MULTI_PARTY_REFUND_REQUIRES_REVERSAL: this debit belongs to a multi-party settlement; use its workflow-specific reversal');
     }
 
     const existingRefund = await Transaction.findByReferenceId(referenceId, client);
