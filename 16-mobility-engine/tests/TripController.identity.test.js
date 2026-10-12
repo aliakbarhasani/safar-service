@@ -65,4 +65,34 @@ describe('TripController passenger identity compatibility', () => {
     }
   });
 
+
+  test.each([
+    ['acceptTrip', 'acceptTripUseCase', 'خطای داخلی در پذیرش سفر. لطفاً دوباره تلاش کنید.'],
+    ['driverArrived', 'arriveAtPickupUseCase', 'خطای داخلی در ثبت رسیدن راننده. لطفاً دوباره تلاش کنید.'],
+    ['startTrip', 'startTripUseCase', 'خطای داخلی در شروع سفر. لطفاً دوباره تلاش کنید.'],
+    ['completeTrip', 'endTripUseCase', 'خطای داخلی در تکمیل سفر.'],
+    ['cancelTrip', 'cancelTripUseCase', 'خطای داخلی در لغو سفر. لطفاً دوباره تلاش کنید.'],
+  ])('%s hides unexpected infrastructure error details', async (method, dependency, publicMessage) => {
+    const secretMessage = 'connection string password=private-database-secret';
+    const useCase = { execute: jest.fn(async () => { throw new Error(secretMessage); }) };
+    const controller = new TripController({ [dependency]: useCase });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const req = {
+      user: { sub: 'admin-1', role: 'admin' },
+      params: { tripId: 'trip-1' },
+      body: {},
+    };
+    const res = makeResponse();
+
+    try {
+      await controller[method](req, res);
+      expect(res.statusCode).toBe(500);
+      expect(res.body.error).toBe(publicMessage);
+      expect(JSON.stringify(res.body)).not.toContain('connection string');
+      expect(JSON.stringify(res.body)).not.toContain('private-database-secret');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
 });
