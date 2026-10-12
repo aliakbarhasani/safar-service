@@ -83,6 +83,53 @@ describe('Promo TripCompletedHandler', () => {
     })).rejects.toMatchObject({ code: 'PROMO_USAGE_TRANSACTION_UNAVAILABLE' });
   });
 
+  test('subscription returns a failed processing result so OutboxRelay can retry', async () => {
+    let listener;
+    const eventBus = {
+      on: jest.fn((eventName, callback) => { listener = callback; }),
+      logger: { error: jest.fn() },
+    };
+    const handler = new TripCompletedHandler({
+      promoCodeModel: {},
+      promoUsageModel: {},
+      eventBus,
+      // Intentionally no pool: a promo-bearing event must fail closed.
+    });
+    handler.subscribe();
+
+    const result = await listener({
+      event: 'TripCompleted',
+      data: { tripId: 'trip-1', passengerId: 'user-1', promoCode: 'SAVE10' },
+    });
+
+    expect(eventBus.on).toHaveBeenCalledWith('TripCompleted', expect.any(Function));
+    expect(result).toMatchObject({
+      processed: false,
+      consumed: false,
+      reason: 'PROMO_USAGE_TRANSACTION_UNAVAILABLE',
+    });
+    expect(eventBus.logger.error).toHaveBeenCalled();
+  });
+
+  test('subscription awaits and returns successful promo usage processing', async () => {
+    let listener;
+    const eventBus = { on: jest.fn((eventName, callback) => { listener = callback; }) };
+    const pool = makePool();
+    const handler = new TripCompletedHandler({
+      promoCodeModel: {},
+      promoUsageModel: {},
+      pool,
+      eventBus,
+    });
+    handler.subscribe();
+
+    await expect(listener({
+      event: 'TripCompleted',
+      data: { tripId: 'trip-1', passengerId: 'user-1', promoCode: 'SAVE10' },
+    })).resolves.toMatchObject({ consumed: true, tripId: 'trip-1' });
+    expect(pool.client.query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(true);
+  });
+
   test('ignores trips that have no promo code', async () => {
     const handler = new TripCompletedHandler({ promoCodeModel: {}, promoUsageModel: {} });
     await expect(handler.handle({ tripId: 'trip-1', passengerId: 'user-1' }))

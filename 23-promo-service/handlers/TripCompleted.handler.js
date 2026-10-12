@@ -29,6 +29,27 @@ class TripCompletedHandler {
     this.eventBus = eventBus;
     this.eventName = eventName;
     this._subscribed = false;
+    this._boundOnTripCompleted = (payload) => {
+      // EventBus.publishAsync awaits listener return values. Return this promise
+      // so OutboxRelay can retry the durable event when promo usage fails.
+      const eventData = payload && payload.data && payload.event
+        ? payload.data
+        : (payload || {});
+      return this.handle(eventData).catch((err) => {
+        const logger = this.eventBus && this.eventBus.logger;
+        if (logger && typeof logger.error === 'function') {
+          logger.error('TripCompletedHandler failed', err);
+        } else {
+          console.warn(`[promo] TripCompletedHandler failed: ${err.message}`);
+        }
+        return {
+          processed: false,
+          consumed: false,
+          reason: err.code || 'promo_usage_failed',
+          message: err.message,
+        };
+      });
+    };
   }
 
   /**
@@ -89,25 +110,7 @@ class TripCompletedHandler {
    */
   subscribe() {
     if (!this.eventBus || !this.eventBus.on || this._subscribed) return;
-    this.eventBus.on(this.eventName, (payload) => {
-      // Central EventBus publishes { event, data, timestamp }; support both
-      // the canonical envelope and direct payloads used by legacy callers.
-      const eventData = payload && payload.data && payload.event
-        ? payload.data
-        : (payload || {});
-      try {
-        this.handle(eventData).catch((err) => {
-          // خطای هندلر نباید به تولیدکننده رویداد منتقل شود
-          if (this.eventBus && this.eventBus.logger) {
-            this.eventBus.logger.error('TripCompletedHandler failed', err);
-          } else {
-            console.warn(`[promo] TripCompletedHandler failed: ${err.message}`);
-          }
-        });
-      } catch (err) {
-        console.warn(`[promo] TripCompletedHandler async error: ${err.message}`);
-      }
-    });
+    this.eventBus.on(this.eventName, this._boundOnTripCompleted);
     this._subscribed = true;
   }
 }
