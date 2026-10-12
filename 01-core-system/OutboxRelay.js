@@ -126,8 +126,29 @@ class OutboxRelay {
     }
 
     const results = await this.eventBus.publishAsync(row.event_type, data);
-    const failed = (results || []).find((result) => {
-      if (!result || typeof result !== 'object') return false;
+    const acknowledgements = (Array.isArray(results) ? results : [])
+      .filter((result) => result && typeof result === 'object');
+
+    if (ACK_REQUIRED_EVENTS.has(row.event_type)) {
+      const hasContractAcknowledgement = acknowledgements.some((result) => {
+        if (row.event_type === 'TripCompleted') {
+          return typeof result.consumed === 'boolean' || typeof result.processed === 'boolean';
+        }
+        if (row.event_type === 'TripCreated') {
+          return typeof result.dispatchFailed === 'boolean' || typeof result.status === 'string';
+        }
+        if (row.event_type === 'TripCancelled') {
+          return typeof result.penaltyProcessed === 'boolean' || typeof result.released === 'boolean';
+        }
+        return false;
+      });
+
+      if (!hasContractAcknowledgement) {
+        throw new Error(`Missing consumer acknowledgement for ${row.event_type}`);
+      }
+    }
+
+    const failed = acknowledgements.find((result) => {
       if (row.event_type === 'TripCompleted') return result.processed === false;
       if (row.event_type === 'TripCreated') return result.dispatchFailed === true;
       if (row.event_type === 'TripCancelled') {
