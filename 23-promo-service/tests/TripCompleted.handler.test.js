@@ -2,12 +2,17 @@
 
 const { TripCompletedHandler } = require('../handlers/TripCompleted.handler');
 
-function makePool({ insertRows = [{ id: 'usage-1' }], updateRows = [{ code: 'SAVE10' }] } = {}) {
+function makePool({
+  insertRows = [{ id: 'usage-1' }],
+  updateRows = [{ code: 'SAVE10' }],
+  existingRows = [{ user_id: 'user-1', promo_code: 'SAVE10' }],
+} = {}) {
   const queries = [];
   const client = {
     query: jest.fn(async (sql, params) => {
       queries.push({ sql, params });
       if (sql.startsWith('INSERT INTO promo_usages')) return { rows: insertRows };
+      if (sql.startsWith('SELECT user_id, promo_code FROM promo_usages')) return { rows: existingRows };
       if (sql.startsWith('UPDATE promo_codes')) return { rows: updateRows };
       return { rows: [] };
     }),
@@ -45,7 +50,7 @@ describe('Promo TripCompletedHandler', () => {
     expect(pool.client.release).toHaveBeenCalledTimes(1);
   });
 
-  test('does not increment usage counter when a completion event is replayed', async () => {
+  test('accepts an exact replay without incrementing usage counter', async () => {
     const pool = makePool({ insertRows: [] });
     const handler = new TripCompletedHandler({ promoCodeModel: {}, promoUsageModel: {}, pool });
 
@@ -55,8 +60,43 @@ describe('Promo TripCompletedHandler', () => {
       promoCode: 'SAVE10',
     })).resolves.toMatchObject({ consumed: false, duplicate: true });
 
+    expect(pool.client.query).toHaveBeenCalledWith(
+      'SELECT user_id, promo_code FROM promo_usages WHERE trip_id = $1 FOR UPDATE',
+      ['trip-1'],
+    );
     expect(pool.client.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE promo_codes'))).toBe(false);
     expect(pool.client.query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(true);
+  });
+
+  test('rejects a replay with a different user or promo code and rolls back', async () => {
+    const pool = makePool({
+      insertRows: [],
+      existingRows: [{ user_id: 'someone-else', promo_code: 'SAVE10' }],
+    });
+    const handler = new TripCompletedHandler({ promoCodeModel: {}, promoUsageModel: {}, pool });
+
+    await expect(handler.handle({
+      tripId: 'trip-1',
+      passengerId: 'user-1',
+      promoCode: 'SAVE10',
+    })).rejects.toMatchObject({ code: 'PROMO_USAGE_IDEMPOTENCY_CONFLICT' });
+
+    expect(pool.client.query.mock.calls.some(([sql]) => sql === 'ROLLBACK')).toBe(true);
+    expect(pool.client.query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
+    expect(pool.client.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE promo_codes'))).toBe(false);
+  });
+
+  test('fails closed if an insert conflict has no matching usage row', async () => {
+    const pool = makePool({ insertRows: [], existingRows: [] });
+    const handler = new TripCompletedHandler({ promoCodeModel: {}, promoUsageModel: {}, pool });
+
+    await expect(handler.handle({
+      tripId: 'trip-1',
+      passengerId: 'user-1',
+      promoCode: 'SAVE10',
+    })).rejects.toMatchObject({ code: 'PROMO_USAGE_IDEMPOTENCY_STATE_INVALID' });
+
+    expect(pool.client.query.mock.calls.some(([sql]) => sql === 'ROLLBACK')).toBe(true);
   });
 
   test('rolls back usage if promo counter update fails', async () => {
