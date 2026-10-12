@@ -55,6 +55,25 @@ describe('JWT key generation safety', () => {
     expect(caught).toMatchObject({ code: 'JWT_KEY_PAIR_INCOMPLETE' });
   });
 
+  test('refuses to silently preserve a mismatched existing pair', () => {
+    const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safar-jwt-other-'));
+    try {
+      generateKeyPair({ keysDir, passphrase: '' });
+      generateKeyPair({ keysDir: otherDir, passphrase: '' });
+      fs.copyFileSync(path.join(otherDir, 'jwt_public.pem'), path.join(keysDir, 'jwt_public.pem'));
+
+      let caught;
+      try {
+        generateKeyPair({ keysDir, passphrase: '' });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toMatchObject({ code: 'JWT_KEY_PAIR_MISMATCH' });
+    } finally {
+      fs.rmSync(otherDir, { recursive: true, force: true });
+    }
+  });
+
   test('regenerates only when explicitly requested', () => {
     generateKeyPair({ keysDir, passphrase: '' });
     const privateBefore = fs.readFileSync(path.join(keysDir, 'jwt_private.pem'), 'utf8');
