@@ -103,6 +103,11 @@ describe('SQL statement splitting', () => {
       .toEqual(["SELECT 'can''t;split'", 'SELECT 2']);
   });
 
+  test('keeps semicolons inside PostgreSQL E-strings with backslash-escaped apostrophes', () => {
+    const sql = "SELECT E'can\\'t;split'; SELECT 2;";
+    expect(splitSQL(sql)).toEqual(["SELECT E'can\\'t;split'", 'SELECT 2']);
+  });
+
   test('keeps semicolons inside quoted identifiers', () => {
     expect(splitSQL('SELECT "odd;name" FROM sample; SELECT 2;'))
       .toEqual(['SELECT "odd;name" FROM sample', 'SELECT 2']);
