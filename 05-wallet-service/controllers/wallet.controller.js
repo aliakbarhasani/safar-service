@@ -85,28 +85,60 @@ async function withdraw(req, res) {
 /**
  * انتقال وجه بین دو کاربر
  * POST /api/wallets/transfer
- * Body: { receiverId, amount, currency?, description? }
+ * Body: { receiverId, amount, currency?, description?, referenceId? }
+ * Header: Idempotency-Key (preferred; referenceId is the fallback)
  */
 async function transfer(req, res) {
   try {
-    const senderId = req.user.userId || req.user.id;
-    const { receiverId, amount, currency, description } = req.body;
+    const senderId = req.user && (req.user.userId || req.user.id);
+    const { receiverId, amount, currency, description, referenceId: bodyReferenceId } = req.body || {};
+    const headerKey = req.headers && (req.headers['idempotency-key'] || req.headers['Idempotency-Key']);
+    const idempotencyKey = String(headerKey || bodyReferenceId || '').trim();
 
+    if (!senderId) {
+      return res.status(401).json({ success: false, code: 'WALLET_AUTH_REQUIRED', error: 'Authenticated sender is required' });
+    }
     if (!receiverId) {
       return res.status(400).json({ success: false, error: 'Receiver ID is required' });
     }
+    // reference_id is VARCHAR(128); reserve room for the sender namespace and
+    // the service's :sender / :receiver suffixes.
+    if (!/^[A-Za-z0-9._:-]{8,64}$/.test(idempotencyKey)) {
+      return res.status(400).json({
+        success: false,
+        code: 'IDEMPOTENCY_KEY_REQUIRED',
+        error: 'Provide an Idempotency-Key header or referenceId (8-64 safe characters).',
+      });
+    }
+    const transferReferenceId = 'wallet-transfer:' + String(senderId) + ':' + idempotencyKey;
 
     const result = await walletService.transferFunds(
       senderId,
       receiverId,
       amount,
       currency || 'IRT',
-      description || ''
+      description || '',
+      transferReferenceId
     );
 
     return res.json({ success: true, message: 'Transfer successful', data: result });
   } catch (err) {
-    return res.status(400).json({ success: false, error: err.message });
+    const message = String(err && err.message || '');
+    const idempotencyConflict = message.startsWith('IDEMPOTENCY_KEY_REUSED:');
+    const integrityFailure = message.startsWith('IDEMPOTENCY_STATE_INCOMPLETE:') ||
+      message.startsWith('IDEMPOTENCY_LEDGER_INCOMPLETE:');
+    const duplicate = message.startsWith('Duplicate transaction:');
+    const statusCode = (idempotencyConflict || duplicate) ? 409 : (integrityFailure ? 500 : 400);
+    return res.status(statusCode).json({
+      success: false,
+      code: idempotencyConflict || duplicate ? 'IDEMPOTENCY_KEY_REUSED' :
+        (integrityFailure ? 'WALLET_LEDGER_INTEGRITY_ERROR' : null),
+      error: integrityFailure
+        ? 'Transfer records require reconciliation; no new transfer was created.'
+        : (idempotencyConflict || duplicate
+          ? 'This transfer key has already been processed with different or unverifiable details.'
+          : message),
+    });
   }
 }
 

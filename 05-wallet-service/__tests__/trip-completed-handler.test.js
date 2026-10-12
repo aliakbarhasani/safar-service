@@ -289,7 +289,7 @@ describe('walletService.refundFunds (atomic refund)', () => {
     pg.transaction.mockImplementationOnce(async (callback) => {
       const client = {
         query: jest.fn(async (sql) => (
-          sql.includes('FROM transactions WHERE id = $1')
+          sql.includes('FROM transactions t') || sql.includes('FROM transactions WHERE id = $1')
             ? { rows: [originalTx], rowCount: 1 }
             : { rows: [], rowCount: 0 }
         )),
@@ -323,6 +323,52 @@ describe('walletService.refundFunds (atomic refund)', () => {
       expect.anything(),
     );
     expect(EventBus.publish).toHaveBeenCalledWith('WalletBalanceChanged', expect.any(Object));
+  });
+
+  test('refuses a generic refund for a transfer debit to avoid crediting only the sender', async () => {
+    jest.clearAllMocks();
+    const originalTx = {
+      id: 'transfer-debit-tx', wallet_id: 'wallet-sender', user_id: 'sender-1',
+      amount: '2500', currency_id: 'IRT', type: 'DEBIT', status: 'success',
+      reference_id: 'wallet-transfer:sender-1:retry-0001:sender',
+      trip_id: null, is_multi_party_debit: false,
+    };
+    pg.transaction.mockImplementationOnce(async (callback) => callback({
+      query: jest.fn(async (sql) => (
+        sql.includes('FROM transactions t')
+          ? { rows: [originalTx], rowCount: 1 }
+          : { rows: [], rowCount: 0 }
+      )),
+    }));
+
+    await expect(walletService.refundFunds('transfer-debit-tx', 'admin refund'))
+      .rejects.toThrow('MULTI_PARTY_REFUND_REQUIRES_REVERSAL');
+
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
+    expect(Transaction.createLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  test('refuses a trip-settlement debit even when its reference is legacy or absent', async () => {
+    jest.clearAllMocks();
+    const originalTx = {
+      id: 'trip-debit-tx', wallet_id: 'wallet-passenger', user_id: 'passenger-1',
+      amount: '2500', currency_id: 'IRT', type: 'DEBIT', status: 'success',
+      reference_id: 'legacy-trip-payment', trip_id: 'trip-1', is_multi_party_debit: true,
+    };
+    pg.transaction.mockImplementationOnce(async (callback) => callback({
+      query: jest.fn(async (sql) => (
+        sql.includes('FROM transactions t')
+          ? { rows: [originalTx], rowCount: 1 }
+          : { rows: [], rowCount: 0 }
+      )),
+    }));
+
+    await expect(walletService.refundFunds('trip-debit-tx', 'admin refund'))
+      .rejects.toThrow('MULTI_PARTY_REFUND_REQUIRES_REVERSAL');
+
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
   });
 
   test('allocates the full penalty to the platform when no driver is assigned', async () => {

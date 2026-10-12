@@ -412,9 +412,89 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
 
   const result = await pg.transaction(async (client) => {
     if (referenceId) {
-      const existingTx = await Transaction.findByReferenceId(senderReferenceId, client);
-      if (existingTx) {
-        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
+      // Serialize requests sharing a transfer reference. This closes the race
+      // between "check existing" and the first ledger write.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-transfer:${String(referenceId)}`]
+      );
+
+      const existingResult = await client.query(
+        `SELECT
+           t.id, t.wallet_id, t.user_id, t.amount, t.currency_id, t.type,
+           t.description, t.status, t.reference_id, c.code AS currency_code,
+           wl.id AS ledger_id, wl.balance_after, wl.available_after, wl.frozen_after
+         FROM transactions t
+         JOIN currencies c ON c.id = t.currency_id
+         LEFT JOIN wallet_ledger wl
+           ON wl.transaction_id = t.id AND wl.reference_id = t.reference_id
+         WHERE t.reference_id = $1 OR t.reference_id = $2
+         ORDER BY t.reference_id
+         FOR UPDATE OF t`,
+        [senderReferenceId, receiverReferenceId]
+      );
+      const existingRows = existingResult.rows || [];
+      if (existingRows.length > 0) {
+        const senderTx = existingRows.find((row) => row.reference_id === senderReferenceId);
+        const receiverTx = existingRows.find((row) => row.reference_id === receiverReferenceId);
+
+        if (!senderTx || !receiverTx) {
+          throw new Error('IDEMPOTENCY_STATE_INCOMPLETE: transfer records are incomplete; manual reconciliation is required');
+        }
+
+        const expectedSenderDescription = description || `Transfer to user ${receiverId}`;
+        const expectedReceiverDescription = description || `Transfer from user ${senderId}`;
+        const amountMatches = Number(senderTx.amount) === amount && Number(receiverTx.amount) === amount;
+        const currencyMatches = [senderTx, receiverTx].every((row) =>
+          row.currency_code === currencyId || String(row.currency_id) === String(currencyId)
+        );
+        const samePayload =
+          String(senderTx.user_id) === String(senderId) &&
+          String(receiverTx.user_id) === String(receiverId) &&
+          senderTx.type === 'DEBIT' &&
+          receiverTx.type === 'CREDIT' &&
+          senderTx.status === 'success' &&
+          receiverTx.status === 'success' &&
+          amountMatches &&
+          currencyMatches &&
+          senderTx.description === expectedSenderDescription &&
+          receiverTx.description === expectedReceiverDescription &&
+          String(senderTx.currency_id) === String(receiverTx.currency_id);
+
+        if (!samePayload) {
+          throw new Error('IDEMPOTENCY_KEY_REUSED: this transfer key was already used with a different payload');
+        }
+        if (!senderTx.ledger_id || !receiverTx.ledger_id) {
+          throw new Error('IDEMPOTENCY_LEDGER_INCOMPLETE: transfer ledger records are incomplete; manual reconciliation is required');
+        }
+
+        // Reconstruct the original response from immutable transaction/ledger
+        // records. Do not mutate balances or publish duplicate balance events.
+        return {
+          success: true,
+          message: 'Transfer successful',
+          sender: {
+            walletId: senderTx.wallet_id,
+            userId: senderId,
+            balance: Number(senderTx.balance_after),
+            availableBalance: Number(senderTx.available_after),
+            frozenBalance: Number(senderTx.frozen_after),
+            transactionId: senderTx.id
+          },
+          receiver: {
+            walletId: receiverTx.wallet_id,
+            userId: receiverId,
+            balance: Number(receiverTx.balance_after),
+            availableBalance: Number(receiverTx.available_after),
+            frozenBalance: Number(receiverTx.frozen_after),
+            transactionId: receiverTx.id
+          },
+          amount: Number(senderTx.amount),
+          currencyId,
+          description: description || 'Internal transfer',
+          referenceId,
+          events: []
+        };
       }
     }
     // 1. بازیابی کیف پول فرستنده (باید وجود داشته باشد)
@@ -1019,14 +1099,38 @@ async function refundFunds(originalTransactionId, reason = '') {
   const result = await pg.transaction(async (client) => {
     // Lock the original transaction so concurrent refund requests serialize.
     const originalResult = await client.query(
-      `SELECT ${['id', 'wallet_id', 'trip_id', 'user_id', 'amount', 'currency_id', 'type', 'description', 'status', 'reference_id', 'created_at'].join(', ')}
-       FROM transactions WHERE id = $1 FOR UPDATE`,
+      `SELECT
+         t.id, t.wallet_id, t.trip_id, t.user_id, t.amount, t.currency_id,
+         t.type, t.description, t.status, t.reference_id, t.created_at,
+         EXISTS (
+           SELECT 1
+           FROM wallet_ledger wl
+           WHERE wl.transaction_id = t.id
+             AND wl.operation_type IN ('transfer_out', 'trip_payment', 'escrow_release')
+         ) AS is_multi_party_debit
+       FROM transactions t
+       WHERE t.id = $1
+       FOR UPDATE OF t`,
       [originalTransactionId]
     );
     const originalTx = originalResult.rows[0];
     if (!originalTx) throw new Error(`Original transaction not found: ${originalTransactionId}`);
     if (originalTx.type !== 'DEBIT' || originalTx.status !== 'success') {
       throw new Error('Only successful debit transactions can be refunded');
+    }
+
+    // A generic one-wallet credit is not a valid reversal for a multi-party
+    // operation: it would leave the receiver/platform credited and create money.
+    // Those flows must use their own coordinated reversal lifecycle.
+    const originalReferenceId = String(originalTx.reference_id || '');
+    const multiPartyReference =
+      originalReferenceId.startsWith('trip-payment:') ||
+      originalReferenceId.startsWith('escrow-release:') ||
+      originalReferenceId.startsWith('wallet-transfer:') ||
+      originalReferenceId.endsWith(':sender') ||
+      originalReferenceId.endsWith(':passenger');
+    if (originalTx.is_multi_party_debit === true || originalTx.is_multi_party_debit === 't' || multiPartyReference) {
+      throw new Error('MULTI_PARTY_REFUND_REQUIRES_REVERSAL: this debit belongs to a multi-party settlement; use its workflow-specific reversal');
     }
 
     const existingRefund = await Transaction.findByReferenceId(referenceId, client);
