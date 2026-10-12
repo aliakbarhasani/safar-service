@@ -4,24 +4,9 @@
  * TripCompleted.handler.js - Promo Service (P10-2)
  *
  * به رویداد پایان سفر (`TripCompleted`) گوش می‌دهد. اگر سفر از یک کد تخفیف
- * استفاده کرده باشد:
- *   1) یک رکورد در جدول `promo_usages` ثبت می‌کند (ردیابی مصرف هر کاربر).
- *   2) `current_uses` کد را به‌صورت اتمیک یک واحد افزایش می‌دهد
- *      (`UPDATE ... SET current_uses = current_uses + 1`).
- *
- * برای جلوگیری از خطای عدم-اتمیسیته (race) میان ثبت مصرف و افزایش شمارنده،
- * هر دو عملیات داخل یک تراکنش PostgreSQL اجرا می‌شوند.
+ * استفاده کرده باشد، ثبت مصرف و افزایش شمارنده در یک تراکنش PostgreSQL انجام می‌شود.
  */
-
 class TripCompletedHandler {
-  /**
-   * @param {Object} deps
-   * @param {PromoCode} deps.promoCodeModel   - مدل دسترسی promo_codes
-   * @param {PromoUsage} deps.promoUsageModel - مدل دسترسی promo_usages
-   * @param {Object} [deps.pool]              - پول اتصال PG برای تراکنش (اختیاری)
-   * @param {Object} [deps.eventBus]          - EventBus اختیاری برای clean-up در تست
-   * @param {string} [deps.eventName]         - نام رویداد موردنظر (پیش‌فرض TripCompleted)
-   */
   constructor({ promoCodeModel, promoUsageModel, pool = null, eventBus = null, eventName = 'TripCompleted' }) {
     this.promoCodeModel = promoCodeModel;
     this.promoUsageModel = promoUsageModel;
@@ -30,8 +15,7 @@ class TripCompletedHandler {
     this.eventName = eventName;
     this._subscribed = false;
     this._boundOnTripCompleted = (payload) => {
-      // EventBus.publishAsync awaits listener return values. Return this promise
-      // so OutboxRelay can retry the durable event when promo usage fails.
+      // EventBus.publishAsync awaits listener return values, allowing OutboxRelay to retry failures.
       const eventData = payload && payload.data && payload.event
         ? payload.data
         : (payload || {});
@@ -53,13 +37,15 @@ class TripCompletedHandler {
   }
 
   /**
-   * منطق مصرف کد تخفیف در پایان سفر.
-   * @param {Object} data پیلود رویداد (سفر تکمیل‌شده)
+   * ثبت مصرف کد تخفیف در پایان سفر؛ رویداد تکراری تنها در صورت تطابق کامل
+   * با مصرف قبلی پذیرفته می‌شود.
    */
   async handle({ tripId, passengerId, promoCode }) {
     if (!promoCode) return { consumed: false };
     if (!tripId || !passengerId) {
-      throw new Error('TripCompleted payload must include tripId and passengerId');
+      const error = new Error('TripCompleted payload must include tripId and passengerId');
+      error.code = 'PROMO_USAGE_INVALID_PAYLOAD';
+      throw error;
     }
     if (!this.pool || typeof this.pool.connect !== 'function') {
       const error = new Error('Promo usage requires a PostgreSQL transaction-capable pool');
@@ -71,8 +57,8 @@ class TripCompletedHandler {
     try {
       await client.query('BEGIN');
 
-      // A unique trip_id index plus INSERT ... ON CONFLICT makes event replay safe.
-      // The counter changes only when this event inserts the first usage row.
+      // The unique trip_id index prevents duplicate usage rows. A conflict must
+      // be verified, not blindly accepted: a replay with another user/code is corruption.
       const inserted = await client.query(
         'INSERT INTO promo_usages (user_id, promo_code, trip_id) VALUES ($1, $2, $3) ' +
         'ON CONFLICT (trip_id) WHERE trip_id IS NOT NULL DO NOTHING RETURNING id',
@@ -80,6 +66,21 @@ class TripCompletedHandler {
       );
 
       if (!inserted.rows || inserted.rows.length === 0) {
+        const existing = await client.query(
+          'SELECT user_id, promo_code FROM promo_usages WHERE trip_id = $1 FOR UPDATE',
+          [tripId]
+        );
+        const usage = existing.rows && existing.rows[0];
+        if (!usage) {
+          const error = new Error('Promo usage conflict could not be reconciled');
+          error.code = 'PROMO_USAGE_IDEMPOTENCY_STATE_INVALID';
+          throw error;
+        }
+        if (String(usage.user_id) !== String(passengerId) || usage.promo_code !== promoCode) {
+          const error = new Error('Trip promo usage already exists with a different user or promo code');
+          error.code = 'PROMO_USAGE_IDEMPOTENCY_CONFLICT';
+          throw error;
+        }
         await client.query('COMMIT');
         return { consumed: false, duplicate: true, tripId, promoCode, userId: passengerId };
       }
@@ -105,9 +106,6 @@ class TripCompletedHandler {
     }
   }
 
-  /**
-   * اشتراک در EventBus مرکزی (در صورت فراهم‌شدن).
-   */
   subscribe() {
     if (!this.eventBus || !this.eventBus.on || this._subscribed) return;
     this.eventBus.on(this.eventName, this._boundOnTripCompleted);
