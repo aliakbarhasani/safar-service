@@ -32,18 +32,46 @@ jobs:
           npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
           node - "$RUNNER_TEMP/npm-audit.json" <<'NODE'
           const fs = require('fs');
-          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          const proxyAddr = report.vulnerabilities && report.vulnerabilities['proxy-addr'];
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          } catch (error) {
+            console.error('npm audit produced invalid JSON; refusing to pass the security gate.');
+            process.exit(1);
+          }
+          if (!report || typeof report !== 'object' || Array.isArray(report) || report.error) {
+            console.error('npm audit report is missing or contains an error:', JSON.stringify(report && report.error || report));
+            process.exit(1);
+          }
+          if (!report.metadata || !report.metadata.vulnerabilities ||
+              typeof report.metadata.vulnerabilities !== 'object' ||
+              Array.isArray(report.metadata.vulnerabilities)) {
+            console.error('npm audit report has no valid vulnerability summary; refusing to pass.');
+            process.exit(1);
+          }
+          if (!report.vulnerabilities || typeof report.vulnerabilities !== 'object' ||
+              Array.isArray(report.vulnerabilities)) {
+            console.error('npm audit report has no valid vulnerability details; refusing to pass.');
+            process.exit(1);
+          }
+          const counts = report.metadata.vulnerabilities;
+          for (const level of ['info', 'low', 'moderate', 'high', 'critical']) {
+            if (!Number.isSafeInteger(counts[level]) || counts[level] < 0) {
+              console.error('npm audit report has an invalid vulnerability count for ' + level + '.');
+              process.exit(1);
+            }
+          }
+          const proxyAddr = report.vulnerabilities['proxy-addr'];
           if (proxyAddr) {
             console.error('npm audit still reports proxy-addr:', JSON.stringify(proxyAddr));
             process.exit(1);
           }
-          const counts = report.metadata && report.metadata.vulnerabilities || {};
-          if (Number(counts.critical || 0) > 0) {
+          if (counts.critical > 0) {
             console.error('Critical npm audit findings remain:', counts.critical);
             process.exit(1);
           }
-          console.log('npm audit reports no proxy-addr advisory and no remaining critical findings.');
+          console.log('npm audit summary:', JSON.stringify(counts));
+          console.log('No proxy-addr advisory or critical findings remain; high/moderate findings are reported for remediation.');
           NODE
 
       - name: Check wallet source and regression-test syntax
