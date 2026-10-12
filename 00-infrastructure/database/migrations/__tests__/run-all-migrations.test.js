@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const {
   executeMigration,
   findMissingMigrationFiles,
@@ -124,8 +127,13 @@ describe('SQL statement splitting', () => {
 });
 
 describe('migration manifest integrity', () => {
-  test('registers the promo-code schema migration after the existing ordered history', () => {
-    expect(MIGRATION_ORDER[MIGRATION_ORDER.length - 1]).toBe('032_add_trip_promo_code.sql');
+  test('registers the promo usage idempotency migration after the existing ordered history', () => {
+    expect(MIGRATION_ORDER[MIGRATION_ORDER.length - 1]).toBe('033_promo_usage_trip_idempotency.sql');
+  });
+
+  test('every registered migration has a matching SQL file', () => {
+    const migrationsDirectory = path.resolve(__dirname, '..');
+    expect(findMissingMigrationFiles(MIGRATION_ORDER, migrationsDirectory, fs.existsSync)).toEqual([]);
   });
 
   test('contains no duplicate migration filenames', () => {
