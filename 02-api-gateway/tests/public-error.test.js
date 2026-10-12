@@ -19,6 +19,24 @@ describe('toPublicApiError', () => {
     });
   });
 
+  test.each([
+    'FARE_QUOTE_PERSISTENCE_UNAVAILABLE',
+    'FARE_QUOTE_PERSISTENCE_FAILED',
+  ])('maps %s to a safe service-unavailable response', (code) => {
+    const result = toPublicApiError({
+      code,
+      statusCode: 503,
+      message: 'ذخیره‌سازی پیش‌فاکتور موقتاً ناموفق بود؛ لطفاً دوباره تلاش کنید.',
+    });
+
+    expect(result.statusCode).toBe(503);
+    expect(result.body).toEqual({
+      success: false,
+      error: 'ذخیره‌سازی پیش‌فاکتور موقتاً ناموفق بود؛ لطفاً دوباره تلاش کنید.',
+      code,
+    });
+  });
+
   test('keeps an unsupported promo lifecycle explicit without exposing internals', () => {
     const result = toPublicApiError({
       code: 'PROMO_QUOTE_UNSUPPORTED',
