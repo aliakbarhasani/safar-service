@@ -48,6 +48,7 @@ const MIGRATION_ORDER = [
   '030_wallet_debt_support.sql',
   '031_wallet_currency_integrity.sql',
   '032_add_trip_promo_code.sql',
+  '033_promo_usage_trip_idempotency.sql',
 ];
 
 function findMissingMigrationFiles(migrationOrder, directory = MIGRATIONS_DIR, fileExists = fs.existsSync) {
