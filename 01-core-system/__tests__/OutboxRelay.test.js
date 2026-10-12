@@ -80,4 +80,68 @@ describe('OutboxRelay.runOnce', () => {
     expect(outboxRepository.markPublished).toHaveBeenCalledWith(row.id);
     expect(outboxRepository.markFailed).not.toHaveBeenCalled();
   });
+
+  test.each(['TripCompleted', 'TripCreated', 'TripCancelled'])(
+    'does not mark %s published when no consumer acknowledges it',
+    async (eventType) => {
+      const row = { id: `missing-ack-${eventType}`, event_type: eventType, payload: {}, aggregate_id: 'trip-5' };
+      const outboxRepository = {
+        fetchPending: jest.fn().mockResolvedValue([row]),
+        markPublished: jest.fn(),
+        markFailed: jest.fn().mockResolvedValue({ id: row.id, status: 'PENDING' }),
+      };
+      const eventBus = { publishAsync: jest.fn().mockResolvedValue([]) };
+      const relay = new OutboxRelay({ outboxRepository, eventBus, logger: { error: jest.fn() } });
+
+      await expect(relay.runOnce()).resolves.toBe(0);
+
+      expect(outboxRepository.markPublished).not.toHaveBeenCalled();
+      expect(outboxRepository.markFailed).toHaveBeenCalledWith(
+        row.id,
+        expect.objectContaining({ message: `Missing consumer acknowledgement for ${eventType}` }),
+        { maxRetries: 5 },
+      );
+    },
+  );
+
+  test.each(['TripCompleted', 'TripCreated', 'TripCancelled'])(
+    'does not treat undefined-only listeners as an acknowledgement for %s',
+    async (eventType) => {
+      const row = { id: `undefined-ack-${eventType}`, event_type: eventType, payload: {}, aggregate_id: 'trip-6' };
+      const outboxRepository = {
+        fetchPending: jest.fn().mockResolvedValue([row]),
+        markPublished: jest.fn(),
+        markFailed: jest.fn().mockResolvedValue({ id: row.id, status: 'PENDING' }),
+      };
+      const eventBus = { publishAsync: jest.fn().mockResolvedValue([undefined, undefined]) };
+      const relay = new OutboxRelay({ outboxRepository, eventBus, logger: { error: jest.fn() } });
+
+      await expect(relay.runOnce()).resolves.toBe(0);
+
+      expect(outboxRepository.markPublished).not.toHaveBeenCalled();
+      expect(outboxRepository.markFailed).toHaveBeenCalledWith(
+        row.id,
+        expect.objectContaining({ message: `Missing consumer acknowledgement for ${eventType}` }),
+        { maxRetries: 5 },
+      );
+    },
+  );
+
+  test('accepts explicit no-hold acknowledgement for TripCancelled', async () => {
+    const row = { id: 'event-7', event_type: 'TripCancelled', payload: {}, aggregate_id: 'trip-7' };
+    const outboxRepository = {
+      fetchPending: jest.fn().mockResolvedValue([row]),
+      markPublished: jest.fn().mockResolvedValue({ id: row.id, status: 'PUBLISHED' }),
+      markFailed: jest.fn(),
+    };
+    const eventBus = {
+      publishAsync: jest.fn().mockResolvedValue([{ released: false, reason: 'no_held_amount' }]),
+    };
+    const relay = new OutboxRelay({ outboxRepository, eventBus, logger: { error: jest.fn() } });
+
+    await expect(relay.runOnce()).resolves.toBe(1);
+    expect(outboxRepository.markPublished).toHaveBeenCalledWith(row.id);
+    expect(outboxRepository.markFailed).not.toHaveBeenCalled();
+  });
+
 });
