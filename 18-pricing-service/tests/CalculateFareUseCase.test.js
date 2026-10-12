@@ -142,6 +142,26 @@ describe('CalculateFareUseCase (P6-1)', () => {
     expect(fareQuoteStore.save).not.toHaveBeenCalled();
   });
 
+  test('rejects inconsistent promo discount totals', async () => {
+    const uc = new CalculateFareUseCase({
+      demandSupplyTracker: stubTracker(0),
+      promoService: {
+        execute: async ({ code, fare }) => ({
+          valid: true,
+          code,
+          discountAmount: 100,
+          originalFare: fare,
+          finalFare: fare,
+        }),
+      },
+    });
+    await expect(uc.execute({
+      ...TEHRAN_A,
+      promoCode: 'SAVE10',
+      userId: 'user-1',
+    })).rejects.toMatchObject({ statusCode: 503, code: 'PROMO_RESULT_INVALID' });
+  });
+
   test('propagates promo validation errors instead of silently dropping the discount', async () => {
     const promoService = {
       execute: jest.fn(async () => {
