@@ -40,7 +40,7 @@ jobs:
             process.exit(1);
           }
           if (!report || typeof report !== 'object' || Array.isArray(report) || report.error) {
-            console.error('npm audit report is missing or contains an error:', JSON.stringify(report && report.error || report));
+            console.error('npm audit report is missing or contains an error; refusing to pass.');
             process.exit(1);
           }
           if (!report.metadata || !report.metadata.vulnerabilities ||
