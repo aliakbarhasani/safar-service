@@ -33,16 +33,19 @@ describeIntegration('PostgreSQL migration transaction integration', () => {
     }
   });
 
-  afterAll(async () => {
-    if (client) {
-      if (migrationId) {
-        await client.query('DELETE FROM public.schema_migrations WHERE migration_id = $1', [migrationId]);
-      }
-      if (tableName) {
-        await client.query('DROP TABLE IF EXISTS pg_temp.' + tableName);
-      }
-      await client.end();
+  afterEach(async () => {
+    if (client && migrationId) {
+      await client.query('DELETE FROM public.schema_migrations WHERE migration_id = $1', [migrationId]);
     }
+    if (client && tableName) {
+      await client.query('DROP TABLE IF EXISTS pg_temp.' + tableName);
+    }
+    migrationId = null;
+    tableName = null;
+  });
+
+  afterAll(async () => {
+    if (client) await client.end();
   });
 
   beforeEach(() => {
