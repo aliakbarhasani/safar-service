@@ -46,8 +46,13 @@ describe('JWT key generation safety', () => {
 
   test('refuses to overwrite an incomplete pair without explicit rotation', () => {
     fs.writeFileSync(path.join(keysDir, 'jwt_private.pem'), 'existing-private-key');
-    expect(() => generateKeyPair({ keysDir, passphrase: '' }))
-      .toThrow(expect.objectContaining({ code: 'JWT_KEY_PAIR_INCOMPLETE' }));
+    let caught;
+    try {
+      generateKeyPair({ keysDir, passphrase: '' });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toMatchObject({ code: 'JWT_KEY_PAIR_INCOMPLETE' });
   });
 
   test('regenerates only when explicitly requested', () => {
