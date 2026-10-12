@@ -412,9 +412,89 @@ async function transferFunds(senderId, receiverId, amount, currencyId = 'IRT', d
 
   const result = await pg.transaction(async (client) => {
     if (referenceId) {
-      const existingTx = await Transaction.findByReferenceId(senderReferenceId, client);
-      if (existingTx) {
-        throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
+      // Serialize requests sharing a transfer reference. This closes the race
+      // between "check existing" and the first ledger write.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-transfer:${String(referenceId)}`]
+      );
+
+      const existingResult = await client.query(
+        `SELECT
+           t.id, t.wallet_id, t.user_id, t.amount, t.currency_id, t.type,
+           t.description, t.status, t.reference_id, c.code AS currency_code,
+           wl.id AS ledger_id, wl.balance_after, wl.available_after, wl.frozen_after
+         FROM transactions t
+         JOIN currencies c ON c.id = t.currency_id
+         LEFT JOIN wallet_ledger wl
+           ON wl.transaction_id = t.id AND wl.reference_id = t.reference_id
+         WHERE t.reference_id = $1 OR t.reference_id = $2
+         ORDER BY t.reference_id
+         FOR UPDATE OF t`,
+        [senderReferenceId, receiverReferenceId]
+      );
+      const existingRows = existingResult.rows || [];
+      if (existingRows.length > 0) {
+        const senderTx = existingRows.find((row) => row.reference_id === senderReferenceId);
+        const receiverTx = existingRows.find((row) => row.reference_id === receiverReferenceId);
+
+        if (!senderTx || !receiverTx) {
+          throw new Error('IDEMPOTENCY_STATE_INCOMPLETE: transfer records are incomplete; manual reconciliation is required');
+        }
+
+        const expectedSenderDescription = description || `Transfer to user ${receiverId}`;
+        const expectedReceiverDescription = description || `Transfer from user ${senderId}`;
+        const amountMatches = Number(senderTx.amount) === amount && Number(receiverTx.amount) === amount;
+        const currencyMatches = [senderTx, receiverTx].every((row) =>
+          row.currency_code === currencyId || String(row.currency_id) === String(currencyId)
+        );
+        const samePayload =
+          String(senderTx.user_id) === String(senderId) &&
+          String(receiverTx.user_id) === String(receiverId) &&
+          senderTx.type === 'DEBIT' &&
+          receiverTx.type === 'CREDIT' &&
+          senderTx.status === 'success' &&
+          receiverTx.status === 'success' &&
+          amountMatches &&
+          currencyMatches &&
+          senderTx.description === expectedSenderDescription &&
+          receiverTx.description === expectedReceiverDescription &&
+          String(senderTx.currency_id) === String(receiverTx.currency_id);
+
+        if (!samePayload) {
+          throw new Error('IDEMPOTENCY_KEY_REUSED: this transfer key was already used with a different payload');
+        }
+        if (!senderTx.ledger_id || !receiverTx.ledger_id) {
+          throw new Error('IDEMPOTENCY_LEDGER_INCOMPLETE: transfer ledger records are incomplete; manual reconciliation is required');
+        }
+
+        // Reconstruct the original response from immutable transaction/ledger
+        // records. Do not mutate balances or publish duplicate balance events.
+        return {
+          success: true,
+          message: 'Transfer successful',
+          sender: {
+            walletId: senderTx.wallet_id,
+            userId: senderId,
+            balance: Number(senderTx.balance_after),
+            availableBalance: Number(senderTx.available_after),
+            frozenBalance: Number(senderTx.frozen_after),
+            transactionId: senderTx.id
+          },
+          receiver: {
+            walletId: receiverTx.wallet_id,
+            userId: receiverId,
+            balance: Number(receiverTx.balance_after),
+            availableBalance: Number(receiverTx.available_after),
+            frozenBalance: Number(receiverTx.frozen_after),
+            transactionId: receiverTx.id
+          },
+          amount: Number(senderTx.amount),
+          currencyId,
+          description: description || 'Internal transfer',
+          referenceId,
+          events: []
+        };
       }
     }
     // 1. بازیابی کیف پول فرستنده (باید وجود داشته باشد)
