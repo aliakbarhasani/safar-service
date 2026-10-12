@@ -94,3 +94,13 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 05-wallet-service/__tests__/trip-completed-handler.test.js 05-wallet-service/__tests__/wallet-model-currency.test.js
 
+      - name: Run wallet transfer idempotency regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 05-wallet-service/__tests__/wallet.service.transfer-idempotency.test.js 05-wallet-service/__tests__/wallet.controller.transfer-idempotency.test.js
+
+      - name: Check wallet transfer idempotency test syntax
+        run: |
+          node --check 05-wallet-service/__tests__/wallet.service.transfer-idempotency.test.js
+          node --check 05-wallet-service/__tests__/wallet.controller.transfer-idempotency.test.js
+
