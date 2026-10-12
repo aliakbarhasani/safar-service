@@ -3,36 +3,21 @@
 /**
  * OutboxRelay.js - Core System (P12)
  *
- * Worker سبک برای الگوی Transactional Outbox:
- *   ۱) واکشی دسته‌ای رکوردهای PENDING از `outbox_events`
- *   ۲) انتشار هر رویداد روی EventBus مرکزی (Envelope استاندارد)
- *   ۳) علامت‌گذاری PUBLISHED؛ در صورت خطا `markFailed` + backoff نمایی
+ * Worker for the Transactional Outbox pattern:
+ * 1) fetch pending outbox rows
+ * 2) publish through the central EventBus
+ * 3) mark PUBLISHED only after required consumer acknowledgement
  *
- * تضمین: هیچ رویدادی گم نمی‌شود حتی اگر انتشار بلافاصله پس از COMMIT شکست بخورد
- * (At-least-once). مصرف‌کنندهها به‌کمک Inbox آن را به Exactly-once تبدیل می‌کنند.
- *
- * Dependency Injection: تمام وابستگی‌ها تزریق می‌شوند (تست‌پذیر با Mock).
+ * Delivery is at-least-once; consumers must be idempotent.
  */
-
 const DEFAULT_INTERVAL_MS = 1000;
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_MAX_RETRIES = 5;
-
-// کلیدهای رزرو‌شدهای که Relay به payload اضافه می‌کند تا مصرف‌کنندهها
-// بتوانند با Inbox روی همان `eventId` جلوی پردازش تکراری را بگیرند.
 const EVENT_ID_KEY = 'eventId';
 const AGGREGATE_ID_KEY = 'aggregateId';
+const ACK_REQUIRED_EVENTS = new Set(['TripCompleted', 'TripCreated', 'TripCancelled']);
 
 class OutboxRelay {
-  /**
-   * @param {Object} deps
-   * @param {{ fetchPending: Function, markPublished: Function, markFailed: Function }} deps.outboxRepository
-   * @param {Object} [deps.eventBus] - EventBus مرکزی (publish(event, data))
-   * @param {number} [deps.intervalMs] - فاصله بین تیک‌ها (میلی‌ثانیه)
-   * @param {number} [deps.batchSize] - اندازه دسته در هر تیک
-   * @param {number} [deps.maxRetries] - حداکثر تلاش مجدد پیش از park کردن رکورد
-   * @param {Object} [deps.logger]
-   */
   constructor({
     outboxRepository,
     eventBus = null,
@@ -45,7 +30,7 @@ class OutboxRelay {
       throw new Error('OutboxRelay requires an outboxRepository with fetchPending()');
     }
     this.outboxRepository = outboxRepository;
-    // require تنبل تا در تست‌ها بتوان EventBus جعلی تزریق کرد
+    // Lazy require allows a fake EventBus to be injected in tests.
     // eslint-disable-next-line global-require
     this.eventBus = eventBus || require('./EventBus');
     this.intervalMs = intervalMs;
@@ -57,17 +42,14 @@ class OutboxRelay {
     this.stats = { published: 0, failed: 0, ticks: 0 };
   }
 
-  /** فعال‌سازی worker دوره‌ای. */
   start() {
     if (this._timer) return this;
-    // unref: تایمر مانع خروج طبیعی پروسه (و بسته‌شدن Jest) نمی‌شود
     this._timer = setInterval(() => { this._tick(); }, this.intervalMs);
     if (typeof this._timer.unref === 'function') this._timer.unref();
     this._tick();
     return this;
   }
 
-  /** توقف worker. */
   stop() {
     if (this._timer) {
       clearInterval(this._timer);
@@ -76,7 +58,6 @@ class OutboxRelay {
     return this;
   }
 
-  /** @private یک تیک: واکشی + انتشار (بدون اجرای همزمان دو تیک) */
   async _tick() {
     if (this._running) return 0;
     this._running = true;
@@ -90,10 +71,6 @@ class OutboxRelay {
     }
   }
 
-  /**
-   * یک دور کامل پردازش (قابل فراخوانی مستقیم در تست).
-   * @returns {Promise<number>} تعداد رویدادهای منتشرشده
-   */
   async runOnce() {
     const rows = await this.outboxRepository.fetchPending({ limit: this.batchSize });
     if (!rows || rows.length === 0) return 0;
@@ -113,9 +90,7 @@ class OutboxRelay {
           `[OutboxRelay] publish failed for ${row.event_type} (${row.id}):`,
           error && error.message,
         );
-        // A database failure while recording the retry must not abort the
-        // remaining rows in this batch. The PROCESSING lease recovery in the
-        // repository will make this event eligible again after five minutes.
+        // Do not abort the rest of the batch if retry recording fails.
         try {
           await this.outboxRepository.markFailed(row.id, error, { maxRetries: this.maxRetries });
         } catch (markFailedError) {
@@ -126,16 +101,9 @@ class OutboxRelay {
         }
       }
     }
-
     return published;
   }
 
-  /**
-   * انتشار یک ردیف Outbox روی EventBus.
-   * payload ذخیره‌شده + کلیدهای رزرو‌شده (eventId/aggregateId) به مصرف‌کننده می‌رسد
-   * تا Inbox بتواند تکراری‌ها را تشخیص دهد.
-   * @private
-   */
   async _publish(row) {
     const payload = (row.payload && typeof row.payload === 'object') ? row.payload : {};
     const data = {
@@ -145,13 +113,19 @@ class OutboxRelay {
     };
 
     if (typeof this.eventBus.publishAsync !== 'function') {
+      // A fire-and-forget publish cannot prove that financial consumers finished.
+      // Keep the durable event pending for retry rather than falsely acknowledging it.
+      if (ACK_REQUIRED_EVENTS.has(row.event_type)) {
+        throw new Error(`Async consumer acknowledgement is required for ${row.event_type}`);
+      }
+      if (typeof this.eventBus.publish !== 'function') {
+        throw new Error('EventBus must implement publish() or publishAsync()');
+      }
       this.eventBus.publish(row.event_type, data);
       return;
     }
 
     const results = await this.eventBus.publishAsync(row.event_type, data);
-    // Financial events are marked PUBLISHED only after their async consumers
-    // report success. Otherwise runOnce records a failure and schedules retry.
     const failed = (results || []).find((result) => {
       if (!result || typeof result !== 'object') return false;
       if (row.event_type === 'TripCompleted') return result.processed === false;
