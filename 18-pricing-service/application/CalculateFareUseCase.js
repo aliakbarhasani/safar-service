@@ -93,7 +93,7 @@ class CalculateFareUseCase {
    * @param {string} [input.promoCode] - optional promo code for discount (P10-2)
    * @returns {Promise<{ estimatedFare:number, distance:number, surgeMultiplier:number, geohash:string, discountAmount?:number, finalFare?:number, promoCode?:string }>}
    */
-  async execute({ originLat, originLng, destLat, destLng, serviceType = 'urban_taxi', perKmRate = null, baseFare = null, supply = null, promoCode = null }) {
+  async execute({ originLat, originLng, destLat, destLng, serviceType = 'urban_taxi', perKmRate = null, baseFare = null, supply = null, promoCode = null, userId = null }) {
     const oLat = Number(originLat);
     const oLng = Number(originLng);
     const dLat = Number(destLat);
@@ -160,22 +160,43 @@ class CalculateFareUseCase {
 
     const result = { estimatedFare, distance, surgeMultiplier, geohash, demandRatio: ratio, serviceType };
 
-    // (P10-2) Promo code validation — if promoCode provided and promoService injected
-    if (promoCode && this.promoService) {
-      try {
-        const promoResult = await this.promoService.validate({
-          code: promoCode,
-          userId: null, // userId not available at estimate time; validated at trip creation
-          fare: estimatedFare,
-        });
-        if (promoResult && promoResult.valid) {
-          result.discountAmount = promoResult.discountAmount;
-          result.finalFare = estimatedFare - promoResult.discountAmount;
-          result.promoCode = promoCode;
-        }
-      } catch (_) {
-        // Promo validation failure should not break fare estimation
+    // Promo codes are user-specific and must never be silently ignored.
+    // The public estimate endpoint has no authenticated user, so it cannot apply
+    // a promo code. Also refuse to discount a protected quote until the discount
+    // and promo reference are persisted in the SQL quote consumed by trip creation.
+    if (promoCode) {
+      const promoError = (message, code, statusCode) => {
+        const error = new Error(message);
+        error.code = code;
+        error.statusCode = statusCode;
+        return error;
+      };
+      if (!userId) {
+        throw promoError('برای استفاده از کد تخفیف ابتدا وارد حساب کاربری شوید.', 'PROMO_AUTH_REQUIRED', 401);
       }
+      if (this.fareQuoteStore) {
+        throw promoError('اعمال کد تخفیف روی پیش‌فاکتور هنوز به ثبت امن تخفیف در دیتابیس متصل نشده است.', 'PROMO_QUOTE_UNSUPPORTED', 503);
+      }
+      if (!this.promoService || typeof this.promoService.execute !== 'function') {
+        throw promoError('سرویس کد تخفیف موقتاً در دسترس نیست.', 'PROMO_SERVICE_UNAVAILABLE', 503);
+      }
+
+      const promoResult = await this.promoService.execute({
+        code: promoCode,
+        userId,
+        fare: estimatedFare,
+      });
+      if (!promoResult || promoResult.valid !== true ||
+          !Number.isFinite(Number(promoResult.discountAmount)) ||
+          !Number.isFinite(Number(promoResult.finalFare)) ||
+          Number(promoResult.discountAmount) < 0 ||
+          Number(promoResult.finalFare) < 0 ||
+          Number(promoResult.finalFare) > estimatedFare) {
+        throw promoError('پاسخ سرویس کد تخفیف معتبر نیست.', 'PROMO_RESULT_INVALID', 503);
+      }
+      result.discountAmount = Number(promoResult.discountAmount);
+      result.finalFare = Number(promoResult.finalFare);
+      result.promoCode = promoResult.code || promoCode;
     }
 
     // (P6-2) الگوی Fare Quote: ذخیره Quote ضد-دستکاری در Redis با TTL 5 دقیقه.
