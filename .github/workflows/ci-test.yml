@@ -170,8 +170,8 @@ jobs:
                 "SELECT pg_get_function_result('fn_get_wallet_snapshot(uuid)'::regprocedure) AS signature"
               );
               const signature = result.rows[0] && result.rows[0].signature;
-              const numericColumns = (String(signature).match(/\\bnumeric\\b/g) || []).length;
-              if (!signature || numericColumns !== 6 || /\\bbigint\\b/i.test(signature)) {
+              const numericColumns = (String(signature).match(/\bnumeric\b/g) || []).length;
+              if (!signature || numericColumns !== 6 || /\bbigint\b/i.test(signature)) {
                 throw new Error('Wallet snapshot must expose six NUMERIC monetary fields; got: ' + signature);
               }
               console.log('Wallet reconciliation snapshot preserves NUMERIC monetary precision:', signature);
