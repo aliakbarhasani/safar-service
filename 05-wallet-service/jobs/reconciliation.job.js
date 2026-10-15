@@ -23,7 +23,7 @@ const DECIMAL_FACTOR = 10n ** BigInt(DECIMAL_SCALE);
  */
 function toScaledInteger(value) {
   const text = String(value).trim();
-  const match = /^([+-]?)(\\d+)(?:\\.(\\d*))?$/.exec(text);
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?$/.exec(text);
   if (!match) {
     throw new TypeError(`Invalid decimal value: ${text}`);
   }
