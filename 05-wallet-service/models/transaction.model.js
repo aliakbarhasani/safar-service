@@ -86,21 +86,21 @@ async function findByUserId(userId, options = {}) {
 
   if (type) {
     params.push(type);
-    queryText += ` AND type = ${params.length}`;
+    queryText += ` AND type = $${params.length}`;
   }
 
   if (currencyId) {
     params.push(String(currencyId));
     queryText += ` AND currency_id IN (
-      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = ${params.length}
+      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = $${params.length}
     )`;
   }
 
   queryText += ` ORDER BY created_at ${sort === 'ASC' ? 'ASC' : 'DESC'}`;
   params.push(limit);
-  queryText += ` LIMIT ${params.length}`;
+  queryText += ` LIMIT $${params.length}`;
   params.push(offset);
-  queryText += ` OFFSET ${params.length}`;
+  queryText += ` OFFSET $${params.length}`;
 
   const result = await pg.query(queryText, params);
   return result.rows;
@@ -115,13 +115,13 @@ async function countByUserId(userId, type = null, currencyId = null) {
 
   if (type) {
     params.push(type);
-    queryText += ` AND type = ${params.length}`;
+    queryText += ` AND type = $${params.length}`;
   }
 
   if (currencyId) {
     params.push(String(currencyId));
     queryText += ` AND currency_id IN (
-      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = ${params.length}
+      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = $${params.length}
     )`;
   }
 
