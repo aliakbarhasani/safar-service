@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Bus, CarFront, Check, ChevronLeft, CircleHelp, CloudSun,
   Compass, Globe2, MapPinned, Package, Plane, Search, ShieldCheck,
-  ShoppingBasket, Smartphone, Store, Truck, Wallet, X, Zap,
+  ShoppingBasket, Smartphone, Store, Wallet, X, Zap,
 } from "lucide-react";
 
 type InstallPromptEvent = Event & {
