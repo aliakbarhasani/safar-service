@@ -9,9 +9,11 @@
  */
 
 const express = require('express');
-const router = express.Router();
 
 function createAuthRoutes({ authService, logger }) {
+  // Create a fresh router per app/service instance to prevent route handlers
+  // from leaking between tests or independently configured applications.
+  const router = express.Router();
   const log = logger || console;
 
   // امنیت: صدور توکن بر اساس userId/role ارسالی از درخواست، ورود واقعی نیست.
