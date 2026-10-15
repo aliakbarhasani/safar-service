@@ -65,4 +65,85 @@ describe('wallet reference idempotency locking', () => {
     expect(Wallet.debitAvailableBalance).not.toHaveBeenCalled();
     expect(Transaction.create).not.toHaveBeenCalled();
   });
+
+  test('serializes duplicate trip payments before checking the passenger reference', async () => {
+    await expect(
+      walletService.processTripPayment({
+        tripId: 'trip-1',
+        passengerId: 'passenger-1',
+        driverId: 'driver-1',
+        amount: 100,
+        currencyId: 'IRT',
+      })
+    ).rejects.toThrow('Duplicate transaction');
+
+    expect(mockClient.query).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      ['wallet-reference:trip-payment:trip-1:passenger'],
+    );
+    expect(mockClient.query.mock.invocationCallOrder[0])
+      .toBeLessThan(Transaction.findByReferenceId.mock.invocationCallOrder[0]);
+    expect(Wallet.debitAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
+  });
+
+  test('serializes duplicate cancellation penalties before checking the passenger reference', async () => {
+    await expect(
+      walletService.processCancellationPenalty({
+        tripId: 'trip-2',
+        passengerId: 'passenger-1',
+        driverId: 'driver-1',
+        penaltyAmount: 25,
+        currencyId: 'IRT',
+      })
+    ).rejects.toThrow('Duplicate transaction');
+
+    expect(mockClient.query).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      ['wallet-reference:trip-penalty:trip-2:passenger'],
+    );
+    expect(mockClient.query.mock.invocationCallOrder[0])
+      .toBeLessThan(Transaction.findByReferenceId.mock.invocationCallOrder[0]);
+    expect(Wallet.debitAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
+  });
+
+  test('serializes duplicate refunds before checking the refund reference', async () => {
+    mockClient.query.mockImplementation(async (sql) => {
+      if (sql.includes('FROM transactions t') && sql.includes('FOR UPDATE OF t')) {
+        return {
+          rows: [{
+            id: 'original-transaction',
+            wallet_id: 'wallet-1',
+            trip_id: null,
+            user_id: 'user-1',
+            amount: '100',
+            currency_id: 'IRT',
+            type: 'DEBIT',
+            status: 'success',
+            reference_id: 'external-debit-1',
+            is_multi_party_debit: false,
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      walletService.refundFunds('original-transaction', 'test retry')
+    ).rejects.toThrow('Duplicate refund');
+
+    expect(mockClient.query).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      ['wallet-reference:REFUND-original-transaction'],
+    );
+    const lockCallOrder = mockClient.query.mock.invocationCallOrder.find(
+      (_, index) => mockClient.query.mock.calls[index][0].includes('pg_advisory_xact_lock(hashtextextended')
+    );
+    expect(lockCallOrder)
+      .toBeLessThan(Transaction.findByReferenceId.mock.invocationCallOrder[0]);
+    expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
+    expect(Transaction.create).not.toHaveBeenCalled();
+  });
 });

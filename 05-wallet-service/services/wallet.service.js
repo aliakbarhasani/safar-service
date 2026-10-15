@@ -1154,6 +1154,10 @@ async function refundFunds(originalTransactionId, reason = '') {
       throw new Error('MULTI_PARTY_REFUND_REQUIRES_REVERSAL: this debit belongs to a multi-party settlement; use its workflow-specific reversal');
     }
 
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [`wallet-reference:${String(referenceId)}`]
+    );
     const existingRefund = await Transaction.findByReferenceId(referenceId, client);
     if (existingRefund) {
       throw new Error(`Duplicate refund: referenceId '${referenceId}' already exists`);
@@ -1881,8 +1885,12 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
   const driverReferenceId = `${referenceId}:driver`;
 
   const result = await pg.transaction(async (client) => {
-    // The transaction table has a unique reference_id index. Check the exact
-    // passenger reference and rely on that index to serialize concurrent retries.
+    // Serialize concurrent retries before the existence check. The schema does
+    // not currently enforce reference_id uniqueness with a database constraint.
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [`wallet-reference:${String(passengerReferenceId)}`]
+    );
     const existing = await Transaction.findByReferenceId(passengerReferenceId, client);
     if (existing) {
       throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
@@ -2060,6 +2068,11 @@ async function processCancellationPenalty({
   }
 
   const result = await pg.transaction(async (client) => {
+    // Serialize concurrent cancellation-penalty retries before the lookup.
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [`wallet-reference:${String(passengerReferenceId)}`]
+    );
     const existing = await Transaction.findByReferenceId(passengerReferenceId, client);
     if (existing) {
       throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
