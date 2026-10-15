@@ -1,29 +1,33 @@
 /**
  * clean-schema.js - پاکسازی کامل دیتابیس
- * 
- * Usage: node clean-schema.js
- * 
- * این اسکریپت Schema public را حذف و دوباره ایجاد می‌کند
- * تا Migrationها روی دیتابیس کاملاً تمیز اجرا شوند
+ *
+ * این ابزار مخرب است و فقط برای دیتابیس توسعه/آزمایش با تأیید نام دقیق
+ * دیتابیس هدف قابل اجراست. برای مهاجرت عادی از npm run db:migrate استفاده کنید.
  */
+'use strict';
+
 const { Client } = require('pg');
 const config = require('../../../14-config-system/server.config');
 
-async function cleanSchema() {
-  // ── (P1 — ایمنی) محافظت در برابر اجرای تصادفی مخرب ─────────────────────────
-  // این ابزار کل Schema را با `DROP SCHEMA public CASCADE` نابود می‌کند.
-  // برای اینکه هرگز به‌طور تصادفی روی محیط عملیاتی/استیجینگ اجرا نشود،
-  // اجرا فقط با تأیید صریح محیطی (ALLOW_SCHEMA_RESET=true) و خارج از production مجاز است.
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ Refused: clean-schema.js must never run against production.');
-    process.exit(1);
+function assertSchemaResetAllowed(env = process.env, targetDatabase = config.pg.database) {
+  if (!['development', 'test'].includes(env.NODE_ENV)) {
+    throw new Error('NODE_ENV must be explicitly set to development or test.');
   }
-  if (process.env.ALLOW_SCHEMA_RESET !== 'true') {
-    console.error(
-      '❌ Refused: this script destroys the whole schema. ' +
-      'Set ALLOW_SCHEMA_RESET=true to confirm explicitly.'
-    );
-    process.exit(1);
+  if (env.ALLOW_SCHEMA_RESET !== 'true') {
+    throw new Error('Set ALLOW_SCHEMA_RESET=true to explicitly authorize schema destruction.');
+  }
+  if (!env.CONFIRM_DATABASE_NAME || env.CONFIRM_DATABASE_NAME !== targetDatabase) {
+    throw new Error('CONFIRM_DATABASE_NAME must exactly match the configured target database name.');
+  }
+}
+
+async function cleanSchema() {
+  try {
+    assertSchemaResetAllowed();
+  } catch (error) {
+    console.error('❌ Refused: ' + error.message);
+    process.exitCode = 1;
+    return;
   }
 
   const client = new Client({
@@ -39,21 +43,22 @@ async function cleanSchema() {
     await client.connect();
     console.log(`Connected to ${config.pg.host}:${config.pg.port}/${config.pg.database}`);
 
-    console.log('Dropping public schema...');
     await client.query('DROP SCHEMA public CASCADE;');
-    console.log('✓ public schema dropped');
-
-    console.log('Creating public schema...');
     await client.query('CREATE SCHEMA public;');
-    console.log('✓ public schema created');
-
-    console.log('\n✅ Database cleaned successfully - ready for fresh migrations');
+    console.log('Database schema reset successfully.');
   } catch (err) {
     console.error('❌ Error cleaning database:', err.message);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
-    await client.end();
+    await client.end().catch((error) => {
+      console.error('❌ Error closing database connection:', error.message);
+      process.exitCode = 1;
+    });
   }
 }
 
-cleanSchema();
+if (require.main === module) {
+  cleanSchema();
+}
+
+module.exports = { cleanSchema, assertSchemaResetAllowed };
