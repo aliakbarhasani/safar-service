@@ -30,7 +30,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#f8fafc] text-[#1e293b]">
         <AuthProvider>
           <ModuleNav />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <div className="flex-1 flex flex-col">{children}</div>
         </AuthProvider>
       </body>
     </html>
