@@ -1,10 +1,13 @@
-import config from '@/config/app-config.json';
 import { getModules, getModuleTitle } from '@/modules/registry';
 
-export default function ModulePlaceholder(props: any) {
-  const modId = props?.params?.module;
+type ModulePageProps = {
+  params: Promise<{ module: string }>;
+};
+
+export default async function ModulePlaceholder({ params }: ModulePageProps) {
+  const { module: modId } = await params;
   const modules = getModules();
-  const found = modules.find((m) => m.id === modId) || null;
+  const found = modules.find((module) => module.id === modId) || null;
 
   return (
     <div className="flex-1 flex items-center justify-center p-8">
@@ -15,7 +18,9 @@ export default function ModulePlaceholder(props: any) {
         <p className="text-sm text-[#64748b] mb-6">
           این صفحه یک پلاسبولدر ماژول است. منطق تجاری هنوز پیاده‌سازی نشده است.
         </p>
-        <pre className="bg-[#f8fafc] rounded p-4 text-sm overflow-x-auto">{JSON.stringify(found, null, 2)}</pre>
+        <pre className="bg-[#f8fafc] rounded p-4 text-sm overflow-x-auto">
+          {JSON.stringify(found, null, 2)}
+        </pre>
       </div>
     </div>
   );
