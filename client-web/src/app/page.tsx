@@ -13,7 +13,7 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-const services = [
+type Service = { id: string; title: string; description: string; category: string; icon: typeof CarFront; href?: string; color: string; active: boolean };\n\nconst services: Service[] = [
   { id: "taxi", title: "تاکسی و رزرو سفر", description: "انتخاب مبدأ و مقصد و ثبت درخواست سفر", category: "حمل‌ونقل", icon: CarFront, href: "/taxi", color: "teal", active: true },
   { id: "cargo", title: "باربری و ارسال مرسوله", description: "ثبت درخواست ارسال بار و بسته", category: "حمل‌ونقل", icon: Package, href: "/cargo", color: "gold", active: true },
   { id: "courier", title: "پیک موتوری", description: "ارسال سریع بسته درون‌شهری", category: "حمل‌ونقل", icon: Zap, color: "orange", active: false },
@@ -33,7 +33,7 @@ const filters = ["همه خدمات", "حمل‌ونقل", "سفر", "گردشگ
 export default function SuperAppMain() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("همه خدمات");
-  const [selected, setSelected] = useState<(typeof services)[number] | null>(null);
+  const [selected, setSelected] = useState<Service | null>(null);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installMessage, setInstallMessage] = useState("");
 
