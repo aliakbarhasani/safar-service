@@ -53,6 +53,12 @@ describe('wallet reconciliation decimal precision', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
+  test('parses positive and negative decimal values into exact scaled integers', () => {
+    expect(reconciliation.toScaledInteger('125.5')).toBe(12550000000n);
+    expect(reconciliation.toScaledInteger('-0.25')).toBe(-25000000n);
+    expect(reconciliation.toScaledInteger('0')).toBe(0n);
+  });
+
   test('rejects decimal values with precision beyond the database scale', () => {
     expect(() => reconciliation.toScaledInteger('1.000000001')).toThrow(/precision exceeds/);
   });
