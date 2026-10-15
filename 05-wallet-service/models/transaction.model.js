@@ -92,7 +92,7 @@ async function findByUserId(userId, options = {}) {
   if (currencyId) {
     params.push(String(currencyId));
     queryText += ` AND currency_id IN (
-      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = $${params.length}
+      SELECT id FROM currencies WHERE code = $${params.length} OR id::text = $${params.length}
     )`;
   }
 
@@ -121,7 +121,7 @@ async function countByUserId(userId, type = null, currencyId = null) {
   if (currencyId) {
     params.push(String(currencyId));
     queryText += ` AND currency_id IN (
-      SELECT id FROM currencies WHERE code = ${params.length} OR id::text = $${params.length}
+      SELECT id FROM currencies WHERE code = $${params.length} OR id::text = $${params.length}
     )`;
   }
 
