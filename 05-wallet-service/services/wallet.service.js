@@ -189,6 +189,13 @@ async function depositFunds(userId, amount, currencyId = 'IRT', referenceId = nu
   const result = await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
+      // Serialize requests that reuse an external reference before checking
+      // for an existing transaction. Otherwise concurrent retries can both
+      // pass the lookup and mutate the same wallet more than once.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-reference:${String(referenceId)}`]
+      );
       const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
@@ -292,6 +299,13 @@ async function withdrawFunds(userId, amount, currencyId = 'IRT', referenceId = n
   const result = await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
+      // Serialize requests that reuse an external reference before checking
+      // for an existing transaction. Otherwise concurrent retries can both
+      // pass the lookup and mutate the same wallet more than once.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-reference:${String(referenceId)}`]
+      );
       const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
@@ -792,6 +806,13 @@ async function releaseHold({ userId, amount, referenceType = 'hold', referenceId
   const result = await pg.transaction(async (client) => {
     // 1. بررسی Idempotency
     if (referenceId) {
+      // Serialize requests that reuse an external reference before checking
+      // for an existing transaction. Otherwise concurrent retries can both
+      // pass the lookup and mutate the same wallet more than once.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-reference:${String(referenceId)}`]
+      );
       const existingTx = await Transaction.findByReferenceId(referenceId, client);
       if (existingTx) {
         throw new Error(`Duplicate transaction: referenceId '${referenceId}' already exists`);
