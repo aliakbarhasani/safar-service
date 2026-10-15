@@ -56,13 +56,13 @@ describe('verifyTransaction ledger consistency', () => {
   });
 
   test('does not certify a linked row when wallet or currency differs', async () => {
-    mockQuery.mockResolvedValue([{
+    mockQuery.mockResolvedValue({
       rows: [{
         ...matchingLedgerRow(),
         ledger_wallet_id: 'wallet-2',
         ledger_currency_id: 'currency-2',
       }],
-    }][0]);
+    });
 
     await expect(reconciliation.verifyTransaction('tx-1')).resolves.toMatchObject({
       status: 'mismatch',
