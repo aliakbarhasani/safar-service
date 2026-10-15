@@ -79,7 +79,7 @@ async function findByWalletId(walletId, options = {}) {
  * دریافت تراکنش‌های یک کاربر
  */
 async function findByUserId(userId, options = {}) {
-  const { limit = 20, offset = 0, type = null, sort = 'DESC' } = options;
+  const { limit = 20, offset = 0, type = null, sort = 'DESC', currencyId = null } = options;
 
   let queryText = `SELECT ${COLUMNS_SELECT} FROM ${TABLE} WHERE user_id = $1`;
   const params = [userId];
@@ -87,6 +87,13 @@ async function findByUserId(userId, options = {}) {
   if (type) {
     params.push(type);
     queryText += ` AND type = $${params.length}`;
+  }
+
+  if (currencyId) {
+    params.push(String(currencyId));
+    queryText += ` AND currency_id IN (
+      SELECT id FROM currencies WHERE code = $${params.length} OR id::text = $${params.length}
+    )`;
   }
 
   queryText += ` ORDER BY created_at ${sort === 'ASC' ? 'ASC' : 'DESC'}`;
@@ -102,13 +109,20 @@ async function findByUserId(userId, options = {}) {
 /**
  * شمارش تعداد تراکنش‌های یک کاربر
  */
-async function countByUserId(userId, type = null) {
+async function countByUserId(userId, type = null, currencyId = null) {
   let queryText = `SELECT COUNT(*) as total FROM ${TABLE} WHERE user_id = $1`;
   const params = [userId];
 
   if (type) {
     params.push(type);
     queryText += ` AND type = $${params.length}`;
+  }
+
+  if (currencyId) {
+    params.push(String(currencyId));
+    queryText += ` AND currency_id IN (
+      SELECT id FROM currencies WHERE code = $${params.length} OR id::text = $${params.length}
+    )`;
   }
 
   const result = await pg.query(queryText, params);

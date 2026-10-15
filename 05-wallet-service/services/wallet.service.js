@@ -1836,8 +1836,8 @@ async function getTransactionHistory(userId, currencyId = null, options = {}) {
 
   const { limit = 20, offset = 0, type = null } = options;
 
-  const transactions = await Transaction.findByUserId(userId, { limit, offset, type });
-  const total = await Transaction.countByUserId(userId, type);
+  const transactions = await Transaction.findByUserId(userId, { limit, offset, type, currencyId });
+  const total = await Transaction.countByUserId(userId, type, currencyId);
 
   return {
     transactions,
