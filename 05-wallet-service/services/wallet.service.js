@@ -1885,8 +1885,10 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
   const driverReferenceId = `${referenceId}:driver`;
 
   const result = await pg.transaction(async (client) => {
-    // Serialize concurrent retries before the existence check. The schema does
-    // not currently enforce reference_id uniqueness with a database constraint.
+    // Serialize concurrent retries before the existence check so callers receive a
+    // deterministic domain error instead of racing into the database unique index.
+    // Migration 005 creates idx_transactions_reference_unique for non-null references;
+    // that index remains the final integrity guard if application locking is bypassed.
     await client.query(
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
       [`wallet-reference:${String(passengerReferenceId)}`]
