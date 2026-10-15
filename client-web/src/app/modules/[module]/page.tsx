@@ -15,7 +15,7 @@ export default async function ModulePlaceholder({ params }: ModulePageProps) {
   }
 
   return (
-    <section
+    <main
       className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6"
       aria-labelledby="module-title"
     >
@@ -40,6 +40,6 @@ export default async function ModulePlaceholder({ params }: ModulePageProps) {
           بازگشت به صفحه اصلی
         </Link>
       </div>
-    </section>
+    </main>
   );
 }
