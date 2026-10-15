@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# راه‌اندازی محلی وب‌اپلیکیشن سفر سرویس
 
-## Getting Started
+این پوشه، رابط وب Next.js است. در اجرای محلی، درگاه API پروژه به‌صورت پیش‌فرض روی پورت `3000` قرار دارد؛ بنابراین وب‌اپ را روی پورت `3001` اجرا کنید تا با درگاه API تداخل نداشته باشد.
 
-First, run the development server:
+## پیش‌نیازها
+
+- نسخه Node.js مطابق بخش `engines` در فایل `package.json` ریشه پروژه
+- نصب وابستگی‌های پروژه وب
+- برای آزمایش ارتباط واقعی با بک‌اند، PostgreSQL، Redis، کلیدهای معتبر RS256 و تنظیمات فایل `.env` ریشه پروژه
+
+## اجرای رابط وب
+
+در ترمینال وارد پوشه `client-web` شوید و دستورها را اجرا کنید:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev -- --port 3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+سپس در مرورگر باز کنید:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3001
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ارتباط با API
 
-## Learn More
+رابط وب از `NEXT_PUBLIC_API_URL` استفاده می‌کند؛ اگر این متغیر تنظیم نشده باشد، آدرس پیش‌فرض از `client-web/src/config/app-config.json` خوانده می‌شود و در حال حاضر `http://localhost:3000` است.
 
-To learn more about Next.js, take a look at the following resources:
+برای اجرای محلی، فایل نمونه ریشه پروژه را به `.env` کپی کنید و تنظیمات واقعی پایگاه داده، Redis و کلیدهای RS256 را وارد کنید. مقدار `CORS_ORIGIN` باید با آدرس رابط وب برابر باشد:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+CORS_ORIGIN=http://localhost:3001
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+مقادیر نمونه و placeholderها برای احراز هویت یا اجرای کامل بک‌اند کافی نیستند. هیچ کلید خصوصی، رمز عبور واقعی یا فایل `.env` را در Git کامیت نکنید.
 
-## Deploy on Vercel
+## ساخت نسخه وب
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+برای بررسی ساخت production رابط وب:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+```
+
+این دستور را از داخل پوشه `client-web` اجرا کنید. موفقیت build به‌تنهایی به معنی فعال بودن سرویس‌های بک‌اند یا آماده بودن همه ماژول‌های کسب‌وکار نیست.
