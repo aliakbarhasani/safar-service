@@ -4,11 +4,11 @@
 
 :root {
   --background: #f8fafc;
-  --foreground: #1e293b;
-  --primary: #1e40af;
-  --primary-light: #3b82f6;
-  --secondary: #059669;
-  --accent: #f59e0b;
+  --foreground: #172b35;
+  --primary: #0f766e;
+  --primary-light: #14b8a6;
+  --secondary: #0d9488;
+  --accent: #fbbf24;
   --surface: #ffffff;
   --text-secondary: #64748b;
   --error: #dc2626;
@@ -32,11 +32,9 @@
   --font-mono: "Courier New", monospace;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--background);
@@ -46,22 +44,44 @@ body {
   min-height: 100vh;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
+button, a, input { -webkit-tap-highlight-color: transparent; }
+
+button { cursor: pointer; }
+
+:focus-visible {
+  outline: 3px solid #14b8a6;
+  outline-offset: 3px;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--border);
-}
+::selection { background: #99f6e4; color: #134e4a; }
 
-::-webkit-scrollbar-thumb {
-  background: var(--text-secondary);
-  border-radius: 3px;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--border); }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
 
-/* Input autofill fix */
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 30px white inset;
   -webkit-text-fill-color: var(--foreground);
+}
+
+.service-icon-teal { background: #ccfbf1; color: #0f766e; }
+.service-icon-gold { background: #fef3c7; color: #92400e; }
+.service-icon-orange { background: #ffedd5; color: #c2410c; }
+.service-icon-blue { background: #dbeafe; color: #1d4ed8; }
+.service-icon-purple { background: #ede9fe; color: #6d28d9; }
+.service-icon-green { background: #dcfce7; color: #166534; }
+.service-icon-indigo { background: #e0e7ff; color: #3730a3; }
+.service-icon-pink { background: #fce7f3; color: #9d174d; }
+.service-icon-emerald { background: #d1fae5; color: #065f46; }
+.service-icon-slate { background: #e2e8f0; color: #334155; }
+.service-icon-amber { background: #fef3c7; color: #92400e; }
+.service-icon-sky { background: #e0f2fe; color: #075985; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
