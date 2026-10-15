@@ -167,7 +167,13 @@ async function transaction(callback) {
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackError) {
+      // Preserve the operation failure as the primary error. A rollback
+      // failure is important diagnostic context, but must not hide the cause.
+      error.rollbackError = rollbackError;
+    }
     throw error;
   } finally {
     client.release();
