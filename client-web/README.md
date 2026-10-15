@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# راه‌اندازی محلی وب‌اپلیکیشن سفر سرویس
 
-## Getting Started
+این پوشه، رابط وب Next.js است. در اجرای محلی، درگاه API پروژه به‌صورت پیش‌فرض روی پورت `3000` قرار دارد؛ بنابراین وب‌اپ را روی پورت `3001` اجرا کنید تا با درگاه API تداخل نداشته باشد.
 
-First, run the development server:
+## پیش‌نیازها
+
+- نسخه Node.js مطابق بخش `engines` در فایل `package.json` ریشه پروژه
+- نصب وابستگی‌های پروژه وب
+- برای آزمایش ارتباط واقعی با بک‌اند، PostgreSQL و Redis محلی و تنظیمات معتبر فایل `.env` ریشه پروژه
+
+## آماده‌سازی تنظیمات بک‌اند
+
+از پوشه اصلی مخزن، فایل نمونه را به `.env` کپی کنید و اطلاعات واقعی PostgreSQL و تنظیمات موردنیاز را وارد کنید. سپس کلیدهای RSA موردنیاز احراز هویت را از ریشه پروژه تولید کنید:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+node 00-infrastructure/keys/generate-keys.js
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+این دستور باید جفت کلید `jwt_private.pem` و `jwt_public.pem` را در پوشه `00-infrastructure/keys` ایجاد کند. کلید خصوصی و فایل `.env` را هرگز در Git کامیت نکنید. اگر کلیدها از قبل وجود دارند، اسکریپت برای جلوگیری از بی‌اعتبار شدن توکن‌ها آن‌ها را خودکار جایگزین نمی‌کند.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## اجرای رابط وب
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+در ترمینال وارد پوشه `client-web` شوید و دستورها را اجرا کنید:
 
-## Learn More
+```bash
+npm install
+npm run dev -- --port 3001
+```
 
-To learn more about Next.js, take a look at the following resources:
+سپس در مرورگر باز کنید:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+http://localhost:3001
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ارتباط با API
 
-## Deploy on Vercel
+رابط وب از `NEXT_PUBLIC_API_URL` استفاده می‌کند؛ اگر این متغیر تنظیم نشده باشد، آدرس پیش‌فرض از `client-web/src/config/app-config.json` خوانده می‌شود و در حال حاضر `http://localhost:3000` است.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+مقدار `CORS_ORIGIN` در فایل `.env` باید با آدرس رابط وب برابر باشد:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```env
+CORS_ORIGIN=http://localhost:3001
+```
+
+مقادیر نمونه برای رمز عبور و تنظیمات پایگاه داده صرفاً placeholder هستند و باید با مقادیر محیط محلی جایگزین شوند.
+
+## ساخت نسخه وب
+
+برای بررسی ساخت production رابط وب:
+
+```bash
+npm run build
+```
+
+این دستور را از داخل پوشه `client-web` اجرا کنید. موفقیت build به‌تنهایی به معنی فعال بودن سرویس‌های بک‌اند یا آماده بودن همه ماژول‌های کسب‌وکار نیست.
