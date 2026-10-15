@@ -145,6 +145,45 @@ jobs:
           NODE_ENV: test
         run: node 00-infrastructure/database/migrations/run-all-migrations.js
       
+      - name: Verify wallet reconciliation snapshot returns numeric monetary values
+        env:
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          NODE_ENV: test
+        run: |
+          node <<'NODE'
+          const { Client } = require('pg');
+          const client = new Client({
+            host: process.env.PG_HOST,
+            port: Number(process.env.PG_PORT),
+            database: process.env.PG_DATABASE,
+            user: process.env.PG_USER,
+            password: process.env.PG_PASSWORD,
+          });
+          (async () => {
+            await client.connect();
+            try {
+              const result = await client.query(
+                "SELECT pg_get_function_result('fn_get_wallet_snapshot(uuid)'::regprocedure) AS signature"
+              );
+              const signature = result.rows[0] && result.rows[0].signature;
+              const numericColumns = (String(signature).match(/\\bnumeric\\b/g) || []).length;
+              if (!signature || numericColumns !== 6 || /\\bbigint\\b/i.test(signature)) {
+                throw new Error('Wallet snapshot must expose six NUMERIC monetary fields; got: ' + signature);
+              }
+              console.log('Wallet reconciliation snapshot preserves NUMERIC monetary precision:', signature);
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
       - name: Verify PostgreSQL migration repeatability
         env:
           PG_HOST: 127.0.0.1
