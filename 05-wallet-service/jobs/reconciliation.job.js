@@ -14,6 +14,35 @@
 const pg = require('../db/pg');
 const Wallet = require('../models/wallet.model');
 
+const DECIMAL_SCALE = 8;
+const DECIMAL_FACTOR = 10n ** BigInt(DECIMAL_SCALE);
+
+/**
+ * Convert PostgreSQL NUMERIC values to exact scaled integers.
+ * Avoid Number/parseFloat: large NUMERIC(20,8) values can lose cents/fractions.
+ */
+function toScaledInteger(value) {
+  const text = String(value).trim();
+  const match = /^([+-]?)(\\d+)(?:\\.(\\d*))?$/.exec(text);
+  if (!match) {
+    throw new TypeError(`Invalid decimal value: ${text}`);
+  }
+
+  const fraction = match[3] || '';
+  if (fraction.length > DECIMAL_SCALE) {
+    throw new RangeError(`Decimal precision exceeds ${DECIMAL_SCALE} places: ${text}`);
+  }
+
+  const whole = BigInt(match[2]);
+  const fractional = BigInt((fraction + '0'.repeat(DECIMAL_SCALE)).slice(0, DECIMAL_SCALE) || '0');
+  const scaled = whole * DECIMAL_FACTOR + fractional;
+  return match[1] === '-' ? -scaled : scaled;
+}
+
+function scaledIntegerToNumber(value) {
+  return Number(value) / Number(DECIMAL_FACTOR);
+}
+
 // ============================================================================
 // رنگ‌بندی لاگ
 // ============================================================================
@@ -53,11 +82,14 @@ async function reconcileSingleWallet(walletId) {
       ledger_balance
     } = snapshot;
 
-    const walletBalance = parseFloat(total_balance);
-    const calculatedBalance = parseFloat(ledger_balance);
+    const walletBalanceExact = toScaledInteger(total_balance);
+    const calculatedBalanceExact = toScaledInteger(ledger_balance);
+    const walletBalance = scaledIntegerToNumber(walletBalanceExact);
+    const calculatedBalance = scaledIntegerToNumber(calculatedBalanceExact);
 
-    if (walletBalance !== calculatedBalance) {
-      const discrepancy = walletBalance - calculatedBalance;
+    if (walletBalanceExact !== calculatedBalanceExact) {
+      const discrepancyExact = walletBalanceExact - calculatedBalanceExact;
+      const discrepancy = scaledIntegerToNumber(discrepancyExact);
 
       // ثبت مغایرت در financial_audit_logs
       await pg.query(
@@ -260,4 +292,5 @@ module.exports = {
   reconcileSingleWallet,
   runFullReconciliation,
   verifyTransaction,
+  toScaledInteger,
 };
