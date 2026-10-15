@@ -243,11 +243,20 @@ async function runFullReconciliation() {
 }
 
 /**
- * بررسی تطابق یک تراکنش خاص با Ledger
+ * Verify a transaction against its ledger entry.
+ * A linked row alone is not proof: amounts, direction, wallet, currency,
+ * and the ledger's own balance delta must all agree before returning verified.
  */
 async function verifyTransaction(txId) {
   const result = await pg.query(
-    `SELECT t.*, wl.id as ledger_id, wl.credit_amount, wl.debit_amount, wl.balance_after as ledger_balance
+    `SELECT t.*,
+            wl.id AS ledger_id,
+            wl.wallet_id AS ledger_wallet_id,
+            wl.currency_id AS ledger_currency_id,
+            wl.credit_amount,
+            wl.debit_amount,
+            wl.balance_before AS ledger_balance_before,
+            wl.balance_after AS ledger_balance
      FROM transactions t
      LEFT JOIN wallet_ledger wl ON wl.transaction_id = t.id
      WHERE t.id = $1`,
@@ -259,7 +268,7 @@ async function verifyTransaction(txId) {
   }
 
   const tx = result.rows[0];
-  
+
   if (!tx.ledger_id) {
     return {
       status: 'warning',
@@ -268,9 +277,55 @@ async function verifyTransaction(txId) {
     };
   }
 
+  if (result.rows.length !== 1) {
+    return {
+      status: 'warning',
+      message: 'Transaction has multiple ledger entries; automatic verification is ambiguous',
+      transaction: tx
+    };
+  }
+
+  if (tx.status !== 'success') {
+    return {
+      status: 'warning',
+      message: 'Transaction is not successful; ledger consistency was not certified',
+      transaction: tx
+    };
+  }
+
+  const walletMatches = String(tx.wallet_id).toLowerCase() === String(tx.ledger_wallet_id).toLowerCase();
+  const currencyMatches = String(tx.currency_id).toLowerCase() === String(tx.ledger_currency_id).toLowerCase();
+  const amount = toScaledInteger(tx.amount);
+  const credit = toScaledInteger(tx.credit_amount);
+  const debit = toScaledInteger(tx.debit_amount);
+  const balanceBefore = toScaledInteger(tx.ledger_balance_before);
+  const balanceAfter = toScaledInteger(tx.ledger_balance);
+
+  let directionMatches = false;
+  if (tx.type === 'CREDIT') {
+    directionMatches = credit === amount && debit === 0n;
+  } else if (tx.type === 'DEBIT') {
+    directionMatches = debit === amount && credit === 0n;
+  }
+
+  const balanceDeltaMatches = balanceAfter === balanceBefore + credit - debit;
+  if (!walletMatches || !currencyMatches || !directionMatches || !balanceDeltaMatches) {
+    return {
+      status: 'mismatch',
+      message: 'Transaction and ledger values do not match',
+      checks: {
+        walletMatches,
+        currencyMatches,
+        directionMatches,
+        balanceDeltaMatches
+      },
+      transaction: tx
+    };
+  }
+
   return {
     status: 'verified',
-    message: 'Transaction and ledger match',
+    message: 'Transaction amount, direction, wallet, currency, and ledger balance delta match',
     transaction: tx
   };
 }

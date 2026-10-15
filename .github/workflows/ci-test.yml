@@ -260,6 +260,11 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 24-iam-service/__tests__/auth.routes.test.js
 
+      - name: Run wallet transaction-ledger verification regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 05-wallet-service/__tests__/reconciliation.verify-transaction.test.js
+
       - name: Run wallet reconciliation decimal precision regression tests
         env:
           NODE_ENV: test
