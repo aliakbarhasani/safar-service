@@ -13,7 +13,9 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-type Service = { id: string; title: string; description: string; category: string; icon: typeof CarFront; href?: string; color: string; active: boolean };\n\nconst services: Service[] = [
+type Service = { id: string; title: string; description: string; category: string; icon: typeof CarFront; href?: string; color: string; active: boolean };
+
+const services: Service[] = [
   { id: "taxi", title: "تاکسی و رزرو سفر", description: "انتخاب مبدأ و مقصد و ثبت درخواست سفر", category: "حمل‌ونقل", icon: CarFront, href: "/taxi", color: "teal", active: true },
   { id: "cargo", title: "باربری و ارسال مرسوله", description: "ثبت درخواست ارسال بار و بسته", category: "حمل‌ونقل", icon: Package, href: "/cargo", color: "gold", active: true },
   { id: "courier", title: "پیک موتوری", description: "ارسال سریع بسته درون‌شهری", category: "حمل‌ونقل", icon: Zap, color: "orange", active: false },
@@ -26,7 +28,7 @@ type Service = { id: string; title: string; description: string; category: strin
   { id: "admin", title: "پنل مدیریت", description: "مدیریت خدمات، درخواست‌ها و کاربران", category: "مدیریت", icon: ShieldCheck, color: "slate", active: false },
   { id: "ads", title: "تبلیغات کسب‌وکارها", description: "معرفی خدمات و مدیریت آگهی‌ها", category: "کسب‌وکار", icon: Store, color: "amber", active: false },
   { id: "weather", title: "آب‌وهوا و اطلاعات سفر", description: "ابزارهای کمکی برای برنامه‌ریزی سفر", category: "ابزارها", icon: CloudSun, color: "sky", active: false },
-] as const;
+];
 
 const filters = ["همه خدمات", "حمل‌ونقل", "سفر", "گردشگری", "خرید", "حساب کاربری", "مدیریت", "کسب‌وکار", "ابزارها"];
 
