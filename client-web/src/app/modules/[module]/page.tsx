@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { getModules, getModuleTitle } from '@/modules/registry';
 
 type ModulePageProps = {
@@ -6,22 +8,38 @@ type ModulePageProps = {
 
 export default async function ModulePlaceholder({ params }: ModulePageProps) {
   const { module: modId } = await params;
-  const modules = getModules();
-  const found = modules.find((module) => module.id === modId) || null;
+  const found = getModules().find((module) => module.id === modId);
+
+  if (!found) {
+    notFound();
+  }
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full bg-white rounded-2xl p-8 shadow">
-        <h1 className="text-2xl font-bold mb-4">
-          {found ? getModuleTitle(found) : modId}
+    <section
+      className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6"
+      aria-labelledby="module-title"
+    >
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-2xl text-amber-800" aria-hidden="true">
+          …
+        </div>
+        <p className="mb-2 text-sm font-bold text-teal-800">سفر سرویس</p>
+        <h1 id="module-title" className="mb-4 text-2xl font-black text-slate-900">
+          {getModuleTitle(found)}
         </h1>
-        <p className="text-sm text-[#64748b] mb-6">
-          این صفحه یک پلاسبولدر ماژول است. منطق تجاری هنوز پیاده‌سازی نشده است.
+        <p className="mb-3 leading-8 text-slate-600">
+          این بخش در حال آماده‌سازی است و هنوز خدمات عملیاتی خود را ارائه نمی‌کند.
         </p>
-        <pre className="bg-[#f8fafc] rounded p-4 text-sm overflow-x-auto">
-          {JSON.stringify(found, null, 2)}
-        </pre>
+        <p className="mb-7 text-sm leading-7 text-slate-500">
+          برای جلوگیری از سردرگمی، تا زمان تکمیل این بخش امکان ثبت سفارش واقعی از این صفحه وجود ندارد.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-teal-800 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
+        >
+          بازگشت به صفحه اصلی
+        </Link>
       </div>
-    </div>
+    </section>
   );
 }
