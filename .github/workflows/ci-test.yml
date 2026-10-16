@@ -26,6 +26,11 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Run taxi fare confirmation regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath client-web/src/services/taxiService.test.js
+
       - name: Run JWT key generation safety tests
         env:
           NODE_ENV: test
