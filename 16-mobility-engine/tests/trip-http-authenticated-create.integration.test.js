@@ -3,6 +3,7 @@
 const express = require('express');
 const request = require('supertest');
 const { Pool } = require('pg');
+const Redis = require('ioredis');
 const PricingRepository = require('../../15-pricing-engine/infrastructure/PricingRepository');
 const TripRepository = require('../infrastructure/TripRepository');
 const CreateTripUseCase = require('../application/CreateTripUseCase');
@@ -20,20 +21,20 @@ const ORIGIN = { lat: 35.6997, lng: 51.3378 };
 const DESTINATION = { lat: 35.6892, lng: 51.389 };
 const SERVICE_TYPE = 'urban_taxi';
 
-function createMemoryRedis() {
-  const values = new Map();
-  return {
-    status: 'ready',
-    values,
-    setex: async (key, _ttl, value) => values.set(key, value),
-    get: async (key) => values.get(key) || null,
-    getdel: async (key) => {
-      const value = values.get(key) || null;
-      values.delete(key);
-      return value;
-    },
-  };
+async function waitForRedis(redis, maxAttempts = 30) {
+  let lastError;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      await redis.ping();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+  throw new Error(`Redis did not become ready: ${lastError?.message || 'unknown error'}`);
 }
+
 
 describe('Authenticated trip creation HTTP integration', () => {
   let pool;
@@ -43,6 +44,7 @@ describe('Authenticated trip creation HTTP integration', () => {
   let tripId;
   let sessionId;
   let sessionRepository;
+  let redisClient;
   let dbAvailable = false;
   let app;
 
@@ -100,6 +102,14 @@ describe('Authenticated trip creation HTTP integration', () => {
         console.warn('[trip-http-integration] cleanup failed:', error.message);
       }
     }
+    if (redisClient) {
+      try {
+        if (quoteId) await redisClient.del(`fare_quote:${quoteId}`);
+        await redisClient.quit();
+      } catch (_) {
+        redisClient.disconnect();
+      }
+    }
     if (sessionRepository) sessionRepository.close();
     if (pool) await pool.end();
   });
@@ -110,8 +120,13 @@ describe('Authenticated trip creation HTTP integration', () => {
     }
 
     const pricingRepository = new PricingRepository(pool);
-    const redis = createMemoryRedis();
-    const fareQuoteStore = new FareQuoteStore(redis);
+    redisClient = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+      connectTimeout: 1000,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => (times <= 20 ? 100 : null),
+    });
+    await waitForRedis(redisClient);
+    const fareQuoteStore = new FareQuoteStore(redisClient);
     const calculateFareUseCase = new CalculateFareUseCase({
       demandSupplyTracker: { getSupplyAndDemand: async () => ({ ratio: 0 }) },
       fareQuoteStore,

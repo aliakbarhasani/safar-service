@@ -11,3 +11,14 @@ services:
       - "5433:5432"
     tmpfs:
       - /var/lib/postgresql/data
+  redis-test:
+    image: redis:7-alpine
+    container_name: safar_redis_test
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
