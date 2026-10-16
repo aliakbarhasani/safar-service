@@ -1,6 +1,6 @@
 # گزارش مرکزی پیشرفت پروژه — Safar Service
 
-> این دفتر وضعیت ثبت‌شده و شواهد قابل راستی‌آزمایی را نگه می‌دارد. پیش از هر کار، وضعیت جاری GitHub و CI را دوباره بررسی کن؛ وضعیت قدیمی را جاری فرض نکن.
+> این دفتر وضعیت و شواهد ثبت‌شده را نگه می‌دارد؛ پیش از هر اقدام، وضعیت جاری GitHub و CI را دوباره بررسی کن. هیچ وضعیت تاریخی را بدون راستی‌آزمایی جاری فرض نکن.
 
 ## قانون اجباری جلوگیری از دوباره‌کاری و عقب‌گرد
 - پیش از هر تغییر، این دفتر، `AI_ENGINEER_PERMANENT_INSTRUCTIONS.md`، سند مادر، کد فعلی و PRهای مرتبط را بررسی کن.
@@ -13,7 +13,7 @@
 ## وضعیت ثبت‌شده در ۲۰۲۶-۱۰-۱۶
 
 ### شاخه اصلی
-- آخرین SHA تأییدشده هنگام تهیه این گزارش: `b72c6cc2699692e0de0d0063bde53134d6709623`
+- آخرین SHA تأییدشده هنگام تهیه این گزارش: `4bf8c93c81aff709fdf94b0d7c65b031a8fb5d99`
 - [شاخه main](https://github.com/aliakbarhasani/safar-service/tree/main)
 
 ### کارهای ادغام‌شده و شواهد
@@ -24,48 +24,39 @@
 
 **PR #81 — اعتبارسنجی و نرمال‌سازی شماره تلفن**
 - [مشاهده PR #81](https://github.com/aliakbarhasani/safar-service/pull/81)
-- وضعیت: ادغام‌شده.
-- اصلاحات: اعتبارسنجی ورودی OTP، یکسان‌سازی قالب ملی ایران/افغانستان، محدودسازی بر اساس شماره استانداردشده و جست‌وجوی حساب‌های قدیمی با قالب‌های قبلی.
-- [Backend CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38902994946)
-- [Trip Management CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38902994988)
-- [Backend CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903204194)
-- [Trip Management CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903204265)
+- وضعیت: ادغام‌شده؛ اعتبارسنجی ورودی OTP، قالب یکسان ایران/افغانستان و جست‌وجوی حساب‌های قدیمی با قالب‌های قبلی.
+- [Backend CI روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38902994946) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38902994988) موفق شدند.
+- [Backend CI پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903204194) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38903204265) موفق شدند.
 
 **PR #83 — آزمون یکپارچه ورود OTP و کوکی HttpOnly**
 - [مشاهده PR #83](https://github.com/aliakbarhasani/safar-service/pull/83)
-- وضعیت: ادغام‌شده.
-- تست قدیمی که به‌اشتباه انتظار داشت توکن در JSON باشد اصلاح شد تا کوکی `access_token` را بررسی کند.
-- [Backend CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38903641917)
-- [Trip Management CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38903641837)
-- [Backend CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903857153)
-- [Trip Management CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903857183)
-- مسیر OTP تا ایجاد نشست و کوکی HttpOnly اکنون در CI آزموده شده است؛ این به‌تنهایی اثبات‌کنندهٔ کامل بودن کل سامانهٔ احراز هویت یا کل محصول نیست.
-
-## ممیزی بعدی: درخواست تاکسی و رزرو سفر
-
-**شاهد پیش از تغییر**
-- صفحهٔ `client-web/src/app/taxi/page.tsx` کرایه را از API دریافت می‌کرد اما بلافاصله سفر را ثبت می‌کرد؛ کاربر فرصت بررسی و تأیید مبلغ را نداشت.
-- سرویس `client-web/src/services/taxiService.js` محاسبهٔ کرایه و ایجاد سفر را در یک تابع انجام می‌داد.
-- هدف اصلاح: جداسازی دریافت پیش‌فاکتور از ثبت سفر، نمایش مبلغ پیش از ثبت، باطل کردن پیش‌فاکتور پس از تغییر مبدأ/مقصد و ارائهٔ پیوند ورود هنگام نیاز به احراز هویت.
+- وضعیت: ادغام‌شده؛ تست با قرارداد امنیتی کوکی HttpOnly هماهنگ شد و در CI اجرا می‌شود.
+- [Backend CI روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38903641917) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38903641837) موفق شدند.
+- [Backend CI پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38903857153) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38903857183) موفق شدند.
+- مسیر OTP تا نشست و کوکی HttpOnly در CI آزموده شده است؛ این به معنی کامل بودن کل سامانهٔ احراز هویت نیست.
 
 **PR #84 — نمایش و تأیید کرایه قبل از ثبت سفر**
 - [مشاهده PR #84](https://github.com/aliakbarhasani/safar-service/pull/84)
-- وضعیت: ادغام‌شده.
-- تغییرات: محاسبهٔ پیش‌فاکتور از ایجاد سفر جدا شد؛ مبلغ پیش از ثبت نمایش داده می‌شود؛ تغییر مختصات پیش‌فاکتور قبلی را باطل می‌کند؛ خطای انقضا و ورود کاربر مدیریت می‌شوند.
-- [Backend CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38904809305)
-- [Trip Management CI موفق روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38904809285)
-- [Backend CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38905058472)
-- [Trip Management CI موفق پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38905058347)
+- وضعیت: ادغام‌شده؛ محاسبهٔ پیش‌فاکتور از ثبت سفر جدا شد، مبلغ پیش از ثبت نمایش داده می‌شود و تغییر مبدأ/مقصد پیش‌فاکتور قبلی را باطل می‌کند.
+- [Backend CI روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38904809305) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38904809285) موفق شدند.
+- [Backend CI پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38905058472) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38905058347) موفق شدند.
 
-### کار در حال انجام هنگام ثبت این نسخه
-- PR #85: [آزمون بازبینی کرایه و تأیید صریح سفر](https://github.com/aliakbarhasani/safar-service/pull/85)
-- شاخه: `test/taxi-fare-confirmation-regression`
-- وضعیت هنگام ثبت: باز؛ شاخهٔ فعلی `test/taxi-fare-confirmation-regression` است.
-- آزمون‌ها بررسی می‌کنند که پیش‌فاکتور به‌تنهایی سفر ایجاد نکند، ایجاد سفر بدون شناسهٔ Quote به API نرسد و مبلغ ارسالی از کلاینت منبع قیمت معتبر نباشد.
-- دو اجرای نخست CI به‌ترتیب به‌علت خطای نحوی در تنظیم Jest و سپس ناسازگاری ESM با Jest ریشه‌یابی شدند؛ تنظیم Jest اصلاح شد و سرویس به ماژول CommonJS قابل‌آزمون تبدیل شد.
-- در Commit `c2185e9424c7ee1c8825b483a59924069a8ed3d0`، آزمون اختصاصی تاکسی موفق شد و ساخت فرانت‌اند نیز موفق بود؛ نتیجهٔ کامل Backend CI هنوز باید تأیید شود.
-- [اجرای Backend CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906177108) و [اجرای Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906177246).
-- این وضعیت یک snapshot است؛ نتیجهٔ جاری را از خود GitHub بررسی کن.
+**PR #85 — آزمون رگرسیون تأیید کرایه**
+- [مشاهده PR #85](https://github.com/aliakbarhasani/safar-service/pull/85)
+- وضعیت: ادغام‌شده؛ آزمون ثابت می‌کند پیش‌فاکتور به‌تنهایی سفر نمی‌سازد، ثبت سفر بدون `quoteId` به API نمی‌رسد و مبلغ کلاینت به‌عنوان مبلغ نهایی ارسال نمی‌شود.
+- دو اجرای ابتدایی CI شکست خوردند: ابتدا به‌علت تنظیم نحوی اشتباه Jest و سپس به‌علت ناسازگاری ESM با Jest. هر دو علت اصلاح شدند؛ نسخهٔ نهایی آزمون موفق شد.
+- [Backend CI روی شاخه PR](https://github.com/aliakbarhasani/safar-service/actions/runs/38906385482) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906385472) موفق شدند.
+- [Backend CI پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/38906665820) و [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906665865) موفق شدند.
+
+### کار در حال بررسی
+
+**PR #86 — آزمون یکپارچهٔ پیش‌فاکتور تا ثبت سفر در PostgreSQL**
+- [مشاهده PR #86](https://github.com/aliakbarhasani/safar-service/pull/86)
+- شاخه: `test/fare-quote-to-trip-integration`.
+- وضعیت هنگام ثبت: باز؛ CI باید روی آخرین Commit بررسی شود.
+- آزمون از محاسبهٔ کرایه و ذخیرهٔ پیش‌فاکتور شروع می‌کند، آن را در تراکنش مصرف می‌کند و ثبت سفر، مبلغ و timeline را در PostgreSQL بررسی می‌کند. تلاش دوم برای استفاده از همان پیش‌فاکتور باید رد شود.
+- Redis در این تست با نمونهٔ آزمایشی درون‌حافظه‌ای جایگزین شده است؛ بنابراین این آزمون مسیر application/database را پوشش می‌دهد، نه ارتباط واقعی Redis یا کل مسیر HTTP مرورگر تا Gateway.
+- این وضعیت یک snapshot است؛ نتیجهٔ جاری را از GitHub بررسی کن.
 
 ## ماتریس وضعیت قابلیت‌ها
 
@@ -73,12 +64,13 @@
 |---|---|---|
 | قانون ضد دوباره‌کاری | ادغام‌شده | در همهٔ مراحل بعدی رعایت شود |
 | اعتبارسنجی و نرمال‌سازی شماره تلفن | آزمون خودکار موفق | CI شاخه و پس از ادغام موفق |
-| ورود OTP تا کوکی HttpOnly | آزمون یکپارچه در CI موفق | مسیرهای دیگر احراز هویت و خروج هنوز جداگانه ممیزی نشده‌اند |
-| محاسبهٔ کرایه و ثبت سفر | UI تأیید کرایه در PR #84 ادغام شد؛ CI شاخه و پس از ادغام موفق | آزمون قرارداد سرویس در PR #85 در حال بررسی؛ آزمون انتها‌به‌انتها رزرو هنوز لازم است |
-| چرخهٔ سفر از ثبت تا پذیرش راننده و پایان | در این مرحله تأیید کامل نشده | ردیابی UI، Gateway، DB و dispatch در مرحلهٔ بعد |
+| ورود OTP تا کوکی HttpOnly | آزمون یکپارچه در CI موفق | خروج، تمدید نشست و مسیرهای دیگر جداگانه ممیزی شوند |
+| نمایش کرایه قبل از ثبت سفر | ادغام‌شده و Build/CI موفق | تست سرویس فرانت‌اند موفق؛ رزرو HTTP انتها‌به‌انتها هنوز لازم است |
+| مصرف یک‌بارهٔ پیش‌فاکتور و ثبت سفر در PostgreSQL | در PR #86 در حال آزمون | CI و نتیجهٔ آزمون یکپارچه باید موفق شوند |
+| چرخهٔ سفر تا پذیرش راننده و پایان | تأیید کامل نشده | ردیابی UI، Gateway، DB و dispatch |
 | سایر ماژول‌ها | ممیزی نشده | بر اساس سند مادر، بدون حدس‌زدن وضعیت |
 
 ## گام بعدی با بالاترین اولویت
-ابتدا CI و بازبینی PR #84 را بررسی کن؛ اگر آزمونی شکست خورد، علت را از لاگ همان آزمون پیدا و اصلاح کن. فقط پس از موفقیت همه بررسی‌های لازم، PR را ادغام کن. پس از ادغام، CI روی `main` را تأیید و این دفتر را با SHA و شواهد جدید به‌روزرسانی کن. سپس مسیر رزرو سفر را از ابتدا تا انتها آزمایش کن.
+ابتدا CI نهایی و بازبینی PR #86 را بررسی کن. اگر آزمونی شکست خورد، لاگ همان آزمون را بخوان، علت اصلی را اصلاح و دوباره اجرا کن؛ تا موفقیت همهٔ بررسی‌های لازم ادغام نکن. پس از ادغام، CI روی `main` را تأیید کن. سپس مسیر HTTP رزرو را از Gateway تا ایجاد سفر و پاسخ UI با نشست آزمایشی بررسی کن. تا آن زمان، کل چرخهٔ رزرو را کامل یا انتها‌به‌انتها تأییدشده اعلام نکن.
 
 **قاعده نهایی:** پیشرفت یعنی نتیجهٔ قابل مشاهده و قابل راستی‌آزمایی، بدون شکستن رفتارهای سالم قبلی؛ تعداد فایل‌ها، Commitها یا PRها معیار پیشرفت نیست.
