@@ -26,6 +26,11 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Run authentication phone normalization regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 13-auth-management/tests/user-phone-validation.test.js 13-auth-management/tests/phone-number-normalization.test.js
+
       - name: Run JWT key generation safety tests
         env:
           NODE_ENV: test
