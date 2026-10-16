@@ -57,7 +57,7 @@
       "registerTitle": "ثبت نام",
       "registerSubtitle": "اطلاعات خود را تکمیل کنید",
       "phoneLabel": "شماره موبایل",
-      "phonePlaceholder": "مثال: ۰۹۱۲۳۴۵۶۷۸۹",
+      "phonePlaceholder": "مثال ایران: ۰۹۱۲۳۴۵۶۷۸۹ یا افغانستان: ۰۷۰۱۲۳۴۵۶۷",
       "otpLabel": "کد تأیید",
       "otpPlaceholder": "کد ۵ رقمی",
       "firstNameLabel": "نام",
@@ -71,7 +71,8 @@
       "registerLink": "حساب کاربری ندارید؟ ثبت نام",
       "otpSentTo": "کد تأیید به شماره {phone} ارسال شد",
       "errors": {
-        "invalidPhone": "شماره موبایل معتبر نیست",
+        "invalidPhone": "شماره موبایل ایران یا افغانستان معتبر نیست",
+        "invalidEmail": "نشانی ایمیل معتبر نیست",
         "invalidOtp": "کد تأیید معتبر نیست",
         "required": "این فیلد الزامی است",
         "serverError": "خطا در ارتباط با سرور",

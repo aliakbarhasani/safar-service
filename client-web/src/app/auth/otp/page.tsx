@@ -30,7 +30,10 @@ export default function OtpPage() {
   // Persian digits to Latin digits for API
   const toEnglishDigits = (value: string) => {
     const faDigits = "۰۱۲۳۴۵۶۷۸۹";
-    return value.replace(/[۰-۹]/g, (d) => String(faDigits.indexOf(d)));
+    const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+    return value
+      .replace(/[۰-۹]/g, (digit) => String(faDigits.indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)));
   };
 
   const validateOtp = (code: string) => {
