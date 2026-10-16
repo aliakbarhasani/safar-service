@@ -4,6 +4,7 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const JwtService = require('../../domain/services/JwtService');
 const SessionManager = require('../../domain/services/SessionManager');
+const { normalizePhoneNumber } = require('../../domain/services/PhoneNumber');
 
 class VerifyOtpUseCase {
   constructor({ otpRepository = null, userRepository = null, jwtService = null, sessionManager = null } = {}) {
@@ -17,6 +18,15 @@ class VerifyOtpUseCase {
     if (!phoneNumber || !otpCode) {
       throw new Error('phoneNumber and otpCode are required');
     }
+
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhoneNumber) {
+      const error = new Error('A valid phone number is required');
+      error.code = 'INVALID_PHONE_NUMBER';
+      error.statusCode = 400;
+      throw error;
+    }
+    phoneNumber = normalizedPhoneNumber;
 
     const otpEntry = await this.otpRepository.findByPhoneNumber(phoneNumber, type);
     if (!otpEntry) throw new Error('Invalid OTP');
