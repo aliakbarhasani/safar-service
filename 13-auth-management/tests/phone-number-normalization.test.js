@@ -6,15 +6,15 @@ const RegisterUserUseCase = require('../application/use-cases/RegisterUserUseCas
 
 describe('Phone number canonicalization', () => {
   test.each([
-    ['Iran national', '09123456789', '+989123456789'],
-    ['Iran without national zero', '9123456789', '+989123456789'],
-    ['Iran international', '00989123456789', '+989123456789'],
-    ['Iran international without plus', '989123456789', '+989123456789'],
-    ['Afghanistan national', '0701234567', '+93701234567'],
-    ['Afghanistan without national zero', '701234567', '+93701234567'],
-    ['Afghanistan international', '0093701234567', '+93701234567'],
-    ['Afghanistan international without plus', '93701234567', '+93701234567'],
-    ['Persian digits and separators', ' ۰۷۰-۱۲۳۴۵۶۷ ', '+93701234567'],
+    ['Iran national', '09123456789', '09123456789'],
+    ['Iran without national zero', '9123456789', '09123456789'],
+    ['Iran international', '00989123456789', '09123456789'],
+    ['Iran international without plus', '989123456789', '09123456789'],
+    ['Afghanistan national', '0701234567', '0701234567'],
+    ['Afghanistan without national zero', '701234567', '0701234567'],
+    ['Afghanistan international', '0093701234567', '0701234567'],
+    ['Afghanistan international without plus', '93701234567', '0701234567'],
+    ['Persian digits and separators', ' ۰۷۰-۱۲۳۴۵۶۷ ', '0701234567'],
     ['generic E.164', '+14155552671', '+14155552671'],
   ])('normalizes %s', (_label, input, expected) => {
     expect(normalizePhoneNumber(input)).toBe(expected);
@@ -36,14 +36,14 @@ describe('OTP use cases use canonical phone numbers', () => {
 
     const result = await useCase.execute('0701234567');
 
-    expect(result.phoneNumber).toBe('+93701234567');
+    expect(result.phoneNumber).toBe('0701234567');
     expect(otpRepository.save).toHaveBeenCalledWith(
-      '+93701234567',
+      '0701234567',
       expect.any(String),
       expect.any(String),
       'login',
     );
-    expect(smsProvider.send).toHaveBeenCalledWith('+93701234567', expect.stringContaining('OTP code is:'));
+    expect(smsProvider.send).toHaveBeenCalledWith('0701234567', expect.stringContaining('OTP code is:'));
   });
 
   test('request rejects invalid input before saving or sending OTP', async () => {
@@ -60,7 +60,7 @@ describe('OTP use cases use canonical phone numbers', () => {
   });
 
   test('verification looks up OTP and user using the same canonical Afghan number', async () => {
-    const phone = '+93701234567';
+    const phone = '0701234567';
     const otpRepository = {
       findByPhoneNumber: jest.fn().mockResolvedValue({
         codeHash: bcrypt.hashSync('12345', 4),
@@ -117,7 +117,7 @@ describe('OTP use cases use canonical phone numbers', () => {
       findByPhoneNumber: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({
         id: 'user-2',
-        phone_number: '+989123456789',
+        phone_number: '09123456789',
         first_name: 'Ali',
         last_name: 'Hasani',
         email: null,
@@ -135,9 +135,9 @@ describe('OTP use cases use canonical phone numbers', () => {
       password: 'test-password',
     });
 
-    expect(userRepository.findByPhoneNumber).toHaveBeenCalledWith('+989123456789');
+    expect(userRepository.findByPhoneNumber).toHaveBeenCalledWith('09123456789');
     expect(userRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ phoneNumber: '+989123456789' }),
+      expect.objectContaining({ phoneNumber: '09123456789' }),
     );
   });
 });
