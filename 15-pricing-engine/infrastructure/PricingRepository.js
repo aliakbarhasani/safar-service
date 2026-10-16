@@ -166,12 +166,12 @@ class PricingRepository {
             await client.query(
                 `INSERT INTO quotes (
                     id, reference_id, pricing_config_id, service_type, currency_code,
-                    gross_amount, discount_amount, tax_amount, commission_amount,
+                    gross_amount, final_amount, discount_amount, tax_amount, commission_amount,
                     provider_amount, customer_final_amount, status,
                     input_snapshot, calculation_snapshot, expires_at
                 ) VALUES (
                     $1, $2, $3, $4, $5,
-                    $6, 0, 0, 0,
+                    $6, $6, 0, 0, 0,
                     $6, $6, 'CREATED',
                     $7::jsonb, $8::jsonb, $9
                 )`,
@@ -230,13 +230,13 @@ class PricingRepository {
             const quoteQuery = `
                 INSERT INTO quotes (
                     id, reference_id, pricing_config_id, service_type, currency_code,
-                    gross_amount, discount_amount, tax_amount, commission_amount,
+                    gross_amount, final_amount, discount_amount, tax_amount, commission_amount,
                     provider_amount, customer_final_amount, status,
                     input_snapshot, calculation_snapshot, expires_at
                 ) VALUES (
-                    gen_random_uuid(), $1, $2, $3, $4, 
-                    $5, $6, $7, $8, 
-                    $9, $10, $11, 
+                    gen_random_uuid(), $1, $2, $3, $4,
+                    $5, $10, $6, $7, $8,
+                    $9, $10, $11,
                     $12, $13, $14
                 ) RETURNING id
             `;
