@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowRight, MapPin, Navigation, CheckCircle2, Loader2 } from "lucide-react";
-import { requestTaxiRide } from "@/services/taxiService";
+import { estimateTaxiRide, requestTaxiRide } from "@/services/taxiService";
 
 type Coordinates = { lat: number; lng: number };
-type StatusMessage = { type: "success" | "error"; text: string } | null;
+type StatusMessage = { type: "success" | "error"; text: string; requiresLogin?: boolean } | null;
+type FareQuote = { quoteId: string; estimatedFare: number; currency: string; distance: number | null; surgeMultiplier: number | null; expiresAt: string | null };
 
 // Dynamic import for Leaflet map to avoid SSR issues
 const InteractiveMap = dynamic(
@@ -31,11 +32,14 @@ export default function TaxiPage() {
 
   // States for API integration
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<"estimate" | "booking" | null>(null);
+  const [fareQuote, setFareQuote] = useState<FareQuote | null>(null);
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
 
   const handleLocationSelect = (lat: number, lng: number) => {
     const coords = { lat, lng };
     const label = `موقعیت انتخابی (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    const hadQuote = Boolean(fareQuote);
     if (locationTarget === "pickup") {
       setPickupCoords(coords);
       setPickup(label);
@@ -43,51 +47,96 @@ export default function TaxiPage() {
       setDropoffCoords(coords);
       setDropoff(label);
     }
-    if (statusMessage?.type === "error") setStatusMessage(null);
+    // A quote is bound to exact coordinates; changing either point invalidates it.
+    setFareQuote(null);
+    setStatusMessage(hadQuote
+      ? { type: "error", text: "مبدأ یا مقصد تغییر کرد؛ قیمت قبلی باطل شد. دوباره کرایه را محاسبه کنید." }
+      : statusMessage?.type === "error" ? null : statusMessage);
   };
 
-  const handleSearchRide = async () => {
-    // 1. Validation
+  const validateRoute = () => {
     if (!pickupCoords) {
       setStatusMessage({ type: "error", text: "لطفاً دکمهٔ انتخاب مبدأ را بزنید و مبدأ را روی نقشه مشخص کنید." });
-      return;
+      return false;
     }
     if (!dropoffCoords) {
       setStatusMessage({ type: "error", text: "لطفاً دکمهٔ انتخاب مقصد را بزنید و مقصد را روی نقشه مشخص کنید." });
+      return false;
+    }
+    return true;
+  };
+
+  const handleEstimateFare = async () => {
+    if (!validateRoute()) return;
+
+    setIsLoading(true);
+    setLoadingAction("estimate");
+    setStatusMessage(null);
+    try {
+      const quote = await estimateTaxiRide({ pickupCoords, dropoffCoords });
+      setFareQuote(quote);
+      setStatusMessage({
+        type: "success",
+        text: "پیش‌فاکتور آماده است. مبلغ را بررسی کنید و فقط در صورت تأیید، درخواست سفر را ثبت کنید.",
+      });
+    } catch (error) {
+      setFareQuote(null);
+      setStatusMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "محاسبه کرایه ناموفق بود؛ لطفاً دوباره تلاش کنید.",
+      });
+    } finally {
+      setIsLoading(false);
+      setLoadingAction(null);
+    }
+  };
+
+  const handleConfirmRide = async () => {
+    if (!validateRoute()) return;
+    if (!fareQuote) {
+      setStatusMessage({ type: "error", text: "ابتدا کرایه را محاسبه کنید." });
       return;
     }
 
-    // 2. Set Loading State
     setIsLoading(true);
+    setLoadingAction("booking");
     setStatusMessage(null);
-
-    // 3. API Call
     try {
       const response = await requestTaxiRide({
-        pickup: pickup,
-        pickupCoords: pickupCoords,
-        dropoff: dropoff,
-        dropoffCoords: dropoffCoords,
+        pickup,
+        pickupCoords,
+        dropoff,
+        dropoffCoords,
+        quoteId: fareQuote.quoteId,
+        estimatedFare: fareQuote.estimatedFare,
+        currency: fareQuote.currency,
       });
-
-      if (response.success) {
-        setStatusMessage({
-          type: "success",
-          text: `${response.message} (کد پیگیری: ${response.rideId})`,
-        });
-        // Optional: clear form after success
-        // setDropoff("");
-      }
-    } catch (error) {
       setStatusMessage({
-        type: "error",
-        text: error instanceof Error
-          ? error.message
-          : "خطا در ثبت درخواست. لطفاً اتصال خود را بررسی کنید.",
+        type: "success",
+        text: `${response.message} (کد پیگیری: ${response.rideId})`,
       });
+    } catch (error) {
+      const statusCode = error && typeof error === "object" && "statusCode" in error
+        ? Number((error as { statusCode?: number }).statusCode)
+        : 0;
+      if (statusCode === 410) {
+        setFareQuote(null);
+        setStatusMessage({ type: "error", text: "اعتبار پیش‌فاکتور تمام شده است؛ لطفاً کرایه را دوباره محاسبه کنید." });
+      } else if (statusCode === 401) {
+        setStatusMessage({
+          type: "error",
+          text: "برای ثبت سفر ابتدا وارد حساب کاربری شوید.",
+          requiresLogin: true,
+        });
+      } else {
+        setStatusMessage({
+          type: "error",
+          text: error instanceof Error ? error.message : "خطا در ثبت درخواست؛ لطفاً دوباره تلاش کنید.",
+        });
+      }
     } finally {
-      // 4. Reset Loading State
       setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -169,26 +218,71 @@ export default function TaxiPage() {
               }`}
             >
               {statusMessage.text}
+              {statusMessage.requiresLogin && (
+                <Link href="/auth/login" className="mr-2 inline-flex font-bold underline underline-offset-4">
+                  ورود / ثبت‌نام
+                </Link>
+              )}
             </div>
           )}
 
-          <button
-            onClick={handleSearchRide}
-            disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                در حال پردازش...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                جستجوی خودرو و راننده
-              </>
+          {fareQuote && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2" aria-live="polite">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-amber-900">کرایه برآوردی</p>
+                  <p className="mt-1 text-2xl font-extrabold text-slate-900">
+                    {new Intl.NumberFormat("fa-IR").format(fareQuote.estimatedFare)}{" "}
+                    {fareQuote.currency === "IRT" ? "تومان" : fareQuote.currency}
+                  </p>
+                </div>
+                <span className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-amber-900">پیش‌فاکتور</span>
+              </div>
+              {fareQuote.distance !== null && (
+                <p className="text-sm text-slate-600">
+                  فاصلهٔ تقریبی: {new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 }).format(fareQuote.distance)} کیلومتر
+                </p>
+              )}
+              {fareQuote.expiresAt && (
+                <p className="text-xs text-slate-500">
+                  اعتبار پیش‌فاکتور تا {new Date(fareQuote.expiresAt).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
+              <p className="text-xs leading-6 text-slate-600">
+                تا زمانی که تأیید نکنید، سفری ثبت نمی‌شود. اگر مبدأ یا مقصد را تغییر دهید، باید کرایهٔ تازه بگیرید.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={fareQuote ? handleConfirmRide : handleEstimateFare}
+              disabled={isLoading}
+              className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-teal-400 text-white font-medium py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {loadingAction === "estimate" ? "در حال محاسبه کرایه..." : "در حال ثبت درخواست..."}
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  {fareQuote ? "تأیید کرایه و ثبت درخواست سفر" : "محاسبه کرایه"}
+                </>
+              )}
+            </button>
+            {fareQuote && (
+              <button
+                type="button"
+                onClick={handleEstimateFare}
+                disabled={isLoading}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                محاسبهٔ مجدد
+              </button>
             )}
-          </button>
+          </div>
         </div>
       </div>
     </div>
