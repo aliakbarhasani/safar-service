@@ -86,4 +86,5 @@ PR #86 ادغام شده و CI فعلی روی main برای ثبت پیش‌ف�
 - هدف: اجرای ۲۴ آزمون واحد موجودِ migration runner در Backend CI؛ پیش از تغییر، فایل آزمون وجود داشت اما workflow فقط `node --check` روی آزمون integration را اجرا می‌کرد و تست واحد `run-all-migrations.test.js` در CI فراخوانی نمی‌شد.
 - فایل تغییرکرده: `.github/workflows/ci-test.yml`؛ یک گام مستقل با `NODE_ENV=test` و `npm test -- --runTestsByPath 00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js` افزوده شد.
 - معیار پذیرش: گام جدید در GitHub Actions روی همین commit موفق شود؛ در غیر این صورت ادغام نشود.
-- وضعیت در زمان ثبت: تغییر در شاخه انجام شد؛ CI هنوز باید نتیجه بدهد. فایل این دفتر نیز برای منع تکرار کار، وضعیت جاری PR #86 و SHA اصلی را اصلاح می‌کند.
+- نتیجهٔ واقعی آزمون روی Commit `a1478110045e894cad2291e3b2310dc9eefb0412`: گام `Run PostgreSQL migration runner unit tests` موفق شد؛ Backend CI نیز کامل موفق شد ([run 38909188141](https://github.com/aliakbarhasani/safar-service/actions/runs/38909188141)) و Trip Management CI موفق شد ([run 38909187880](https://github.com/aliakbarhasani/safar-service/actions/runs/38909187880)).
+- این یادداشت بعد از نتیجهٔ بالا به‌روزرسانی می‌شود؛ چون Commit مستندات جدید ایجاد می‌کند، CI برای آخرین SHA دوباره اجرا خواهد شد و تا تکمیل آن ادغام انجام نمی‌شود.
