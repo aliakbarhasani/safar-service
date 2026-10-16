@@ -16,10 +16,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [serverError, setServerError] = useState("");
 
-
-
   const validatePhone = (phone: string) => {
-    return /^09\d{9}$/.test(phone);
+    return isSupportedMobilePhone(phone);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
