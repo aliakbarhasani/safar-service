@@ -35,7 +35,7 @@ export default function RegisterPage() {
       newErrors.phoneNumber = config.texts.auth.errors.invalidPhone;
     }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) {
-      newErrors.email = config.texts.auth.errors.invalidPhone;
+      newErrors.email = config.texts.auth.errors.invalidEmail;
     }
 
     setErrors(newErrors);
