@@ -145,6 +145,11 @@ jobs:
           NODE_ENV: test
         run: npm test -- --runTestsByPath 13-auth-management/tests/user-phone-validation.test.js 13-auth-management/tests/phone-number-normalization.test.js
 
+      - name: Run PostgreSQL migration runner unit tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js
+
       - name: Run PostgreSQL migrations
         env:
           PG_HOST: 127.0.0.1
