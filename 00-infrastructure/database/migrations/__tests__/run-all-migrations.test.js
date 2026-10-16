@@ -127,8 +127,8 @@ describe('SQL statement splitting', () => {
 });
 
 describe('migration manifest integrity', () => {
-  test('registers the promo usage idempotency migration after the existing ordered history', () => {
-    expect(MIGRATION_ORDER[MIGRATION_ORDER.length - 1]).toBe('033_promo_usage_trip_idempotency.sql');
+  test('registers the latest pricing schema compatibility migration after the existing ordered history', () => {
+    expect(MIGRATION_ORDER[MIGRATION_ORDER.length - 1]).toBe('035_relax_legacy_pricing_audit_columns.sql');
   });
 
   test('every registered migration has a matching SQL file', () => {
