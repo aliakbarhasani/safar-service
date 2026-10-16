@@ -85,4 +85,5 @@ PR #87 ادغام شده و آزمون HTTP احراز هویت‌شدهٔ ای�
 - شاهد: `00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js` شامل ۲۴ تست است، اما `.github/workflows/ci-test.yml` پیش از این فقط syntax آزمون integration را بررسی می‌کرد و فایل آزمون واحد را با Jest اجرا نمی‌کرد.
 - تغییر محدود: یک گام `Run PostgreSQL migration runner unit tests` قبل از اجرای مهاجرت‌های PostgreSQL اضافه شد؛ هیچ منطق عملیاتی دیتابیس تغییر نکرد.
 - معیار پذیرش: اجرای موفق گام جدید و هر دو CI روی SHA نهایی PR. این شاخه از آخرین main ساخته شده تا تغییرات هم‌زمان اخیر را حفظ کند.
-- وضعیت فعلی: منتظر CI همین شاخه؛ ادغام خودکار انجام نمی‌شود.
+- نتیجهٔ واقعی روی Commit `83f9602a6f48163eb5c758aa8928289ba3fe9ed3`: آزمون migration runner با **۲۴ تست موفق از ۲۴**؛ Backend CI موفق ([run 38909812417](https://github.com/aliakbarhasani/safar-service/actions/runs/38909812417)) و Trip Management CI موفق ([run 38909812270](https://github.com/aliakbarhasani/safar-service/actions/runs/38909812270)).
+- این ثبت وضعیت، Commit مستنداتی تازه می‌سازد؛ بنابراین CI برای SHA نهایی دوباره بررسی می‌شود. ادغام خودکار انجام نمی‌شود.
