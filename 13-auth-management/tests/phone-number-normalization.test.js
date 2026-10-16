@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
-const { normalizePhoneNumber } = require('../domain/services/PhoneNumber');
+const { normalizePhoneNumber, getPhoneNumberLookupCandidates } = require('../domain/services/PhoneNumber');
+const UserRepository = require('../infrastructure/repositories/UserRepository');
 const RequestOtpUseCase = require('../application/use-cases/RequestOtpUseCase');
 const VerifyOtpUseCase = require('../application/use-cases/VerifyOtpUseCase');
 const RegisterUserUseCase = require('../application/use-cases/RegisterUserUseCase');
@@ -26,6 +27,42 @@ describe('Phone number canonicalization', () => {
       expect(normalizePhoneNumber(input)).toBeNull();
     },
   );
+});
+
+describe('legacy account lookup compatibility', () => {
+  test('canonical Iranian number includes the previous stored formats', () => {
+    expect(getPhoneNumberLookupCandidates('+989123456789')).toEqual([
+      '09123456789',
+      '9123456789',
+      '+989123456789',
+      '989123456789',
+      '00989123456789',
+    ]);
+  });
+
+  test('UserRepository queries canonical and legacy formats together', async () => {
+    const repository = new UserRepository();
+    const legacyUser = {
+      id: 'legacy-user',
+      phone_number: '+989123456789',
+      first_name: 'Legacy',
+      last_name: 'User',
+      role: 'passenger',
+      status: 'active',
+    };
+    repository.pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+        .mockResolvedValueOnce({ rows: [legacyUser] }),
+      end: jest.fn(),
+    };
+
+    await expect(repository.findByPhoneNumber('09123456789')).resolves.toEqual(legacyUser);
+    expect(repository.pool.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('phone_number = ANY($1::text[])'),
+      [['09123456789', '9123456789', '+989123456789', '989123456789', '00989123456789']],
+    );
+  });
 });
 
 describe('OTP use cases use canonical phone numbers', () => {
