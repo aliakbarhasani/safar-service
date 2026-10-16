@@ -44,14 +44,14 @@ function getPhoneNumberLookupCandidates(value) {
   if (!canonical) return [];
 
   const candidates = new Set([canonical]);
-  if (/^09\\d{9}$/.test(canonical)) {
+  if (/^09\d{9}$/.test(canonical)) {
     const local = canonical.slice(1);
     const international = `+98${local}`;
     candidates.add(local);
     candidates.add(international);
     candidates.add(international.slice(1));
     candidates.add(`00${international.slice(1)}`);
-  } else if (/^07\\d{8}$/.test(canonical)) {
+  } else if (/^07\d{8}$/.test(canonical)) {
     const local = canonical.slice(1);
     const international = `+93${local}`;
     candidates.add(local);
