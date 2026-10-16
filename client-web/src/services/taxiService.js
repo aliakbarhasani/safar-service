@@ -1,4 +1,4 @@
-import config from "@/config/app-config.json";
+const config = require("@/config/app-config.json");
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || config.api?.baseUrl || "http://localhost:8000";
@@ -39,7 +39,7 @@ function getRideCoordinates(rideData) {
  * Step 1: calculate and persist a server-side, coordinate-bound fare quote.
  * No trip is created here; the passenger can review the fare before confirming.
  */
-export async function estimateTaxiRide(rideData) {
+async function estimateTaxiRide(rideData) {
   const { coordinates } = getRideCoordinates(rideData);
   const query = new URLSearchParams({
     originLat: String(coordinates[0]),
@@ -74,7 +74,7 @@ export async function estimateTaxiRide(rideData) {
  * Step 2: create a trip only after the passenger has reviewed the quote.
  * The client never calculates or sends a trusted fare amount.
  */
-export async function requestTaxiRide(rideData) {
+async function requestTaxiRide(rideData) {
   const { coordinates } = getRideCoordinates(rideData);
   const quoteId = typeof rideData?.quoteId === "string" ? rideData.quoteId.trim() : "";
   if (!quoteId) {
@@ -112,3 +112,5 @@ export async function requestTaxiRide(rideData) {
     currency: rideData.currency || "IRT",
   };
 }
+
+module.exports = { estimateTaxiRide, requestTaxiRide };
