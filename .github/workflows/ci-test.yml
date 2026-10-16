@@ -150,6 +150,18 @@ jobs:
           NODE_ENV: test
         run: node 00-infrastructure/database/migrations/run-all-migrations.js
       
+
+      - name: Run authentication end-to-end regression tests
+        env:
+          NODE_ENV: test
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          DATABASE_URL: postgres://test_user:test_password@127.0.0.1:5433/safar_test_db
+        run: npm test -- --runTestsByPath 13-auth-management/tests/integration/AuthIntegration.test.js
+
       - name: Verify wallet reconciliation snapshot returns numeric monetary values
         env:
           PG_HOST: 127.0.0.1

@@ -48,10 +48,19 @@ describe('Auth Management Integration Tests', () => {
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body).toHaveProperty('success', true);
     expect(verifyRes.body).toHaveProperty('data');
-    expect(verifyRes.body.data).toHaveProperty('token');
+    expect(verifyRes.body.data).toHaveProperty('user');
+    // Access tokens must not be exposed to JavaScript in the JSON response.
+    expect(verifyRes.body.data).not.toHaveProperty('token');
+
+    const cookies = verifyRes.headers['set-cookie'] || [];
+    const accessCookie = cookies.find((cookie) => cookie.startsWith('access_token='));
+    expect(accessCookie).toBeDefined();
+    const tokenPair = accessCookie.split(';', 1)[0];
+    const accessToken = decodeURIComponent(tokenPair.slice('access_token='.length));
+    expect(accessToken).toBeTruthy();
 
     // اطمینان از یکسان بودن الگوریتم توکن (RS256) با middleware پروفایل و بقیه‌ی سرویس‌ها
-    const decoded = new JwtService().verifyAccessToken(verifyRes.body.data.token);
+    const decoded = new JwtService().verifyAccessToken(accessToken);
     expect(decoded).toHaveProperty('userId');
     expect(decoded).toHaveProperty('type', 'access');
     expect(decoded).toHaveProperty('role', 'passenger');
