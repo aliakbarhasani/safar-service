@@ -1,3 +1,5 @@
+const { normalizePhoneNumber } = require('../services/PhoneNumber');
+
 class User {
   constructor({
     id = null,
@@ -76,14 +78,7 @@ class User {
   }
 
   _isValidPhoneNumber(phone) {
-    // Accept E.164 numbers for international users, plus supported national
-    // Iranian/Afghan mobile formats. Do not accept arbitrary 10-digit strings.
-    const normalized = String(phone).trim().replace(/[\s()-]/g, '');
-    if (/^\+[1-9]\d{7,14}$/.test(normalized)) return true;
-
-    const iranianMobile = /^(?:09\d{9}|9\d{9}|00989\d{9}|989\d{9})$/;
-    const afghanMobile = /^(?:07\d{8}|7\d{8}|00937\d{8}|937\d{8})$/;
-    return iranianMobile.test(normalized) || afghanMobile.test(normalized);
+    return normalizePhoneNumber(phone) !== null;
   }
 
   _isValidEmail(email) {
