@@ -19,8 +19,6 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
 
-
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     const normalizedPhone = normalizeMobilePhone(phoneNumber);
@@ -33,7 +31,7 @@ export default function RegisterPage() {
     }
     if (!normalizedPhone) {
       newErrors.phoneNumber = config.texts.auth.errors.required;
-    } else if (!/^09\d{9}$/.test(normalizedPhone)) {
+    } else if (!isSupportedMobilePhone(normalizedPhone)) {
       newErrors.phoneNumber = config.texts.auth.errors.invalidPhone;
     }
     if (email && !/^\S+@\S+\.\S+$/.test(email)) {
