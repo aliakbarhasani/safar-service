@@ -60,8 +60,11 @@
 ### کار در حال انجام هنگام ثبت این نسخه
 - PR #85: [آزمون بازبینی کرایه و تأیید صریح سفر](https://github.com/aliakbarhasani/safar-service/pull/85)
 - شاخه: `test/taxi-fare-confirmation-regression`
-- وضعیت هنگام ثبت: باز؛ CI باید روی آخرین Commit بررسی شود.
+- وضعیت هنگام ثبت: باز؛ شاخهٔ فعلی `test/taxi-fare-confirmation-regression` است.
 - آزمون‌ها بررسی می‌کنند که پیش‌فاکتور به‌تنهایی سفر ایجاد نکند، ایجاد سفر بدون شناسهٔ Quote به API نرسد و مبلغ ارسالی از کلاینت منبع قیمت معتبر نباشد.
+- دو اجرای نخست CI به‌ترتیب به‌علت خطای نحوی در تنظیم Jest و سپس ناسازگاری ESM با Jest ریشه‌یابی شدند؛ تنظیم Jest اصلاح شد و سرویس به ماژول CommonJS قابل‌آزمون تبدیل شد.
+- در Commit `c2185e9424c7ee1c8825b483a59924069a8ed3d0`، آزمون اختصاصی تاکسی موفق شد و ساخت فرانت‌اند نیز موفق بود؛ نتیجهٔ کامل Backend CI هنوز باید تأیید شود.
+- [اجرای Backend CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906177108) و [اجرای Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38906177246).
 - این وضعیت یک snapshot است؛ نتیجهٔ جاری را از خود GitHub بررسی کن.
 
 ## ماتریس وضعیت قابلیت‌ها
