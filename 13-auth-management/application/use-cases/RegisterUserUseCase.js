@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../../domain/entities/User');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const eventBus = require('../../../01-core-system/EventBus');
+const { normalizePhoneNumber } = require('../../domain/services/PhoneNumber');
 
 class RegisterUserUseCase {
   constructor(userRepository = null) {
@@ -11,7 +12,7 @@ class RegisterUserUseCase {
 
   async execute(input) {
     const {
-      phoneNumber,
+      phoneNumber: normalizedPhoneNumber,
       firstName,
       lastName,
       email,
@@ -23,6 +24,11 @@ class RegisterUserUseCase {
 
     if (!phoneNumber || !firstName || !lastName || !password) {
       throw new Error('phoneNumber, firstName, lastName, and password are required');
+    }
+
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhoneNumber) {
+      throw new Error('Validation failed: Invalid or missing phone number');
     }
 
     const normalizedRole = String(role || 'passenger').trim().toLowerCase();
@@ -59,7 +65,7 @@ class RegisterUserUseCase {
       throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
     }
 
-    const existingUser = await this.userRepository.findByPhoneNumber(phoneNumber);
+    const existingUser = await this.userRepository.findByPhoneNumber(normalizedPhoneNumber);
     if (existingUser) {
       throw new Error('User already exists with this phone number');
     }
