@@ -135,6 +135,11 @@ jobs:
           NODE_ENV: test
         run: node 00-infrastructure/keys/generate-keys.js
 
+      - name: Run authentication phone normalization regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 13-auth-management/tests/user-phone-validation.test.js 13-auth-management/tests/phone-number-normalization.test.js
+
       - name: Run PostgreSQL migrations
         env:
           PG_HOST: 127.0.0.1

@@ -1,3 +1,5 @@
+const { normalizePhoneNumber } = require('../../domain/services/PhoneNumber');
+
 /**
  * RateLimitMiddleware
  *
@@ -79,8 +81,10 @@ function getClientIp(req) {
 function normalizePhone(req) {
   const phone = req.body?.phoneNumber;
   if (phone === undefined || phone === null) return 'unknown';
-  const normalized = String(phone).trim();
-  return normalized || 'unknown';
+  const normalized = normalizePhoneNumber(String(phone));
+  // Invalid inputs are rejected by the use case; retaining a stable trimmed key
+  // still avoids creating a new limiter bucket for whitespace-only variations.
+  return normalized || String(phone).trim() || 'unknown';
 }
 
 function applyLimit({ req, res, next, key, maxRequests, windowMs }) {

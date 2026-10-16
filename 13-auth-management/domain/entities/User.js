@@ -1,3 +1,5 @@
+const { normalizePhoneNumber } = require('../services/PhoneNumber');
+
 class User {
   constructor({
     id = null,
@@ -76,9 +78,7 @@ class User {
   }
 
   _isValidPhoneNumber(phone) {
-    // Accepts international format: +989123456789 or local: 09123456789 or 9123456789
-    const phoneRegex = /^(\+98|0)?9\d{9}$|^(\+98|0)?\d{10}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
+    return normalizePhoneNumber(phone) !== null;
   }
 
   _isValidEmail(email) {

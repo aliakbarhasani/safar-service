@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { getPhoneNumberLookupCandidates } = require('../../domain/services/PhoneNumber');
 
 class UserRepository {
   constructor() {
@@ -34,13 +35,19 @@ class UserRepository {
   }
 
   async findByPhoneNumber(phoneNumber) {
+    const candidates = getPhoneNumberLookupCandidates(phoneNumber);
+    if (candidates.length === 0) return null;
+
     const dbReady = await this._isDBReady();
     if (!dbReady) return null;
 
     const result = await this.pool.query(
       `SELECT id, phone_number, first_name, last_name, email, role, status, created_at
-       FROM users WHERE phone_number = $1 AND deleted_at IS NULL LIMIT 1`,
-      [phoneNumber]
+       FROM users
+       WHERE phone_number = ANY($1::text[]) AND deleted_at IS NULL
+       ORDER BY array_position($1::text[], phone_number::text) ASC
+       LIMIT 1`,
+      [candidates]
     );
 
     return result.rows.length > 0 ? result.rows[0] : null;

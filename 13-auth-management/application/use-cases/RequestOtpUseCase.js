@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const OtpRepository = require('../../infrastructure/repositories/OtpRepository');
 const ConsoleSmsProvider = require('../../domain/strategies/ConsoleSmsProvider');
+const { normalizePhoneNumber } = require('../../domain/services/PhoneNumber');
 
 class RequestOtpUseCase {
   constructor({ otpRepository = null, smsProvider = null, config = {} } = {}) {
@@ -16,9 +17,14 @@ class RequestOtpUseCase {
   }
 
   async execute(phoneNumber, type = 'login') {
-    if (!phoneNumber) {
-      throw new Error('Phone number is required');
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhoneNumber) {
+      const error = new Error('A valid phone number is required');
+      error.code = 'INVALID_PHONE_NUMBER';
+      error.statusCode = 400;
+      throw error;
     }
+    phoneNumber = normalizedPhoneNumber;
 
     // SECURITY: ConsoleSmsProvider is a development/test adapter, not a delivery
     // channel. Fail closed unless the environment explicitly permits this adapter.
