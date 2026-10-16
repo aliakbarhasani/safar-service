@@ -143,11 +143,12 @@ describe('Fare quote -> trip creation database integration', () => {
     expect(trip).toMatchObject({ tripId, quoteId, status: 'REQUESTED', passengerId });
 
     const quoteRow = await pool.query(
-      'SELECT status, customer_final_amount, consumed_at FROM quotes WHERE id = $1',
+      'SELECT status, final_amount, customer_final_amount, consumed_at FROM quotes WHERE id = $1',
       [quoteId],
     );
     expect(quoteRow.rows).toHaveLength(1);
     expect(quoteRow.rows[0].status).toBe('CONSUMED');
+    expect(Number(quoteRow.rows[0].final_amount)).toBe(quote.estimatedFare);
     expect(Number(quoteRow.rows[0].customer_final_amount)).toBe(quote.estimatedFare);
     expect(quoteRow.rows[0].consumed_at).toBeTruthy();
 
