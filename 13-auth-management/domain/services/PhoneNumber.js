@@ -35,4 +35,35 @@ function normalizePhoneNumber(value) {
   return null;
 }
 
-module.exports = { normalizePhoneNumber };
+/**
+ * Include the historic formats accepted by earlier versions so a user who
+ * originally registered with +98/+93 can still be found after canonicalization.
+ */
+function getPhoneNumberLookupCandidates(value) {
+  const canonical = normalizePhoneNumber(value);
+  if (!canonical) return [];
+
+  const candidates = new Set([canonical]);
+  if (/^09\\d{9}$/.test(canonical)) {
+    const local = canonical.slice(1);
+    const international = `+98${local}`;
+    candidates.add(local);
+    candidates.add(international);
+    candidates.add(international.slice(1));
+    candidates.add(`00${international.slice(1)}`);
+  } else if (/^07\\d{8}$/.test(canonical)) {
+    const local = canonical.slice(1);
+    const international = `+93${local}`;
+    candidates.add(local);
+    candidates.add(international);
+    candidates.add(international.slice(1));
+    candidates.add(`00${international.slice(1)}`);
+  } else if (canonical.startsWith('+')) {
+    candidates.add(canonical.slice(1));
+    candidates.add(`00${canonical.slice(1)}`);
+  }
+
+  return Array.from(candidates);
+}
+
+module.exports = { normalizePhoneNumber, getPhoneNumberLookupCandidates };
