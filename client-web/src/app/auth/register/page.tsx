@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import config from "@/config/app-config.json";
+import { isSupportedMobilePhone, normalizeMobilePhone } from "@/lib/phone";
 import { registerUser } from "@/services/api";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
@@ -18,22 +19,11 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
 
-  // Normalize Persian/Arabic digits and common Iranian phone formats to 09xxxxxxxxx.
-  const normalizeIranPhone = (value: string) => {
-    const digits = value
-      .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-      .replace(/[\s()-]/g, "");
-    if (digits.startsWith("+989")) return "0" + digits.slice(3);
-    if (digits.startsWith("00989")) return "0" + digits.slice(4);
-    if (digits.startsWith("989")) return "0" + digits.slice(2);
-    if (/^9\d{9}$/.test(digits)) return "0" + digits;
-    return digits;
-  };
+
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const normalizedPhone = normalizeIranPhone(phoneNumber);
+    const normalizedPhone = normalizeMobilePhone(phoneNumber);
 
     if (!firstName.trim()) {
       newErrors.firstName = config.texts.auth.errors.required;
@@ -78,13 +68,13 @@ export default function RegisterPage() {
               return `pw-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
             })();
       await registerUser({
-        phoneNumber: normalizeIranPhone(phoneNumber),
+        phoneNumber: normalizeMobilePhone(phoneNumber),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim() || undefined,
         password: generatedPassword,
       });
-      localStorage.setItem("login_phone", normalizeIranPhone(phoneNumber));
+      localStorage.setItem("login_phone", normalizeMobilePhone(phoneNumber));
       router.push("/auth/otp");
     } catch (err: any) {
       const status = err?.status ?? err?.response?.status;
