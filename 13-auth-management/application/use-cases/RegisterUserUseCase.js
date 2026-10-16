@@ -12,7 +12,7 @@ class RegisterUserUseCase {
 
   async execute(input) {
     const {
-      phoneNumber: normalizedPhoneNumber,
+      phoneNumber,
       firstName,
       lastName,
       email,
@@ -47,7 +47,7 @@ class RegisterUserUseCase {
     const passwordHash = await this.bcrypt.hash(password, 10);
 
     const user = new User({
-      phoneNumber,
+      phoneNumber: normalizedPhoneNumber,
       firstName,
       lastName,
       email: email || null,
