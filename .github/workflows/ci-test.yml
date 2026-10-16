@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Start Test Database (Isolated in Cloud)
+      - name: Start test PostgreSQL and Redis services
         run: docker compose -f docker-compose.test.yml up -d
 
       - name: Install root dependencies
@@ -190,6 +190,7 @@ jobs:
           PG_USER: test_user
           PG_PASSWORD: test_password
           DATABASE_URL: postgres://test_user:test_password@127.0.0.1:5433/safar_test_db
+          REDIS_URL: redis://127.0.0.1:6379
         run: npm test -- --runTestsByPath 16-mobility-engine/tests/trip-http-authenticated-create.integration.test.js
 
       - name: Verify wallet reconciliation snapshot returns numeric monetary values
