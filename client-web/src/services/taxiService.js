@@ -6,18 +6,15 @@ const API_BASE_URL =
 async function readApiResponse(response, fallbackMessage) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.success === false) {
-    throw new Error(body?.error || body?.message || fallbackMessage);
+    const error = new Error(body?.error || body?.message || fallbackMessage);
+    error.statusCode = response.status;
+    error.code = body?.code || null;
+    throw error;
   }
   return body;
 }
 
-/**
- * Real taxi request flow:
- * 1. Ask the server to calculate and store a coordinate-bound quote in Redis.
- * 2. Submit that server-issued quote ID and the same coordinates to trip creation.
- * The client never calculates or sends a fare amount.
- */
-export async function requestTaxiRide(rideData) {
+function getRideCoordinates(rideData) {
   const pickupCoords = rideData?.pickupCoords;
   const dropoffCoords = rideData?.dropoffCoords;
   if (!pickupCoords || !dropoffCoords) {
@@ -35,6 +32,15 @@ export async function requestTaxiRide(rideData) {
     throw new Error("مختصات مبدأ یا مقصد معتبر نیست.");
   }
 
+  return { pickupCoords, dropoffCoords, coordinates };
+}
+
+/**
+ * Step 1: calculate and persist a server-side, coordinate-bound fare quote.
+ * No trip is created here; the passenger can review the fare before confirming.
+ */
+export async function estimateTaxiRide(rideData) {
+  const { coordinates } = getRideCoordinates(rideData);
   const query = new URLSearchParams({
     originLat: String(coordinates[0]),
     originLng: String(coordinates[1]),
@@ -43,14 +49,36 @@ export async function requestTaxiRide(rideData) {
     serviceType: "urban_taxi",
   });
 
-  const estimateResponse = await fetch(
+  const response = await fetch(
     `${API_BASE_URL}/api/v1/trip/estimate?${query.toString()}`,
     { method: "GET", credentials: "include", cache: "no-store" }
   );
-  const estimate = await readApiResponse(estimateResponse, "محاسبه قیمت ناموفق بود.");
+  const estimate = await readApiResponse(response, "محاسبه قیمت ناموفق بود.");
   const quoteId = estimate?.data?.quoteId;
-  if (!quoteId) {
+  const estimatedFare = Number(estimate?.data?.estimatedFare);
+  if (!quoteId || !Number.isFinite(estimatedFare) || estimatedFare <= 0) {
     throw new Error("پیش‌فاکتور معتبر ساخته نشد؛ اتصال Redis یا سرویس قیمت‌گذاری را بررسی کنید.");
+  }
+
+  return {
+    quoteId,
+    estimatedFare,
+    currency: estimate?.data?.currency || "IRT",
+    distance: Number.isFinite(Number(estimate?.data?.distance)) ? Number(estimate.data.distance) : null,
+    surgeMultiplier: Number.isFinite(Number(estimate?.data?.surgeMultiplier)) ? Number(estimate.data.surgeMultiplier) : null,
+    expiresAt: estimate?.data?.expiresAt || null,
+  };
+}
+
+/**
+ * Step 2: create a trip only after the passenger has reviewed the quote.
+ * The client never calculates or sends a trusted fare amount.
+ */
+export async function requestTaxiRide(rideData) {
+  const { coordinates } = getRideCoordinates(rideData);
+  const quoteId = typeof rideData?.quoteId === "string" ? rideData.quoteId.trim() : "";
+  if (!quoteId) {
+    throw new Error("ابتدا کرایه را محاسبه کنید و سپس درخواست سفر را تأیید کنید.");
   }
 
   const tripResponse = await fetch(`${API_BASE_URL}/api/v1/trips`, {
@@ -80,7 +108,7 @@ export async function requestTaxiRide(rideData) {
     message: trip?.message || "درخواست سفر با موفقیت ثبت شد.",
     rideId,
     quoteId,
-    estimatedFare: estimate?.data?.estimatedFare,
-    currency: estimate?.data?.currency || "IRT",
+    estimatedFare: rideData.estimatedFare,
+    currency: rideData.currency || "IRT",
   };
 }
