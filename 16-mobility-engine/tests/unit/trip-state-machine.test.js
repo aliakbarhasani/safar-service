@@ -1,5 +1,5 @@
 /**
- * trip-state-machine.test.js - Unit tests for the canonical 6-state Trip State Machine (P2-1)
+ * trip-state-machine.test.js - Unit tests for the canonical Trip State Machine (P2-1)
  *
  * Covers all legal transitions plus illegal ones (e.g. ACCEPTED -> COMPLETED
  * must throw InvalidStateTransitionError).
@@ -14,8 +14,8 @@ const {
   transitionTo,
 } = require('../../domain/trip-state-machine');
 
-describe('trip-state-machine (P2-1 canonical 6-state lifecycle)', () => {
-  test('exposes includes all canonical lifecycle states', () => {
+describe('trip-state-machine (canonical lifecycle)', () => {
+  test('exposes all canonical lifecycle states', () => {
     expect(Object.keys(TRIP_STATES).sort()).toEqual(
       ['ACCEPTED', 'ARRIVED', 'CANCELLED', 'COMPLETED', 'IN_PROGRESS', 'REQUESTED', 'SEARCHING'].sort(),
     );
