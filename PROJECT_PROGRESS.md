@@ -138,8 +138,8 @@ PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایج
 - تغییر در حال بررسی: [PR #99](https://github.com/aliakbarhasani/safar-service/pull/99)، شاخه `test/gateway-trip-full-lifecycle-e2e`.
 - دامنه: گسترش همان آزمون موجود با راننده و نشست آزمایشی، آفر Redis آزمایشی، فراخوانی مسیرهای واقعی `accept → arrived → start → complete` و بررسی `started_at`، `finished_at`، کرایهٔ نهایی و رویداد `TripCompleted` در Outbox.
 - پاک‌سازی: نشست‌ها، راننده/کاربر آزمایشی، سفر، رویدادهای Outbox و کلیدهای Redis مربوط به آزمون پاک می‌شوند؛ سرویس یا دادهٔ واقعی استفاده نمی‌شود.
-- وضعیت فعلی CI روی Commit `ab8829392d933a4a5fa267d5a44ea94feb192e7d`: [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38995031629) موفق؛ [Backend CI Tests](https://github.com/aliakbarhasani/safar-service/actions/runs/38995031624) هنوز در حال اجرا هنگام ثبت این گزارش.
-- تصمیم: PR #99 تا تکمیل Backend CI، بررسی هر شکست و تأیید سازگاری آزمون با زیرساخت CI ادغام نشود. پس از سبز شدن هر دو workflow، ادغام و CI روی `main` دوباره بررسی شود.
+- وضعیت نهایی CI روی Commit `2626e22ea2a671167cf9518fb44447b932bf8ddf`: [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/39018404619) موفق و [Backend CI Tests](https://github.com/aliakbarhasani/safar-service/actions/runs/39018404852) موفق؛ آزمون‌های Gateway، مهاجرت PostgreSQL، احراز هویت و مجموعه‌های رگرسیون اجرا شدند.
+- تصمیم: PR #99 پس از سبز شدن هر دو CI آماده بازبینی است، اما تا تأیید/اجازه ادغام از سوی صاحب پروژه ادغام نمی‌شود. پس از ادغام، CI روی `main` دوباره بررسی شود. پس از سبز شدن هر دو workflow، ادغام و CI روی `main` دوباره بررسی شود.
 - محدودیت ادعا: این آزمون چرخهٔ وضعیت سفر و ثبت Outbox را می‌سنجد؛ به‌تنهایی اثبات تسویهٔ مالی موفق کیف پول یا پایان کامل همهٔ خدمات نیست.
 
 
