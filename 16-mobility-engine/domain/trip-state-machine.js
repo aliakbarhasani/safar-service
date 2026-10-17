@@ -1,8 +1,10 @@
 /**
  * trip-state-machine.js - Trip State Machine (Mobility Engine Domain Layer)
  *
- * Canonical 6-state lifecycle guard for P2-1:
- *   REQUESTED -> ACCEPTED | CANCELLED
+ * Canonical trip lifecycle guard:
+ *   REQUESTED -> SEARCHING -> ACCEPTED
+ *   REQUESTED -> ACCEPTED (legacy/direct dispatch compatibility)
+ *   REQUESTED / SEARCHING -> CANCELLED
  *   ACCEPTED  -> ARRIVED  | CANCELLED
  *   ARRIVED   -> IN_PROGRESS | CANCELLED
  *   IN_PROGRESS -> COMPLETED
@@ -16,6 +18,7 @@
 
 const TRIP_STATES = Object.freeze({
   REQUESTED: 'REQUESTED',
+  SEARCHING: 'SEARCHING',
   ACCEPTED: 'ACCEPTED',
   ARRIVED: 'ARRIVED',
   IN_PROGRESS: 'IN_PROGRESS',
@@ -24,7 +27,8 @@ const TRIP_STATES = Object.freeze({
 });
 
 const ALLOWED_TRANSITIONS = Object.freeze({
-  REQUESTED: Object.freeze(['ACCEPTED', 'CANCELLED']),
+  REQUESTED: Object.freeze(['SEARCHING', 'ACCEPTED', 'CANCELLED']),
+  SEARCHING: Object.freeze(['ACCEPTED', 'CANCELLED']),
   ACCEPTED: Object.freeze(['ARRIVED', 'CANCELLED']),
   ARRIVED: Object.freeze(['IN_PROGRESS', 'CANCELLED']),
   IN_PROGRESS: Object.freeze(['COMPLETED']),
