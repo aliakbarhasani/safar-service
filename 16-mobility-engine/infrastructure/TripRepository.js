@@ -194,7 +194,7 @@ class TripRepository {
                 cancelled_by     = COALESCE($6, cancelled_by),
                 final_cost       = COALESCE($7, final_cost),
                 started_at       = CASE WHEN $2::varchar = 'IN_PROGRESS' THEN COALESCE(started_at, $8, NOW()) ELSE started_at END,
-                finished_at      = CASE WHEN $3 = 'finished' THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
+                finished_at      = CASE WHEN $2::varchar = 'COMPLETED' THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
                 updated_at       = NOW()
             WHERE id = $1
             RETURNING ${SELECT_COLUMNS}
