@@ -321,7 +321,7 @@ jobs:
       - name: Run trip lifecycle and driver acceptance regression tests
         env:
           NODE_ENV: test
-        run: npm test -- --runTestsByPath 16-mobility-engine/tests/unit/trip-state-machine.test.js 16-mobility-engine/tests/accept-trip-use-case.test.js
+        run: npm test -- --runTestsByPath 16-mobility-engine/tests/unit/trip-state-machine.test.js 16-mobility-engine/tests/accept-trip-use-case.test.js 16-mobility-engine/tests/trip-lifecycle-events.test.js
 
       - name: Run trip creation authorization regression tests
         env:
