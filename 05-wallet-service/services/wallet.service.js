@@ -1904,18 +1904,21 @@ async function processTripPayment({ tripId, passengerId, driverId, amount, curre
     const pAvailBefore = parseFloat(pWallet.available_balance);
     const pFrozenBefore = parseFloat(pWallet.frozen_balance);
 
-    const pUpdated = await Wallet.debitAvailableBalance(pWallet.id, amount, client);
-    if (!pUpdated) throw new Error('Insufficient available balance or inactive passenger wallet');
+    // Migration 030 explicitly supports passenger debt for completed trips.
+    // The per-wallet advisory lock acquired by getOrCreateWallet serializes
+    // settlements, so this pre-debit balance reliably determines debt status.
+    const debt = pAvailBefore < amount;
+    const pUpdated = await Wallet.debitAllowNegative(pWallet.id, amount, client);
+    if (!pUpdated) throw new Error('Unable to debit passenger wallet or wallet is inactive');
     const pBalAfter = parseFloat(pUpdated.balance);
     const pAvailAfter = parseFloat(pUpdated.available_balance);
     const pFrozenAfter = parseFloat(pUpdated.frozen_balance);
-    const debt = false;
 
     const pTx = await Transaction.create({
       walletId: pWallet.id, userId: passengerId, tripId,
       amount, currencyId, type: 'DEBIT',
       description: `TRIP_PAYMENT trip ${tripId}`,
-      status: 'success',
+      status: debt ? 'pending' : 'success',
       referenceId: passengerReferenceId,
     }, client);
     await Transaction.createLedgerEntry({
