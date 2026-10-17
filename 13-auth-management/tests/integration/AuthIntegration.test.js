@@ -37,7 +37,7 @@ describe('Auth Management Integration Tests', () => {
     // equivalent national format. This checks normalization across the real
     // HTTP/controller/use-case/repository path rather than only in unit tests.
     const phoneInternational = phoneValid;
-    const phoneNational = phoneInternational.replace(/^\\+98/, '0');
+    const phoneNational = phoneInternational.replace(/^\+98/, '0');
 
     const requestOtpRes = await request(app)
       .post('/api/v1/auth/request-otp')
