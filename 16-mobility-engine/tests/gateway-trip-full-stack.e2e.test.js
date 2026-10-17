@@ -52,6 +52,11 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
   let gatewayOutput = '';
   let passengerId;
   let phoneNumber;
+  let driverUserId;
+  let driverId;
+  let driverPhoneNumber;
+  let driverSessionId;
+  let driverAccessToken;
   let sessionId;
   let accessToken;
   let quoteId;
@@ -92,6 +97,32 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
       );
       passengerId = user.rows[0].id;
       dbAvailable = true;
+
+      driverPhoneNumber = `+9894${String(Date.now()).slice(-8)}`;
+      const driverUser = await pool.query(
+        `INSERT INTO users (first_name, last_name, phone_number, password_hash, role)
+         VALUES ($1, $2, $3, $4, 'driver')
+         RETURNING id`,
+        ['Gateway', 'E2E Driver', driverPhoneNumber, 'test-only-password-hash'],
+      );
+      driverUserId = driverUser.rows[0].id;
+      const driverProfile = await pool.query(
+        `INSERT INTO drivers (
+           user_id, first_name, last_name, phone_number, date_of_birth,
+           account_status, operational_status, vehicle_type, license_plate,
+           vehicle_identification_number, license_number, identity_card_number
+         )
+         VALUES ($1, $2, $3, $4, $5, 'verified', 'online', $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+          driverUserId, 'Gateway', 'E2E Driver', driverPhoneNumber, '1990-01-01',
+          'sedan', `E2E-${String(Date.now()).slice(-6)}`,
+          `VIN-E2E-${String(Date.now()).slice(-8)}`,
+          `LIC-E2E-${String(Date.now()).slice(-8)}`,
+          `ID-E2E-${String(Date.now()).slice(-8)}`,
+        ],
+      );
+      driverId = driverProfile.rows[0].id;
     } catch (error) {
       if (process.env.REQUIRE_TEST_DATABASE === 'true') throw error;
       console.warn('[gateway-trip-e2e] PostgreSQL unavailable; test skipped:', error.message);
@@ -134,6 +165,14 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
     sessionId = session.sessionId;
     accessToken = session.accessToken;
 
+    const driverSession = await sessionManager.createSession({
+      id: driverUserId,
+      phoneNumber: driverPhoneNumber,
+      role: 'driver',
+    });
+    driverSessionId = driverSession.sessionId;
+    driverAccessToken = driverSession.accessToken;
+
     redisClient = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
       connectTimeout: 2000,
       maxRetriesPerRequest: 1,
@@ -160,6 +199,11 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
     if (redisClient) {
       try {
         if (quoteId) await redisClient.del(`fare_quote:${quoteId}`);
+        if (tripId && driverId) {
+          await redisClient.del(`offer:${tripId}:${driverId}`);
+          await redisClient.del(`trip_lock:${tripId}`);
+          await redisClient.del(`dispatch:trip:${tripId}`);
+        }
         await redisClient.quit();
       } catch (_) {
         redisClient.disconnect();
@@ -176,7 +220,13 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
           await pool.query('DELETE FROM pricing_audit_logs WHERE quote_id = $1', [quoteId]);
           await pool.query('DELETE FROM quotes WHERE id = $1', [quoteId]);
         }
+        if (tripId) {
+          await pool.query("DELETE FROM outbox_events WHERE aggregate_id = $1", [tripId]);
+        }
         if (sessionId) await pool.query('DELETE FROM user_sessions WHERE id = $1', [sessionId]);
+        if (driverSessionId) await pool.query('DELETE FROM user_sessions WHERE id = $1', [driverSessionId]);
+        if (driverId) await pool.query('DELETE FROM drivers WHERE id = $1', [driverId]);
+        if (driverUserId) await pool.query('DELETE FROM users WHERE id = $1', [driverUserId]);
         if (passengerId) await pool.query('DELETE FROM users WHERE id = $1', [passengerId]);
       } catch (error) {
         console.warn('[gateway-trip-e2e] cleanup failed:', error.message);
@@ -186,7 +236,7 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
     if (pool) await pool.end();
   });
 
-  test('estimate → authenticated Gateway POST → PostgreSQL trip, while blocking anonymous and duplicate requests', async () => {
+  test('estimate → booking → driver acceptance → arrival → start → completion through real Gateway and PostgreSQL', async () => {
     if (!dbAvailable) return;
 
     const estimate = await request(baseUrl)
@@ -248,5 +298,75 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
     const rows = await pool.query('SELECT id FROM trips WHERE quote_id = $1', [quoteId]);
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].id).toBe(tripId);
+
+    // The real dispatch endpoint requires a valid Redis offer for this driver.
+    const offer = {
+      tripId: String(tripId),
+      driverId: String(driverId),
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
+    };
+    await redisClient.set(`offer:${tripId}:${driverId}`, JSON.stringify(offer), 'EX', 60);
+
+    const accepted = await request(baseUrl)
+      .post(`/api/v1/trips/${tripId}/accept`)
+      .set('Cookie', `access_token=${driverAccessToken}`)
+      .send({});
+    if (accepted.status !== 200) {
+      throw new Error(`Accept trip failed with HTTP ${accepted.status}: ${JSON.stringify(accepted.body)}\nGateway output:\n${gatewayOutput}`);
+    }
+    expect(accepted.body).toMatchObject({ success: true, data: { tripId, status: 'ACCEPTED', driverId } });
+
+    const arrived = await request(baseUrl)
+      .post(`/api/v1/trips/${tripId}/arrived`)
+      .set('Cookie', `access_token=${driverAccessToken}`)
+      .send({});
+    expect(arrived.status).toBe(200);
+    expect(arrived.body).toMatchObject({ success: true, data: { tripId, status: 'ARRIVED', driverId } });
+
+    const started = await request(baseUrl)
+      .post(`/api/v1/trips/${tripId}/start`)
+      .set('Cookie', `access_token=${driverAccessToken}`)
+      .send({});
+    expect(started.status).toBe(200);
+    expect(started.body).toMatchObject({ success: true, data: { tripId, status: 'IN_PROGRESS', driverId } });
+
+    const completed = await request(baseUrl)
+      .post(`/api/v1/trips/${tripId}/complete`)
+      .set('Cookie', `access_token=${driverAccessToken}`)
+      .send({});
+    expect(completed.status).toBe(200);
+    expect(completed.body).toMatchObject({
+      success: true,
+      data: { tripId, status: 'COMPLETED', driverId, passengerId, currency: 'IRT' },
+    });
+    expect(Number(completed.body.data.amount)).toBeGreaterThan(0);
+
+    const persisted = await pool.query(
+      `SELECT lifecycle_status, started_at, finished_at, final_cost
+       FROM trips WHERE id = $1`,
+      [tripId],
+    );
+    expect(persisted.rows).toHaveLength(1);
+    expect(persisted.rows[0].lifecycle_status).toBe('COMPLETED');
+    expect(persisted.rows[0].started_at).toBeTruthy();
+    expect(persisted.rows[0].finished_at).toBeTruthy();
+    expect(Number(persisted.rows[0].final_cost)).toBe(Number(completed.body.data.amount));
+
+    const completionEvent = await pool.query(
+      `SELECT event_type, payload, status FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [tripId, 'TripCompleted'],
+    );
+    expect(completionEvent.rows).toHaveLength(1);
+    expect(completionEvent.rows[0].payload).toMatchObject({
+      tripId: String(tripId),
+      passengerId: String(passengerId),
+      driverId: String(driverId),
+      amount: Number(completed.body.data.amount),
+      currency: 'IRT',
+    });
   });
 });
