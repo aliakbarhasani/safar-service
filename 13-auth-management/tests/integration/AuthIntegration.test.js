@@ -11,6 +11,10 @@ function freshPhone() {
   return '+9891' + String(Date.now()).slice(-8);
 }
 
+function freshAfghanPhone() {
+  return '+9370' + String(Date.now()).slice(-7);
+}
+
 describe('Auth Management Integration Tests', () => {
   let phoneValid;
   let phoneInvalid;
@@ -73,6 +77,32 @@ describe('Auth Management Integration Tests', () => {
     expect(decoded).toHaveProperty('userId');
     expect(decoded).toHaveProperty('type', 'access');
     expect(decoded).toHaveProperty('role', 'passenger');
+  });
+
+  test('Afghan mobile numbers can request and verify OTP across international/national formats', async () => {
+    const phoneInternational = freshAfghanPhone();
+    const phoneNational = phoneInternational.replace(/^\+93/, '0');
+
+    const requestOtpRes = await request(app)
+      .post('/api/v1/auth/request-otp')
+      .send({ phoneNumber: phoneInternational })
+      .set('Accept', 'application/json');
+
+    expect(requestOtpRes.status).toBe(200);
+    expect(requestOtpRes.body.data.phoneNumber).toBe(phoneNational);
+    const otpCode = requestOtpRes.body.data?.otpCode;
+    expect(otpCode).toMatch(/^\d{5}$/);
+
+    const verifyRes = await request(app)
+      .post('/api/v1/auth/verify-otp')
+      .send({ phoneNumber: phoneNational, otpCode })
+      .set('Accept', 'application/json');
+
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body).toHaveProperty('success', true);
+    expect(verifyRes.body.data).toHaveProperty('user');
+    expect(verifyRes.body.data).not.toHaveProperty('token');
+    expect(verifyRes.headers['set-cookie']?.some((cookie) => cookie.startsWith('access_token='))).toBe(true);
   });
 
   test('POST /api/v1/auth/verify-otp returns 401 for invalid OTP', async () => {
