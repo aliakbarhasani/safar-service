@@ -36,6 +36,7 @@ class ArriveAtPickupUseCase {
 
         const db = this.tripRepository.db;
         const client = await db.connect();
+        let committed = false;
         try {
             await client.query('BEGIN');
 
@@ -70,16 +71,38 @@ class ArriveAtPickupUseCase {
                     oldStatus: row.status,
                     newStatus: trip.status,
                     changedByUserId: actorId,
-                    changedByRole: 'driver',
+                    changedByRole: String(actorRole || '').toLowerCase() === 'super_admin' ? 'super_admin' : 'driver',
                     reason: 'driver_arrived',
                 },
                 client,
             );
 
-            await client.query('COMMIT');
+            // ثبت پایدار رویداد در همان تراکنش تغییر وضعیت؛ در صورت شکست درج، وضعیت هم rollback می‌شود.
+            if (this.tripRepository.outboxRepository) {
+                await this.tripRepository.outboxRepository.insert({
+                    aggregateId: String(tripId),
+                    eventType: TripDomainEvents.DriverArrived,
+                    payload: {
+                        tripId: String(tripId),
+                        driverId: updated.driver_id,
+                        passengerId: updated.passenger_id,
+                    },
+                }, client);
+            }
 
-            // د) انتشار رویداد دامنه پس از Commit
-            this.emitEvent(TripDomainEvents.DriverArrived, { tripId, driverId: updated.driver_id });
+            await client.query('COMMIT');
+            committed = true;
+
+            // انتشار زنده best-effort است؛ OutboxRelay انتشار پایدار را دوباره تلاش می‌کند.
+            try {
+                await this.emitEvent(TripDomainEvents.DriverArrived, {
+                    tripId,
+                    driverId: updated.driver_id,
+                    passengerId: updated.passenger_id,
+                });
+            } catch (_) {
+                // وضعیت سفر commit شده؛ خطای ناشر نباید پاسخ شکست کاذب ایجاد کند.
+            }
 
             return {
                 tripId: updated.id,
@@ -88,7 +111,9 @@ class ArriveAtPickupUseCase {
                 passengerId: updated.passenger_id,
             };
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (!committed) {
+                try { await client.query('ROLLBACK'); } catch (_) { /* preserve original error */ }
+            }
             throw error;
         } finally {
             client.release();
