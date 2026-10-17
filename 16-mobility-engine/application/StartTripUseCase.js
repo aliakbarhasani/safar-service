@@ -32,6 +32,7 @@ class StartTripUseCase {
 
         const db = this.tripRepository.db;
         const client = await db.connect();
+        let committed = false;
         try {
             await client.query('BEGIN');
 
@@ -56,7 +57,7 @@ class StartTripUseCase {
 
             // ج) بهروزرسانی وضعیت و ثبت timeline
             const updated = await this.tripRepository.updateTripStatus(
-                { tripId, status: trip.status },
+                { tripId, status: trip.status, startedAt: trip.startedAt },
                 client,
             );
             const actorId = changedByUserId || row.driver_id || row.passenger_id;
@@ -72,15 +73,38 @@ class StartTripUseCase {
                 client,
             );
 
-            await client.query('COMMIT');
+            const startedAt = updated.started_at
+                ? new Date(updated.started_at).toISOString()
+                : trip.startedAt.toISOString();
 
-            // د) انتشار رویداد دامنه پس از Commit
-            this.emitEvent(TripDomainEvents.TripStarted, {
-                tripId,
-                driverId: updated.driver_id,
-                passengerId: updated.passenger_id,
-                startedAt: new Date().toISOString(),
-            });
+            // ثبت پایدار رویداد در همان تراکنش تغییر وضعیت.
+            if (this.tripRepository.outboxRepository) {
+                await this.tripRepository.outboxRepository.insert({
+                    aggregateId: String(tripId),
+                    eventType: TripDomainEvents.TripStarted,
+                    payload: {
+                        tripId: String(tripId),
+                        driverId: updated.driver_id,
+                        passengerId: updated.passenger_id,
+                        startedAt,
+                    },
+                }, client);
+            }
+
+            await client.query('COMMIT');
+            committed = true;
+
+            // انتشار زنده best-effort است؛ OutboxRelay انتشار پایدار را دوباره تلاش می‌کند.
+            try {
+                await this.emitEvent(TripDomainEvents.TripStarted, {
+                    tripId,
+                    driverId: updated.driver_id,
+                    passengerId: updated.passenger_id,
+                    startedAt,
+                });
+            } catch (_) {
+                // وضعیت سفر commit شده؛ خطای ناشر نباید پاسخ شکست کاذب ایجاد کند.
+            }
 
             return {
                 tripId: updated.id,
@@ -89,7 +113,9 @@ class StartTripUseCase {
                 passengerId: updated.passenger_id,
             };
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (!committed) {
+                try { await client.query('ROLLBACK'); } catch (_) { /* preserve original error */ }
+            }
             throw error;
         } finally {
             client.release();
