@@ -15,17 +15,20 @@ const {
 } = require('../../domain/trip-state-machine');
 
 describe('trip-state-machine (P2-1 canonical 6-state lifecycle)', () => {
-  test('exposes exactly the 6 canonical states', () => {
+  test('exposes includes all canonical lifecycle states', () => {
     expect(Object.keys(TRIP_STATES).sort()).toEqual(
-      ['ACCEPTED', 'ARRIVED', 'CANCELLED', 'COMPLETED', 'IN_PROGRESS', 'REQUESTED'].sort(),
+      ['ACCEPTED', 'ARRIVED', 'CANCELLED', 'COMPLETED', 'IN_PROGRESS', 'REQUESTED', 'SEARCHING'].sort(),
     );
     expect(Object.keys(ALLOWED_TRANSITIONS).sort()).toEqual(Object.keys(TRIP_STATES).sort());
   });
 
   test('allows all legal transitions', () => {
     const legal = [
-      ['REQUESTED', 'ACCEPTED'],
+      ['REQUESTED', 'SEARCHING'],
+      ['REQUESTED', 'ACCEPTED'], // legacy/direct dispatch compatibility
       ['REQUESTED', 'CANCELLED'],
+      ['SEARCHING', 'ACCEPTED'],
+      ['SEARCHING', 'CANCELLED'],
       ['ACCEPTED', 'ARRIVED'],
       ['ACCEPTED', 'CANCELLED'],
       ['ARRIVED', 'IN_PROGRESS'],
@@ -40,6 +43,8 @@ describe('trip-state-machine (P2-1 canonical 6-state lifecycle)', () => {
 
   test('rejects illegal transitions with InvalidStateTransitionError', () => {
     const illegal = [
+      ['SEARCHING', 'IN_PROGRESS'],
+      ['SEARCHING', 'REQUESTED'],
       ['REQUESTED', 'IN_PROGRESS'],
       ['REQUESTED', 'COMPLETED'],
       ['ACCEPTED', 'COMPLETED'], // the audit example: skip ARRIVED/IN_PROGRESS
