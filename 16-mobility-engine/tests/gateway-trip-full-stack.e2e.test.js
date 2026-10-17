@@ -96,6 +96,7 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
         ['Gateway', 'E2E', phoneNumber, 'test-only-password-hash'],
       );
       passengerId = user.rows[0].id;
+      dbAvailable = true;
 
       driverPhoneNumber = `+9894${String(Date.now()).slice(-8)}`;
       const driverUser = await pool.query(
@@ -122,7 +123,6 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
         ],
       );
       driverId = driverProfile.rows[0].id;
-      dbAvailable = true;
     } catch (error) {
       if (process.env.REQUIRE_TEST_DATABASE === 'true') throw error;
       console.warn('[gateway-trip-e2e] PostgreSQL unavailable; test skipped:', error.message);
