@@ -13,7 +13,7 @@
 ## وضعیت ثبت‌شده در ۲۰۲۶-۱۰-۱۶
 
 ### شاخه اصلی
-- آخرین SHA تأییدشده هنگام تهیهٔ این گزارش: `5fe7d726635e5cd5db0171ee4b4c762265d70012`
+- آخرین SHA تأییدشده هنگام تهیهٔ این گزارش: `0b82d47e9df600b88e50d5124cc7c68ed5e2f5aa`
 - [شاخه main](https://github.com/aliakbarhasani/safar-service/tree/main)
 
 ### کارهای تکمیل‌شده و شواهد
@@ -66,20 +66,35 @@
 | OTP تا نشست و کوکی HttpOnly | آزمون یکپارچه در CI موفق | تمدید نشست و خروج جداگانه ممیزی شوند |
 | پیش‌فاکتور تا ثبت سفر در PostgreSQL | آزمون یکپارچه و CI پس از ادغام موفق | آزمون HTTP با Redis واقعی نیز پس از ادغام CI موفق داشت |
 | HTTP ایجاد سفر با احراز هویت و مجوز | آزمون یکپارچه و CI پس از ادغام موفق | Gateway کامل با تمام سرویس‌ها هنوز جداگانه تأیید نشده |
-| کل API Gateway تا Redis واقعی | هنوز تأیید نشده | مرحلهٔ بعد از PR #90 |
-| چرخهٔ کامل تا پذیرش راننده و پایان سفر | تأیید کامل نشده | ردیابی dispatch و وضعیت‌های سفر |
+| مسیر واقعی Gateway از برآورد کرایه تا ایجاد سفر | آزمون انتها‌به‌انتها و CI پس از ادغام موفق در PR #92 | پذیرش راننده، شروع/پایان سفر و تسویه هنوز در یک مسیر واقعی واحد آزموده نشده |
+| چرخهٔ کامل تا پذیرش راننده و پایان سفر | تأیید کامل نشده | ردیابی dispatch، پذیرش پیشنهاد، رسیدن، شروع، پایان و اثر مالی |
 | سایر ماژول‌ها | ممیزی نشده | طبق سند مادر، بدون حدس‌زدن وضعیت |
 
 ## گام بعدی با بالاترین اولویت
-PR #90 ادغام شده و CI پس از ادغام موفق است. گام بعدی، بررسی مسیر کامل API Gateway با Redis و PostgreSQL آزمایشی است. این کار جدا از اصلاح پوشش CI برای آزمون‌های واحد migration runner انجام می‌شود. تا تأیید Gateway و چرخهٔ کامل سفر، کل رزرو یا کل محصول را انتها‌به‌انتها اعلام نکن.
+PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایجاد سفر با PostgreSQL و Redis آزمایش کرد. گام بعدی، آزمون انتها‌به‌انتها و مبتنی بر سرویس واقعی برای تخصیص سفر به راننده، پذیرش پیشنهاد، رسیدن به مبدأ، شروع و پایان سفر و پیامدهای مالی است. تا تأیید این چرخه، کل رزرو یا کل محصول را کامل اعلام نکن.
 
 **قاعده نهایی:** پیشرفت یعنی نتیجهٔ قابل مشاهده و قابل راستی‌آزمایی بدون شکستن رفتارهای سالم قبلی؛ تعداد فایل‌ها، Commitها و PRها معیار پیشرفت نیست.
 
 
-## ثبت اقدام — ۲۰۲۶-۱۰-۱۶: پوشش آزمون واحد migration runner در CI
+## ثبت اقدام — ۲۰۲۶-۱۰-۱۶: پوشش آزمون واحد migration runner در CI (PR #91)
 
-- مبنای شاخه: `5fe7d726635e5cd5db0171ee4b4c762265d70012`; شاخه کاری: `ci/migration-unit-tests-after-redis-2026-10-16`.
-- شاهد: فایل `00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js` دارای ۲۴ آزمون است، اما workflow جاری `.github/workflows/ci-test.yml` آن را با Jest اجرا نمی‌کرد؛ فقط آزمون integration از نظر syntax بررسی می‌شد.
-- تغییر محدود: اجرای فایل آزمون واحد با Jest قبل از اجرای مهاجرت‌های PostgreSQL. منطق runtime، schema و داده‌های عملیاتی تغییر نکردند.
-- این شکاف قبلاً روی شاخهٔ آزمایشی جداگانه اثبات شد: ۲۴/۲۴ تست موفق در CI روی Commit `83f9602a6f48163eb5c758aa8928289ba3fe9ed3`. این شاخهٔ تازه از main جدیدتر ساخته شده تا تغییرات PR #90 درباره Redis واقعی حفظ شود.
-- معیار پذیرش: ۲۴ تست موفق و هر دو گردش‌کار CI روی آخرین SHA این PR. تا تکمیل بررسی، ادغام انجام نمی‌شود.
+- مبنای تغییر: `5fe7d726635e5cd5db0171ee4b4c762265d70012`; شاخه کاری: `ci/migration-unit-tests-after-redis-2026-10-16`.
+- شاهد: فایل `00-infrastructure/database/migrations/__tests__/run-all-migrations.test.js` دارای ۲۴ آزمون بود، اما workflow جاری آن را با Jest اجرا نمی‌کرد.
+- تغییر محدود: اجرای آزمون‌های واحد قبل از مهاجرت PostgreSQL؛ منطق runtime و schema تغییر نکرد.
+- وضعیت: PR #91 ادغام شد؛ ۲۴ آزمون واحد و هر دو workflow روی main موفق شدند.
+- شواهد: [PR #91](https://github.com/aliakbarhasani/safar-service/pull/91)، [Backend CI روی شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38910862617)، [Trip CI روی شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38910862622)، [Backend CI روی main](https://github.com/aliakbarhasani/safar-service/actions/runs/38963391336)، [Trip CI روی main](https://github.com/aliakbarhasani/safar-service/actions/runs/38963391164).
+
+## ثبت اقدام — ۲۰۲۶-۱۰-۱۷: آزمون انتها‌به‌انتهای Gateway واقعی (PR #92)
+
+- مبنای main پس از ادغام: `0b82d47e9df600b88e50d5124cc7c68ed5e2f5aa`.
+- علت: آزمون قبلی TripRouter و middlewareهای واقعی را با Express آزمایشی بررسی می‌کرد، اما خود `01-core-system/server.js` و Gateway واقعی را بالا نمی‌آورد.
+- تغییر: آزمون جدید یک پردازهٔ واقعی Gateway را اجرا می‌کند، از `GET /api/v1/trip/estimate` پیش‌فاکتور می‌گیرد، درخواست ناشناس را با 401 رد می‌کند، با نشست و کوکی HttpOnly سفر می‌سازد و بازپخش همان Quote را با 409 رد می‌کند.
+- وابستگی‌های آزمون: PostgreSQL و Redis واقعیِ مخصوص CI؛ `REQUIRE_TEST_DATABASE=true` مانع سبز شدن کاذب با skip می‌شود.
+- وضعیت: PR #92 ادغام شد؛ آزمون Gateway در CI شاخه و پس از ادغام موفق بود؛ هر دو workflow اصلی روی main پس از ادغام سبز شدند.
+- شواهد: [PR #92](https://github.com/aliakbarhasani/safar-service/pull/92)، [Backend CI شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38989255676)، [Trip CI شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38989255479)، [Backend CI main](https://github.com/aliakbarhasani/safar-service/actions/runs/38989420405)، [Trip CI main](https://github.com/aliakbarhasani/safar-service/actions/runs/38989420400).
+
+## وضعیت فعلی
+- آخرین main: `0b82d47e9df600b88e50d5124cc7c68ed5e2f5aa`.
+- Gateway واقعی از برآورد کرایه تا ایجاد سفر آزموده شده است.
+- چرخهٔ تخصیص/پذیرش راننده تا پایان سفر و تسویه هنوز به‌صورت یک مسیر کامل تأیید نشده است.
+- پیش از تغییر بعدی، وضعیت فعلی را از مخزن و CI دوباره بررسی کن؛ هیچ آزمون اجرا‌نشده را موفق فرض نکن.
