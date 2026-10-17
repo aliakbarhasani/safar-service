@@ -121,7 +121,7 @@ PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایج
 - شواهد: [PR #97](https://github.com/aliakbarhasani/safar-service/pull/97)، [Backend CI شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38991071165)، [Trip CI شاخه](https://github.com/aliakbarhasani/safar-service/actions/runs/38991071198)، [Backend CI main](https://github.com/aliakbarhasani/safar-service/actions/runs/38991243324)، [Trip CI main](https://github.com/aliakbarhasani/safar-service/actions/runs/38991243290).
 
 ## وضعیت فعلی
-- آخرین main تأییدشده: `d1991ff419526bd99ed8399892cae04065dd0835`.
+- آخرین main تأییدشده هنگام ممیزی ۲۰۲۶-۱۰-۱۷: `e6aba0d600bf4b0d833b562a264a64ac396f478e`.
 - Gateway واقعی از برآورد کرایه تا ایجاد سفر آزموده شده است.
 - پذیرش آفر از وضعیت‌های `REQUESTED` و `SEARCHING` در آزمون‌های خودکار تأیید شده است.
 - زمان شروع سفر اکنون ذخیره و رویدادهای رسیدن/شروع در Outbox ثبت می‌شوند.
@@ -129,3 +129,23 @@ PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایج
 - **یافتهٔ باز:** مستندات کیف پول از بدهی در صورت کمبود موجودی حرف می‌زنند، اما مسیر فعلی `processTripPayment` در صورت کمبود موجودی پرداخت را متوقف می‌کند. باید این تفاوت با قرارداد مالی پروژه روشن و آزموده شود.
 - گام بعدی: گسترش آزمون واقعی Gateway از ایجاد سفر به تخصیص راننده، پذیرش آفر، رسیدن، شروع، پایان و ثبت تراکنش‌های تسویه.
 - پیش از تغییر بعدی، وضعیت فعلی را از مخزن و CI دوباره بررسی کن؛ هیچ آزمون اجرا‌نشده را موفق فرض نکن.
+
+
+## ثبت اقدام — ۲۰۲۶-۱۰-۱۷: تأیید چرخهٔ کامل سفر از Gateway واقعی (PR #99)
+
+- شاخه: `test/gateway-trip-full-lifecycle-e2e`; PR: [#99](https://github.com/aliakbarhasani/safar-service/pull/99).
+- آزمون رگرسیون اولیه به‌علت انتظار قدیمی در متن SQL شکست خورد؛ علت از لاگ واقعی شناسایی شد و assertion با cast واقعی `$2::varchar` هماهنگ شد.
+- روی Commit کد `2626e22ea2a671167cf9518fb44447b932bf8ddf`، Backend CI و Trip Management CI هر دو موفق شدند. سپس دفتر پیشرفت به‌روزرسانی شد و CI روی Commit مستندسازی `62aca000d6b8a9b84c793669ce891452ddbc2497` نیز در هر دو workflow موفق شد: [Backend](https://github.com/aliakbarhasani/safar-service/actions/runs/39018546966)، [Trip](https://github.com/aliakbarhasani/safar-service/actions/runs/39018546959).
+- وضعیت: PR #99 باز است و هنوز ادغام نشده. آزمون مسیر HTTP از برآورد کرایه تا پایان سفر، زمان شروع/پایان، کرایهٔ نهایی و رویداد Outbox را پوشش می‌دهد؛ **تسویهٔ واقعی کیف پول در این آزمون هنوز اثبات نشده است**.
+
+## ثبت اقدام — ۲۰۲۶-۱۰-۱۷: اصلاح ناسازگاری بدهی کیف پول سفر (PR #100)
+
+- مبنا: `e6aba0d600bf4b0d833b562a264a64ac396f478e`; شاخهٔ جداگانه: `fix/wallet-trip-settlement-debt-support`.
+- علت اثبات‌شده: مهاجرت `030_wallet_debt_support.sql` منفی‌شدن ماندهٔ قابل استفاده و کل را برای ثبت بدهی مجاز می‌کند؛ مدل کیف پول نیز `debitAllowNegative` را برای همین رفتار دارد. اما `processTripPayment` هنوز `debitAvailableBalance` را فراخوانی می‌کرد و بدهی را همیشه `false` ثبت می‌کرد؛ در نتیجه پیاده‌سازی با قرارداد موجود پایگاه داده ناسازگار بود.
+- تغییر محدود: استفاده از `debitAllowNegative`; تعیین بدهی از روی ماندهٔ پیش از کسر؛ ثبت تراکنش بدهکار مسافر با وضعیت `pending` هنگام کمبود موجودی؛ ثبت دفتر کل و اعتبار راننده/پلتفرم در همان تراکنش اتمیک. شکست در هر مرحله همچنان کل تسویه را rollback می‌کند.
+- آزمون‌های رگرسیون: تسویهٔ موجودی کافی، بدهی و ماندهٔ منفی با تراکنش `pending`، ثبت دفتر کل، و رد کیف پولی که امکان کسر از آن وجود ندارد.
+- وضعیت CI روی Commit `f252606751f7a93876298c7a5d86e83529766c43`: [Backend CI](https://github.com/aliakbarhasani/safar-service/actions/runs/39018808829) موفق؛ [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/39018808820) موفق.
+- وضعیت PR: [#100](https://github.com/aliakbarhasani/safar-service/pull/100) باز است و ادغام نشده.
+- گام بعدی: پس از بازبینی و مجوز ادغام PRها، CI روی `main` را بررسی کن و سپس آزمون Gateway را به تسویهٔ واقعی کیف پول با حساب‌های آزمایشی و بررسی سه تراکنش passenger/platform/driver گسترش بده. هیچ پرداخت واقعی اجرا نشود.
+
+**یادآوری:** این دو PR از شاخه‌های جداگانه‌اند و هیچ تغییری مستقیم روی `main` انجام نشده. CI سبز روی شاخه، به‌معنای ادغام یا تأیید کل محصول نیست.
