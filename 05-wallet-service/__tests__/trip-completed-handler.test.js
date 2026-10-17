@@ -478,6 +478,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     Wallet.findByTypeAndCurrency.mockReset();
     Wallet.create.mockReset();
     Wallet.debitAvailableBalance.mockReset();
+    Wallet.debitAllowNegative.mockReset();
     Wallet.creditAvailableBalance.mockReset();
     Transaction.findByReferenceId.mockReset();
     Transaction.create.mockReset().mockImplementation(async (data) => ({ id: `txn-${data.type}-test`, ...data }));
@@ -490,7 +491,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
       .mockResolvedValueOnce(null);
     Wallet.findByTypeAndCurrency.mockResolvedValue(plWallet);
     Wallet.create.mockResolvedValueOnce(dWallet);
-    Wallet.debitAvailableBalance.mockResolvedValue({ id: 'pw', balance: '100000', available_balance: '100000', frozen_balance: '0' });
+    Wallet.debitAllowNegative.mockResolvedValue({ id: 'pw', balance: '100000', available_balance: '100000', frozen_balance: '0' });
     Wallet.creditAvailableBalance
       .mockResolvedValueOnce({ id: 'platw', balance: '15000', available_balance: '15000', frozen_balance: '0' })
       .mockResolvedValueOnce({ id: 'dw', balance: '85000', available_balance: '85000', frozen_balance: '0' });
@@ -504,7 +505,7 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
 
     expect(result).toMatchObject({ success: true, amount: 100000, commission: 15000, driverAmount: 85000, debt: false });
 
-    expect(Wallet.debitAvailableBalance).toHaveBeenCalledWith('pw', 100000, expect.anything());
+    expect(Wallet.debitAllowNegative).toHaveBeenCalledWith('pw', 100000, expect.anything());
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('platw', 15000, expect.anything());
     expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('dw', 85000, expect.anything());
 
@@ -539,12 +540,46 @@ describe('walletService.processTripPayment (P5-1 atomic settlement)', () => {
     }));
   });
 
-  test('insufficient passenger balance is rejected without creating a negative wallet balance', async () => {
-    Wallet.debitAvailableBalance.mockResolvedValueOnce(null);
+  test('insufficient passenger balance becomes a pending debt while the trip is settled atomically', async () => {
+    Wallet.findByUserAndCurrency.mockReset()
+      .mockResolvedValueOnce({ ...pWallet, balance: '20000', available_balance: '20000' })
+      .mockResolvedValueOnce(null);
+    Wallet.debitAllowNegative.mockResolvedValueOnce({
+      id: 'pw', balance: '-80000', available_balance: '-80000', frozen_balance: '0',
+    });
+
+    const result = await walletService.processTripPayment({
+      tripId: 'trip-11', passengerId: 'user-1', driverId: 'user-driver', amount: 100000, currencyId: 'IRT',
+    });
+
+    expect(result).toMatchObject({
+      success: true, amount: 100000, commission: 15000, driverAmount: 85000, debt: true,
+    });
+    expect(Wallet.debitAllowNegative).toHaveBeenCalledWith('pw', 100000, expect.anything());
+    expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('platw', 15000, expect.anything());
+    expect(Wallet.creditAvailableBalance).toHaveBeenCalledWith('dw', 85000, expect.anything());
+
+    const passengerTx = Transaction.create.mock.calls
+      .map((call) => call[0])
+      .find((tx) => tx.description.includes('TRIP_PAYMENT'));
+    expect(passengerTx).toMatchObject({ status: 'pending', type: 'DEBIT', amount: 100000 });
+
+    const passengerLedger = Transaction.createLedgerEntry.mock.calls
+      .map((call) => call[0])
+      .find((entry) => entry.operationType === 'trip_payment');
+    expect(passengerLedger).toMatchObject({
+      balanceBefore: 20000, balanceAfter: -80000,
+      availableBefore: 20000, availableAfter: -80000,
+      debitAmount: 100000,
+    });
+  });
+
+  test('rejects settlement when the passenger wallet cannot be debited', async () => {
+    Wallet.debitAllowNegative.mockResolvedValueOnce(null);
 
     await expect(walletService.processTripPayment({
-      tripId: 'trip-11', passengerId: 'user-1', driverId: 'user-driver', amount: 100000, currencyId: 'IRT',
-    })).rejects.toThrow('Insufficient available balance');
+      tripId: 'trip-11b', passengerId: 'user-1', driverId: 'user-driver', amount: 100000, currencyId: 'IRT',
+    })).rejects.toThrow('Unable to debit passenger wallet or wallet is inactive');
 
     expect(Transaction.create).not.toHaveBeenCalled();
     expect(Wallet.creditAvailableBalance).not.toHaveBeenCalled();
