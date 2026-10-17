@@ -198,6 +198,21 @@ jobs:
           REDIS_URL: redis://127.0.0.1:6379
         run: npm test -- --runTestsByPath 16-mobility-engine/tests/trip-http-authenticated-create.integration.test.js
 
+      - name: Run full API Gateway trip journey end-to-end regression
+        env:
+          NODE_ENV: test
+          REQUIRE_TEST_DATABASE: 'true'
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5433
+          PG_DATABASE: safar_test_db
+          PG_USER: test_user
+          PG_PASSWORD: test_password
+          DATABASE_URL: postgres://test_user:test_password@127.0.0.1:5433/safar_test_db
+          REDIS_URL: redis://127.0.0.1:6379
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: npm test -- --runTestsByPath 16-mobility-engine/tests/gateway-trip-full-stack.e2e.test.js
+
       - name: Verify wallet reconciliation snapshot returns numeric monetary values
         env:
           PG_HOST: 127.0.0.1
