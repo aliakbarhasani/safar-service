@@ -22,7 +22,7 @@ class DriverArrivedUseCase {
         this.emitEvent = typeof emitEvent === 'function' ? emitEvent : () => {};
     }
 
-    async execute({ tripId, changedByUserId = null }) {
+    async execute({ tripId, changedByUserId = null, driverId = null, actorRole = 'driver' }) {
         if (!tripId) {
             const error = new Error('پارامتر tripId الزامی است.');
             error.code = 'ARRIVED_VALIDATION';
@@ -41,6 +41,17 @@ class DriverArrivedUseCase {
                 throw new TripNotFoundError(tripId);
             }
 
+            // امنیت: فقط رانندهٔ تخصیص‌یافته یا مدیر ارشد می‌تواند رسیدن را ثبت کند.
+            // این بررسی زیر قفل ردیفی انجام می‌شود تا مالکیت از همان رکورد قفل‌شده خوانده شود.
+            const normalizedActorRole = String(actorRole || '').toLowerCase();
+            if (normalizedActorRole !== 'super_admin'
+                && (!driverId || String(row.driver_id) !== String(driverId))) {
+                const error = new Error('این سفر به رانندهٔ احرازشده تخصیص نیافته است.');
+                error.code = 'TRIP_FORBIDDEN';
+                error.statusCode = 403;
+                throw error;
+            }
+
             // ب) گذار دامنه: ACCEPTED -> ARRIVED
             const trip = new Trip({ id: row.id, status: row.status });
             trip.driverArrived(); // throws InvalidRideStateTransitionError on invalid
@@ -57,7 +68,7 @@ class DriverArrivedUseCase {
                     oldStatus: row.status,
                     newStatus: trip.status,
                     changedByUserId: actorId,
-                    changedByRole: 'driver',
+                    changedByRole: String(actorRole || '').toLowerCase() === 'super_admin' ? 'super_admin' : 'driver',
                     reason: 'driver_arrived',
                 },
                 client,
