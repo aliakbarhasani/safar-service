@@ -53,6 +53,7 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
   let passengerId;
   let phoneNumber;
   let sessionId;
+  let accessToken;
   let quoteId;
   let tripId;
   let dbAvailable = false;
@@ -131,6 +132,7 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
       role: 'passenger',
     });
     sessionId = session.sessionId;
+    accessToken = session.accessToken;
 
     redisClient = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
       connectTimeout: 2000,
@@ -222,13 +224,29 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
 
     const created = await request(baseUrl)
       .post('/api/v1/trips')
-      .set('Cookie', `access_token=${sessionRepository ? (await sessionRepository.findById(sessionId), '') : ''}`)
-      .set('Authorization', `Bearer ${new JwtService().generateAccessToken({ id: passengerId, phoneNumber, role: 'passenger' })}`)
+      .set('Cookie', `access_token=${accessToken}`)
       .send(tripPayload);
 
-    // The active session is checked by JTI, so a freshly generated token not
-    // persisted in user_sessions must never be accepted. The cookie above is
-    // replaced below by the token that was stored when creating the session.
-    expect(created.status).toBe(401);
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({
+      success: true,
+      data: {
+        quoteId,
+        passengerId,
+        status: 'REQUESTED',
+      },
+    });
+    tripId = created.body.data.tripId;
+    expect(tripId).toBeTruthy();
+
+    const duplicate = await request(baseUrl)
+      .post('/api/v1/trips')
+      .set('Cookie', `access_token=${accessToken}`)
+      .send(tripPayload);
+    expect(duplicate.status).toBe(409);
+
+    const rows = await pool.query('SELECT id FROM trips WHERE quote_id = $1', [quoteId]);
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].id).toBe(tripId);
   });
 });
