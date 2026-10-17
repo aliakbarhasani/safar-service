@@ -33,16 +33,25 @@ describe('Auth Management Integration Tests', () => {
   });
 
   test('POST /api/v1/auth/verify-otp returns token for valid OTP', async () => {
+    // Request the OTP in international format, then verify it using the
+    // equivalent national format. This checks normalization across the real
+    // HTTP/controller/use-case/repository path rather than only in unit tests.
+    const phoneInternational = phoneValid;
+    const phoneNational = phoneInternational.replace(/^\\+98/, '0');
+
     const requestOtpRes = await request(app)
       .post('/api/v1/auth/request-otp')
-      .send({ phoneNumber: phoneValid })
+      .send({ phoneNumber: phoneInternational })
       .set('Accept', 'application/json');
+
+    expect(requestOtpRes.status).toBe(200);
+    expect(requestOtpRes.body.data.phoneNumber).toBe(phoneNational);
 
     const otpCode = requestOtpRes.body.data && requestOtpRes.body.data.otpCode ? requestOtpRes.body.data.otpCode : null;
 
     const verifyRes = await request(app)
       .post('/api/v1/auth/verify-otp')
-      .send({ phoneNumber: phoneValid, otpCode })
+      .send({ phoneNumber: phoneNational, otpCode })
       .set('Accept', 'application/json');
 
     expect(verifyRes.status).toBe(200);
