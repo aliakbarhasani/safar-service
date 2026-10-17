@@ -2,8 +2,8 @@
  * AcceptTripUseCase - Application Layer (Mobility Engine)
  *
  * A driver accepts a trip. Fully atomic + event-driven (P2-2):
- *   1. canonical `trip-state-machine` pre-validates SEARCHING -> ACCEPTED
- *      (fail-fast: misuse is rejected before any DB work),
+ *   1. loads the current trip state and validates REQUESTED/SEARCHING -> ACCEPTED
+ *      against the canonical state machine (legacy REQUESTED trips remain supported),
  *   2. `TripRepository.updateTripStateAtomic` runs the whole accept inside
  *      one transaction (BEGIN → SELECT ... FOR UPDATE → conditional UPDATE →
  *      timeline → COMMIT); a state mismatch ROLLBACKs and throws a
@@ -86,13 +86,21 @@ class AcceptTripUseCase {
 
         let updated;
         try {
-            // پیش‌اعتبارسنجی ماشین حالت کانونی (fail-fast، بدون دسترسی به DB)
-            transitionTo(TripStatus.REQUESTED, TripStatus.ACCEPTED);
+            // Load the current lifecycle state after obtaining the distributed
+            // lock. The atomic repository update below re-checks this exact state
+            // under SELECT ... FOR UPDATE, so a concurrent transition still fails closed.
+            const currentTrip = await this.tripRepository.getTripById(tripId);
+            if (!currentTrip) throw new TripNotFoundError(tripId);
+
+            const expectedState = String(currentTrip.status || '').toUpperCase();
+            // Support the intended SEARCHING -> ACCEPTED lifecycle while keeping
+            // existing REQUESTED -> ACCEPTED trips compatible during rollout.
+            transitionTo(expectedState, TripStatus.ACCEPTED);
 
             // ۳+۴) تغییر وضعیت + اتصال راننده + ثبت رویداد Outbox در یک تراکنش
             updated = await this.tripRepository.updateTripStateAtomic({
                 tripId,
-                expectedState: TripStatus.REQUESTED,
+                expectedState,
                 targetState: TripStatus.ACCEPTED,
                 driverId,
                 changedByUserId: changedByUserId || driverId,
