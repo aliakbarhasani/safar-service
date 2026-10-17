@@ -318,6 +318,11 @@ jobs:
           cd 17-rbac-service
           npm install
           npm test
+      - name: Run trip lifecycle and driver acceptance regression tests
+        env:
+          NODE_ENV: test
+        run: npm test -- --runTestsByPath 16-mobility-engine/tests/unit/trip-state-machine.test.js 16-mobility-engine/tests/accept-trip-use-case.test.js
+
       - name: Run trip creation authorization regression tests
         env:
           NODE_ENV: test
