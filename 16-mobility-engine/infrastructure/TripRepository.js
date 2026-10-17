@@ -189,11 +189,11 @@ class TripRepository {
             SET lifecycle_status = $2,
                 status           = $3,
                 trip_phase       = $3,
-                driver_id        = CASE WHEN $2 IN ('CANCELLED', 'CANCELLED_BY_PASSENGER', 'CANCELLED_BY_DRIVER', 'EXPIRED') THEN NULL ELSE COALESCE($4, driver_id) END,
+                driver_id        = CASE WHEN $2::text IN ('CANCELLED', 'CANCELLED_BY_PASSENGER', 'CANCELLED_BY_DRIVER', 'EXPIRED') THEN NULL ELSE COALESCE($4, driver_id) END,
                 cancel_reason    = COALESCE($5, cancel_reason),
                 cancelled_by     = COALESCE($6, cancelled_by),
                 final_cost       = COALESCE($7, final_cost),
-                started_at       = CASE WHEN $2 = 'IN_PROGRESS' THEN COALESCE(started_at, $8, NOW()) ELSE started_at END,
+                started_at       = CASE WHEN $2::text = 'IN_PROGRESS' THEN COALESCE(started_at, $8, NOW()) ELSE started_at END,
                 finished_at      = CASE WHEN $3 = 'finished' THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
                 updated_at       = NOW()
             WHERE id = $1
