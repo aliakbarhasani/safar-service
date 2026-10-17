@@ -143,7 +143,7 @@ jobs:
       - name: Run authentication phone normalization regression tests
         env:
           NODE_ENV: test
-        run: npm test -- --runTestsByPath 13-auth-management/tests/user-phone-validation.test.js 13-auth-management/tests/phone-number-normalization.test.js
+        run: npm test -- --runTestsByPath 13-auth-management/tests/user-phone-validation.test.js 13-auth-management/tests/phone-number-normalization.test.js 13-auth-management/tests/sms-provider-strategy.test.js
 
       - name: Run PostgreSQL migration runner unit tests
         env:
