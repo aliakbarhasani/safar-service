@@ -2,6 +2,8 @@
  * SMS Provider Strategy - برای ارسال پیامک از طریق پنل‌های مختلف
  */
 
+const { normalizePhoneNumber } = require('../services/PhoneNumber');
+
 class SmsProviderStrategy {
   constructor(name, config = {}) {
     this.name = name;
@@ -14,8 +16,9 @@ class SmsProviderStrategy {
   }
 
   validateRecipient(recipient) {
-    const cleaned = recipient.replace(/\s/g, '');
-    return /^(\+98|0)?9\d{9}$|^(\+98|0)?\d{10}$/.test(cleaned);
+    // Reuse the canonical validator so Afghan numbers are not accidentally
+    // rejected by this Iran-centric adapter. This provider is still console-only.
+    return normalizePhoneNumber(recipient) !== null;
   }
 }
 
