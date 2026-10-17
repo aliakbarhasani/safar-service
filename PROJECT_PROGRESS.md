@@ -141,3 +141,10 @@ PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایج
 - وضعیت فعلی CI روی Commit `ab8829392d933a4a5fa267d5a44ea94feb192e7d`: [Trip Management CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38995031629) موفق؛ [Backend CI Tests](https://github.com/aliakbarhasani/safar-service/actions/runs/38995031624) هنوز در حال اجرا هنگام ثبت این گزارش.
 - تصمیم: PR #99 تا تکمیل Backend CI، بررسی هر شکست و تأیید سازگاری آزمون با زیرساخت CI ادغام نشود. پس از سبز شدن هر دو workflow، ادغام و CI روی `main` دوباره بررسی شود.
 - محدودیت ادعا: این آزمون چرخهٔ وضعیت سفر و ثبت Outbox را می‌سنجد؛ به‌تنهایی اثبات تسویهٔ مالی موفق کیف پول یا پایان کامل همهٔ خدمات نیست.
+
+
+### بازبینی PR #99 — علت شکست و اصلاح
+- CI اولیه روی Commit `053834ea68b5a833b9ba20d13be2e6a512297a02` شکست خورد؛ [گزارش Backend CI](https://github.com/aliakbarhasani/safar-service/actions/runs/38995327516). آزمون یکپارچه تا پذیرش راننده پیش رفت و خطای PostgreSQL `inconsistent types deduced for parameter $2` را در `TripRepository.updateTripStatus` آشکار کرد.
+- علت: پارامتر وضعیت `$2` در دستور SQL هم برای مقداردهی ستون وضعیت و هم در شرط‌های `CASE` با مقایسه‌های متنی استفاده می‌شد؛ PostgreSQL برای همان پارامتر نوع‌های ناسازگار استنباط می‌کرد.
+- اصلاح در همان شاخه PR #99، Commit `fe9222319591de528aae334836df24e6cf94f9c3`: شرط‌های مربوط به لغو سفر و ثبت `started_at` اکنون وضعیت را صریحاً به متن تبدیل می‌کنند. هیچ تغییری در منطق گذار یا داده‌های موجود انجام نشد.
+- وضعیت آزمون پس از اصلاح: منتظر اجرای مجدد CI هستیم. تا موفقیت Backend CI و Trip Management CI روی همین SHA، PR ادغام نشود.
