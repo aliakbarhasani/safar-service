@@ -110,7 +110,7 @@ describe('TripRepository started_at persistence', () => {
     await repository.updateTripStatus({ tripId: 'trip-3', status: 'IN_PROGRESS', startedAt }, client);
 
     const [sql, values] = client.query.mock.calls[0];
-    expect(sql).toContain("started_at       = CASE WHEN $2 = 'IN_PROGRESS'");
+    expect(sql).toContain("started_at       = CASE WHEN $2::varchar = 'IN_PROGRESS'");
     expect(sql).toContain('COALESCE(started_at, $8, NOW())');
     expect(values[1]).toBe('IN_PROGRESS');
     expect(values[7]).toBe(startedAt);
