@@ -140,3 +140,21 @@ PR #92 مسیر واقعی Gateway را از برآورد کرایه تا ایج
 - شکاف آزمون کشف‌شده: آزمون HTTP قبلی برای درخواست OTP و تأیید، یک قالب شماره می‌فرستاد؛ بنابراین اتصال واقعی قالب بین‌المللی به قالب ملی در یک گردش‌کار HTTP واحد اثبات نمی‌شد.
 - PR #101 این شکاف را با یک تغییر محدود در تست یکپارچه می‌بندد: درخواست با `+98...`، بررسی پاسخ استاندارد `09...` و تأیید همان OTP با قالب ملی. [PR #101](https://github.com/aliakbarhasani/safar-service/pull/101).
 - وضعیت PR #101 هنگام ثبت: باز؛ CI در حال اجراست. **تا سبز شدن هر دو CI ادغام نشود**. پس از ادغام، نتیجهٔ CI روی `main` دوباره ثبت شود.
+
+
+## ثبت ممیزی و پیشرفت — ۲۰۲۶-۱۰-۱۷ (پیگیری بعد از PRهای #101 تا #103)
+
+### نسخهٔ اصلی و شواهد
+- `main` در شروع این پیگیری: `e6aba0d600bf4b0d833b562a264a64ac396f478e`.
+- PR #101 — آزمون HTTP برای درخواست OTP با قالب بین‌المللی و تأیید با قالب ملی؛ ادغام‌شده در `acb82a4f3f3e7c5d867e16f27e175e2f46cf35f4`. هر دو CI روی همان Commit موفق: [Backend](https://github.com/aliakbarhasani/safar-service/actions/runs/39021741862)، [Trip Management](https://github.com/aliakbarhasani/safar-service/actions/runs/39021741901).
+- PR #102 — هم‌راستا کردن تسویهٔ سفر با قرارداد بدهی Migration 030: `debitAllowNegative`، ثبت وضعیت `pending` برای بدهی مسافر و تست دفتر کل/مانده؛ ادغام‌شده در `92e4431bf05791fb9de1636b59ec563de25addc9`. هر دو CI شاخه موفق: [Backend](https://github.com/aliakbarhasani/safar-service/actions/runs/39021868838)، [Trip Management](https://github.com/aliakbarhasani/safar-service/actions/runs/39021868869). CI پس از ادغام روی main: [Backend](https://github.com/aliakbarhasani/safar-service/actions/runs/39022003917) موفق؛ [Trip Management](https://github.com/aliakbarhasani/safar-service/actions/runs/39022003952) موفق.
+- PR #103 — اصلاح شرط SQL زمان پایان و آزمون انتها‌به‌انتها از Gateway واقعی تا پذیرش، رسیدن، شروع، پایان و رویداد Outbox؛ ادغام‌شده در `1f00d29ca89ae5d06058f5201fa97efb7821b017`. هر دو CI شاخه موفق: [Backend](https://github.com/aliakbarhasani/safar-service/actions/runs/39021929946)، [Trip Management](https://github.com/aliakbarhasani/safar-service/actions/runs/39021929956). CI مدیریت سفر پس از ادغام روی main موفق: [Trip Management](https://github.com/aliakbarhasani/safar-service/actions/runs/39022069672). هنگام ثبت این ممیزی، [Backend CI پس از ادغام](https://github.com/aliakbarhasani/safar-service/actions/runs/39022069702) هنوز در حال اجرا بود؛ تا پایان آن، نتیجهٔ Backend پس از ادغام تأییدشده محسوب نشود.
+- PRهای قدیمی #99 و #100 پس از انتقال تغییرات کد/آزمون مفید به PRهای #103 و #102 با توضیح بسته شدند؛ هیچ‌کدام مستقیماً ادغام نشدند.
+
+### وضعیت دقیق پس از این تغییرات
+- چرخهٔ سفر در آزمون Gateway واقعی تا پایان و Outbox پوشش داده شده است؛ این موضوع **به‌تنهایی تسویهٔ واقعی کیف پول را در همان آزمون ثابت نمی‌کند**.
+- مسیر تسویهٔ کیف پول با قرارداد بدهی ثبت‌شده در Migration 030 هماهنگ شده است؛ آزمون‌های شاخه موفق‌اند و CIهای main باید مستقل از CI شاخه ثبت شوند.
+- کد تخفیف هنوز چرخهٔ کامل پایدار quote → رزرو هم‌زمان → ایجاد سفر → مصرف دقیقاً یک‌بار → آزادسازی در لغو/انقضا را ندارد؛ رفتار fail-closed فعلی حفظ شود تا این چرخه با آزمون‌های مالی و هم‌زمانی کامل شود.
+- محدودسازی OTP در حافظهٔ هر پردازه باقی مانده است؛ پیش از استقرار چندنمونه‌ای باید ذخیره‌سازی/محدودسازی مشترک (مثلاً Redis) طراحی و آزموده شود.
+- این مخزن/محصول را «بی‌عیب»، «کامل» یا «آمادهٔ تولید» اعلام نکنید؛ آمادگی انتشار نیازمند آزمون‌های یکپارچهٔ مالی، امنیتی، مهاجرت/بازیابی و استقرار است.
+- گام بعدی اولویت‌دار: تأیید Backend CI پس از ادغام PR #103؛ سپس تکمیل آزمون Gateway تا تسویهٔ واقعی با حساب‌های صرفاً آزمایشی، و ادامهٔ چرخهٔ promo در PRهای کوچک مستقل.
