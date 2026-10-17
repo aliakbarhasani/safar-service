@@ -6,7 +6,7 @@
  *    (15% general), and never throws back to the publisher.
  * 2) processTripPayment: verifies the exact atomic money flow for a 100,000 IRT
  *    trip — passenger charged 100,000, platform gets 15,000 commission,
- *    driver gets 85,000 — and rejects insufficient funds to preserve DB constraints.
+ *    driver gets 85,000 — and records pending passenger debt when funds are insufficient (migration 030).
  */
 
 jest.mock('../db/pg', () => ({
