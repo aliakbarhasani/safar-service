@@ -313,7 +313,7 @@ describe('Full API Gateway trip journey (PostgreSQL + Redis + real HTTP)', () =>
       .post(`/api/v1/trips/${tripId}/accept`)
       .set('Cookie', `access_token=${driverAccessToken}`)
       .send({});
-    expect(accepted.status).toBe(200);
+    expect(accepted.status, `accept response: ${JSON.stringify(accepted.body)}\nGateway output:\n${gatewayOutput}`).toBe(200);
     expect(accepted.body).toMatchObject({ success: true, data: { tripId, status: 'ACCEPTED', driverId } });
 
     const arrived = await request(baseUrl)
