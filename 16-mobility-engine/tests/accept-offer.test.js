@@ -48,6 +48,8 @@ const UPDATED_TRIP = {
 
 function makeTripRepository(overrides = {}) {
   return Object.assign({
+    // Current lifecycle state is read before the atomic, row-locked update.
+    getTripById: jest.fn().mockResolvedValue({ id: 'trip-1', status: 'REQUESTED' }),
     updateTripStateAtomic: jest.fn().mockResolvedValue(UPDATED_TRIP),
   }, overrides);
 }
