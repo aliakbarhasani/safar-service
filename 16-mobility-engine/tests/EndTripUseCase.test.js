@@ -38,7 +38,7 @@ function runTrip({ tripRow, updatedRow, finalFare = null, changedByUserId = null
     tripRepository: repo,
     emitEvent: (event, data) => repo.emitted.push({ event, data }),
   });
-  return uc.execute({ tripId: 'trip-1', changedByUserId, finalFare }).then((result) => ({
+  return uc.execute({ tripId: 'trip-1', changedByUserId, driverId: tripRow.driver_id, finalFare }).then((result) => ({
     result,
     emitted: repo.emitted,
     repo,
@@ -166,6 +166,27 @@ describe('EndTripUseCase (P5-1 trip completion)', () => {
     expect(result.amount).toBe(75000);
     expect(repo.client.query).toHaveBeenCalledWith('COMMIT');
     expect(repo.client.query).not.toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  test('rejects completion when the authenticated driver is not assigned to the trip', async () => {
+    const tripRow = {
+      id: 'trip-1',
+      status: 'IN_PROGRESS',
+      passenger_id: 'user-pass',
+      driver_id: 'assigned-driver',
+      estimated_cost: 75000,
+      currency_id: 'IRT',
+    };
+    const repo = makeFakeTripRepo({ tripRow, updatedRow: COMPLETED_ROW });
+    const uc = new EndTripUseCase({ tripRepository: repo, emitEvent: () => {} });
+
+    await expect(uc.execute({
+      tripId: 'trip-1',
+      driverId: 'different-driver',
+    })).rejects.toMatchObject({ code: 'TRIP_FORBIDDEN', statusCode: 403 });
+
+    expect(repo.updateTripStatus).not.toHaveBeenCalled();
+    expect(repo.client.query).toHaveBeenCalledWith(expect.stringContaining('ROLLBACK'));
   });
 
   test('throws TripNotFoundError when the trip does not exist', async () => {
