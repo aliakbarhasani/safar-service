@@ -54,11 +54,10 @@ class RequestOtpUseCase {
     try {
       await this.smsProvider.send(phoneNumber, message);
     } catch (sendError) {
-      // A code that was not delivered must not remain valid in persistence.
-      // Preserve the delivery error if cleanup also fails, but retain the
-      // cleanup error for diagnostics without exposing either to the caller.
+      // Remove only this request's OTP. A newer concurrent request may have
+      // replaced it for the same phone number and type.
       try {
-        await this.otpRepository.delete(phoneNumber, type);
+        await this.otpRepository.deleteIfCodeHashMatches(phoneNumber, type, codeHash);
       } catch (cleanupError) {
         if (sendError && typeof sendError === 'object') {
           sendError.cleanupError = cleanupError;
