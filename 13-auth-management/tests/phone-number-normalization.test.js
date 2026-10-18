@@ -4,6 +4,7 @@ const UserRepository = require('../infrastructure/repositories/UserRepository');
 const RequestOtpUseCase = require('../application/use-cases/RequestOtpUseCase');
 const VerifyOtpUseCase = require('../application/use-cases/VerifyOtpUseCase');
 const RegisterUserUseCase = require('../application/use-cases/RegisterUserUseCase');
+const OtpRepository = require('../infrastructure/repositories/OtpRepository');
 
 describe('Phone number canonicalization', () => {
   test.each([
@@ -224,5 +225,34 @@ describe('OTP use cases use canonical phone numbers', () => {
     expect(userRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ phoneNumber: '09123456789' }),
     );
+  });
+});
+
+
+describe('OTP repository conditional cleanup', () => {
+  test('does not delete a newer OTP when an older delivery attempt fails', async () => {
+    const repository = new OtpRepository();
+    const originalPool = repository.pool;
+    repository.pool = null;
+    repository.allowInMemoryFallback = true;
+    if (originalPool) await originalPool.end();
+
+    const phoneNumber = '0701234567';
+    const key = `${phoneNumber}:login`;
+    repository.inMemoryStore.set(key, {
+      phoneNumber,
+      type: 'login',
+      codeHash: 'newer-code-hash',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      isUsed: false,
+      attempts: 0,
+      maxAttempts: 5,
+    });
+
+    await repository.deleteIfCodeHashMatches(phoneNumber, 'login', 'older-code-hash');
+    expect(repository.inMemoryStore.get(key).codeHash).toBe('newer-code-hash');
+
+    await repository.deleteIfCodeHashMatches(phoneNumber, 'login', 'newer-code-hash');
+    expect(repository.inMemoryStore.has(key)).toBe(false);
   });
 });
