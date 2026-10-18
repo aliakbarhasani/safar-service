@@ -51,7 +51,21 @@ class RequestOtpUseCase {
     await this.otpRepository.save(phoneNumber, codeHash, expiresAt, type);
 
     const message = `Your ${type} OTP code is: ${otpCode}. Valid for ${this.config.ttlSeconds} seconds.`;
-    await this.smsProvider.send(phoneNumber, message);
+    try {
+      await this.smsProvider.send(phoneNumber, message);
+    } catch (sendError) {
+      // A code that was not delivered must not remain valid in persistence.
+      // Preserve the delivery error if cleanup also fails, but retain the
+      // cleanup error for diagnostics without exposing either to the caller.
+      try {
+        await this.otpRepository.delete(phoneNumber, type);
+      } catch (cleanupError) {
+        if (sendError && typeof sendError === 'object') {
+          sendError.cleanupError = cleanupError;
+        }
+      }
+      throw sendError;
+    }
 
     const exposeOtpCode = process.env.NODE_ENV === 'test';
 
