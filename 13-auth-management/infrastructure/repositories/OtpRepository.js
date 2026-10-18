@@ -95,6 +95,8 @@ class OtpRepository {
         );
 
         if (result.rows.length === 0) {
+          // A successful database lookup with no matching OTP is a normal miss,
+          // not a reason to consult process-local memory or fail production auth.
           return null;
         }
 
