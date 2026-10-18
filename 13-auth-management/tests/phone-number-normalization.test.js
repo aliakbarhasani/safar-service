@@ -96,6 +96,45 @@ describe('OTP use cases use canonical phone numbers', () => {
     expect(smsProvider.send).not.toHaveBeenCalled();
   });
 
+  test('failed SMS delivery invalidates the newly saved OTP', async () => {
+    const deliveryError = new Error('SMS gateway unavailable');
+    const otpRepository = {
+      save: jest.fn().mockResolvedValue({}),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    const smsProvider = { send: jest.fn().mockRejectedValue(deliveryError) };
+    const useCase = new RequestOtpUseCase({ otpRepository, smsProvider });
+
+    await expect(useCase.execute('0701234567')).rejects.toBe(deliveryError);
+
+    expect(otpRepository.save).toHaveBeenCalledWith(
+      '0701234567',
+      expect.any(String),
+      expect.any(String),
+      'login',
+    );
+    expect(smsProvider.send).toHaveBeenCalledWith(
+      '0701234567',
+      expect.stringContaining('OTP code is:'),
+    );
+    expect(otpRepository.delete).toHaveBeenCalledWith('0701234567', 'login');
+  });
+
+  test('preserves the SMS delivery error if OTP cleanup also fails', async () => {
+    const deliveryError = new Error('SMS gateway unavailable');
+    const cleanupError = new Error('OTP store unavailable');
+    const otpRepository = {
+      save: jest.fn().mockResolvedValue({}),
+      delete: jest.fn().mockRejectedValue(cleanupError),
+    };
+    const smsProvider = { send: jest.fn().mockRejectedValue(deliveryError) };
+    const useCase = new RequestOtpUseCase({ otpRepository, smsProvider });
+
+    await expect(useCase.execute('0701234567')).rejects.toBe(deliveryError);
+    expect(deliveryError.cleanupError).toBe(cleanupError);
+    expect(otpRepository.delete).toHaveBeenCalledWith('0701234567', 'login');
+  });
+
   test('verification looks up OTP and user using the same canonical Afghan number', async () => {
     const phone = '0701234567';
     const otpRepository = {
