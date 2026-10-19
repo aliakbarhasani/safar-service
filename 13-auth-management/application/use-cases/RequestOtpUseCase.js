@@ -51,7 +51,20 @@ class RequestOtpUseCase {
     await this.otpRepository.save(phoneNumber, codeHash, expiresAt, type);
 
     const message = `Your ${type} OTP code is: ${otpCode}. Valid for ${this.config.ttlSeconds} seconds.`;
-    await this.smsProvider.send(phoneNumber, message);
+    try {
+      await this.smsProvider.send(phoneNumber, message);
+    } catch (sendError) {
+      // Remove only this request's OTP. A newer concurrent request may have
+      // replaced it for the same phone number and type.
+      try {
+        await this.otpRepository.deleteIfCodeHashMatches(phoneNumber, type, codeHash);
+      } catch (cleanupError) {
+        if (sendError && typeof sendError === 'object') {
+          sendError.cleanupError = cleanupError;
+        }
+      }
+      throw sendError;
+    }
 
     const exposeOtpCode = process.env.NODE_ENV === 'test';
 
