@@ -67,6 +67,31 @@ describe('legacy account lookup compatibility', () => {
 });
 
 describe('OTP use cases use canonical phone numbers', () => {
+  test('production rejects ConsoleSmsProvider before OTP persistence', async () => {
+    const otpRepository = { save: jest.fn() };
+    const smsProvider = new (require('../domain/strategies/ConsoleSmsProvider'))();
+    const sendSpy = jest.spyOn(smsProvider, 'send');
+    const useCase = new RequestOtpUseCase({ otpRepository, smsProvider });
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    try {
+      process.env.NODE_ENV = 'production';
+
+      await expect(useCase.execute('0701234567')).rejects.toMatchObject({
+        code: 'SMS_PROVIDER_NOT_CONFIGURED',
+        statusCode: 503,
+      });
+
+      expect(otpRepository.save).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
+      sendSpy.mockRestore();
+    }
+  });
+
+
   test('request validates and stores/sends OTP to canonical Afghan number', async () => {
     const otpRepository = { save: jest.fn().mockResolvedValue({}) };
     const smsProvider = { send: jest.fn().mockResolvedValue({}) };
