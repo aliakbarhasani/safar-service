@@ -41,9 +41,9 @@ class User {
   isValid() {
     const errors = [];
 
-    if (!this.phoneNumber || !this._isValidPhoneNumber(this.phoneNumber)) {
-      errors.push('Invalid or missing phone number');
-    }
+    const hasPhone = Boolean(this.phoneNumber && this._isValidPhoneNumber(this.phoneNumber));
+    const hasEmail = Boolean(this.email && this._isValidEmail(String(this.email).trim().toLowerCase()));
+    if (!hasPhone && !hasEmail) errors.push('A valid phone number or email is required');
 
     if (!this.firstName || this.firstName.trim().length < 2) {
       errors.push('First name must be at least 2 characters');
@@ -67,7 +67,7 @@ class User {
       errors.push(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
 
-    if (this.email && !this._isValidEmail(this.email)) {
+    if (this.email && !this._isValidEmail(String(this.email).trim().toLowerCase())) {
       errors.push('Invalid email format');
     }
 
