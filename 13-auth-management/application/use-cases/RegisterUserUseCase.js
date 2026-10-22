@@ -26,7 +26,7 @@ class RegisterUserUseCase {
     if (!normalizedEmail || !firstName || !lastName || !password) {
       throw new Error('email, firstName, lastName, and password are required');
     }
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       throw new Error('Validation failed: Invalid email format');
     }
     if (typeof password !== 'string' || password.length < 10 || password.length > 128) {
