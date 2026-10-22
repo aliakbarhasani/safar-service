@@ -1,6 +1,7 @@
 -- Safar Service: allow email-first registration without deleting legacy account data.
 -- Existing phone-based users remain valid; NULL phone values do not collide in PostgreSQL unique indexes.
 ALTER TABLE users ALTER COLUMN phone_number DROP NOT NULL;
+ALTER TABLE user_sessions ALTER COLUMN phone_number DROP NOT NULL;
 
 -- Guard against historical case/whitespace variants before enforcing normalized email uniqueness.
 DO $$
