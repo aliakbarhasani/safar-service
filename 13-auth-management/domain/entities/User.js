@@ -43,7 +43,10 @@ class User {
 
     const hasPhone = Boolean(this.phoneNumber && this._isValidPhoneNumber(this.phoneNumber));
     const hasEmail = Boolean(this.email && this._isValidEmail(String(this.email).trim().toLowerCase()));
-    if (!hasPhone && !hasEmail) errors.push('A valid phone number or email is required');
+    if (!hasPhone && !hasEmail) {
+      errors.push('Invalid or missing phone number');
+      errors.push('A valid phone number or email is required');
+    }
 
     if (!this.firstName || this.firstName.trim().length < 2) {
       errors.push('First name must be at least 2 characters');
