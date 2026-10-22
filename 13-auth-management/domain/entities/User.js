@@ -57,7 +57,7 @@ class User {
       errors.push('Password is required');
     }
 
-    const validRoles = ['passenger', 'driver', 'provider', 'seller', 'advertiser', 'admin', 'super_admin'];
+    const validRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser', 'admin', 'super_admin'];
     if (!validRoles.includes(this.role)) {
       errors.push(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
     }
