@@ -9,11 +9,11 @@ class RegistrationController {
     try {
       const { phoneNumber, firstName, lastName, email, password, countryId, preferredCurrencyId } = req.body || {};
 
-      if (!phoneNumber || !firstName || !lastName || !password) {
+      if (!email || !firstName || !lastName || !password) {
         return res.status(400).json({
           success: false,
           status_code: 400,
-          message: 'phoneNumber, firstName, lastName, and password are required',
+          message: 'email, firstName, lastName, and password are required',
         });
       }
 
@@ -47,11 +47,11 @@ class RegistrationController {
     try {
       const { phoneNumber, firstName, lastName, email, password, countryId, preferredCurrencyId } = req.body || {};
 
-      if (!phoneNumber || !firstName || !lastName || !password) {
+      if (!email || !firstName || !lastName || !password) {
         return res.status(400).json({
           success: false,
           status_code: 400,
-          message: 'phoneNumber, firstName, lastName, and password are required',
+          message: 'email, firstName, lastName, and password are required',
         });
       }
 
