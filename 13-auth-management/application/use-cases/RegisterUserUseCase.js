@@ -50,7 +50,7 @@ class RegisterUserUseCase {
       phoneNumber: normalizedPhoneNumber,
       firstName,
       lastName,
-      email: email || null,
+      email: normalizedEmail,
       passwordHash,
       role: normalizedRole,
       status: 'active',
@@ -71,7 +71,7 @@ class RegisterUserUseCase {
     }
 
     const createdUser = await this.userRepository.create({
-      phoneNumber: user.phoneNumber,
+      phoneNumber: user.phoneNumber || null,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
