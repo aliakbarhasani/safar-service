@@ -111,7 +111,7 @@ class UserRepository {
         phoneNumber,
         firstName,
         lastName,
-        email,
+        email ? String(email).trim().toLowerCase() : null,
         passwordHash,
         role,
         status,
