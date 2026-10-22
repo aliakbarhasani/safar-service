@@ -51,6 +51,7 @@ const MIGRATION_ORDER = [
   '033_promo_usage_trip_idempotency.sql',
   '034_wallet_reconciliation_numeric_snapshot.sql',
   '035_relax_legacy_pricing_audit_columns.sql',
+  '036_email_first_auth.sql',
 ];
 
 function findMissingMigrationFiles(migrationOrder, directory = MIGRATIONS_DIR, fileExists = fs.existsSync) {
