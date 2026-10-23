@@ -9,12 +9,12 @@ const registrationController = new RegistrationController();
  * Register a new user
  *
  * Body:
- *   - phoneNumber (required)
+ *   - phoneNumber (optional)
  *   - firstName (required)
  *   - lastName (required)
  *   - password (required)
- *   - email (optional)
- *   - role (optional, default: passenger)
+ *   - email (required)
+ *   - role is assigned by the route, never trusted from the request body
  *   - countryId (optional)
  *   - preferredCurrencyId (optional)
  *

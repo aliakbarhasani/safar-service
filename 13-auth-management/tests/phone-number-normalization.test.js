@@ -201,6 +201,7 @@ describe('OTP use cases use canonical phone numbers', () => {
   test('registration stores normalized Iranian number to prevent format duplicates', async () => {
     const userRepository = {
       findByPhoneNumber: jest.fn().mockResolvedValue(null),
+      findByEmail: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({
         id: 'user-2',
         phone_number: '09123456789',
@@ -215,6 +216,7 @@ describe('OTP use cases use canonical phone numbers', () => {
     const useCase = new RegisterUserUseCase(userRepository);
 
     await useCase.execute({
+      email: 'ali@example.com',
       phoneNumber: '09123456789',
       firstName: 'Ali',
       lastName: 'Hasani',
@@ -223,7 +225,7 @@ describe('OTP use cases use canonical phone numbers', () => {
 
     expect(userRepository.findByPhoneNumber).toHaveBeenCalledWith('09123456789');
     expect(userRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ phoneNumber: '09123456789' }),
+      expect.objectContaining({ email: 'ali@example.com', phoneNumber: '09123456789' }),
     );
   });
 });

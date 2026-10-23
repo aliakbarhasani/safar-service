@@ -53,6 +53,22 @@ class UserRepository {
     return result.rows.length > 0 ? result.rows[0] : null;
   }
 
+  async findByEmail(email) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) return null;
+    const dbReady = await this._isDBReady();
+    if (!dbReady) throw new Error('Database not available');
+
+    const result = await this.pool.query(
+      `SELECT id, phone_number, first_name, last_name, email, password_hash, role, status, is_email_verified, created_at
+       FROM users
+       WHERE LOWER(BTRIM(email)) = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+    return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
   async findById(id) {
     const dbReady = await this._isDBReady();
     if (!dbReady) return null;
@@ -95,7 +111,7 @@ class UserRepository {
         phoneNumber,
         firstName,
         lastName,
-        email,
+        email ? String(email).trim().toLowerCase() : null,
         passwordHash,
         role,
         status,

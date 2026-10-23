@@ -10,7 +10,7 @@ class RegisterUserUseCase {
     this.bcrypt = bcrypt;
   }
 
-  async execute(input) {
+  async execute(input = {}) {
     const {
       phoneNumber,
       firstName,
@@ -22,35 +22,44 @@ class RegisterUserUseCase {
       preferredCurrencyId = null,
     } = input;
 
-    if (!phoneNumber || !firstName || !lastName || !password) {
-      throw new Error('phoneNumber, firstName, lastName, and password are required');
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail || !firstName || !lastName || !password) {
+      throw new Error('email, firstName, lastName, and password are required');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      throw new Error('Validation failed: Invalid email format');
+    }
+    if (typeof password !== 'string' || password.length < 10 || password.length > 128) {
+      throw new Error('Password must be between 10 and 128 characters');
     }
 
-    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-    if (!normalizedPhoneNumber) {
-      throw new Error('Validation failed: Invalid or missing phone number');
+    const normalizedPhoneNumber = phoneNumber ? normalizePhoneNumber(phoneNumber) : null;
+    if (phoneNumber && !normalizedPhoneNumber) {
+      throw new Error('Validation failed: Invalid phone number');
     }
 
     const normalizedRole = String(role || 'passenger').trim().toLowerCase();
-    // SECURITY: خودثبت‌نامی هرگز نباید نقش‌های ممتاز (admin/super_admin) را بپذیرد.
-    // فقط نقش‌های عادی مجازند؛ ادمین شدن چیزی جداگانه و محافظت‌شده (Admin Usability) است.
     const allowedRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser'];
-
     if (normalizedRole === 'admin' || normalizedRole === 'super_admin') {
       throw new Error('Admin roles cannot be self-assigned during registration.');
     }
-
     if (!allowedRoles.includes(normalizedRole)) {
       throw new Error(`Invalid role. Must be one of: ${allowedRoles.join(', ')}`);
     }
 
-    const passwordHash = await this.bcrypt.hash(password, 10);
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
+    if (existingUser) throw new Error('An account with this email already exists');
+    if (normalizedPhoneNumber) {
+      const existingPhoneUser = await this.userRepository.findByPhoneNumber(normalizedPhoneNumber);
+      if (existingPhoneUser) throw new Error('User already exists with this phone number');
+    }
 
+    const passwordHash = await this.bcrypt.hash(password, 10);
     const user = new User({
       phoneNumber: normalizedPhoneNumber,
-      firstName,
-      lastName,
-      email: email || null,
+      firstName: String(firstName).trim(),
+      lastName: String(lastName).trim(),
+      email: normalizedEmail,
       passwordHash,
       role: normalizedRole,
       status: 'active',
@@ -59,19 +68,11 @@ class RegisterUserUseCase {
       isPhoneVerified: false,
       isEmailVerified: false,
     });
-
     const validation = user.isValid();
-    if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
-    }
-
-    const existingUser = await this.userRepository.findByPhoneNumber(normalizedPhoneNumber);
-    if (existingUser) {
-      throw new Error('User already exists with this phone number');
-    }
+    if (!validation.isValid) throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
 
     const createdUser = await this.userRepository.create({
-      phoneNumber: user.phoneNumber,
+      phoneNumber: user.phoneNumber || null,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,

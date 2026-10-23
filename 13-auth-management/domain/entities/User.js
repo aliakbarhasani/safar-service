@@ -41,8 +41,11 @@ class User {
   isValid() {
     const errors = [];
 
-    if (!this.phoneNumber || !this._isValidPhoneNumber(this.phoneNumber)) {
+    const hasPhone = Boolean(this.phoneNumber && this._isValidPhoneNumber(this.phoneNumber));
+    const hasEmail = Boolean(this.email && this._isValidEmail(String(this.email).trim().toLowerCase()));
+    if (!hasPhone && !hasEmail) {
       errors.push('Invalid or missing phone number');
+      errors.push('A valid phone number or email is required');
     }
 
     if (!this.firstName || this.firstName.trim().length < 2) {
@@ -57,7 +60,7 @@ class User {
       errors.push('Password is required');
     }
 
-    const validRoles = ['passenger', 'driver', 'provider', 'seller', 'advertiser', 'admin', 'super_admin'];
+    const validRoles = ['passenger', 'driver', 'provider', 'courier', 'seller', 'advertiser', 'admin', 'super_admin'];
     if (!validRoles.includes(this.role)) {
       errors.push(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
     }
@@ -67,7 +70,7 @@ class User {
       errors.push(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
 
-    if (this.email && !this._isValidEmail(this.email)) {
+    if (this.email && !this._isValidEmail(String(this.email).trim().toLowerCase())) {
       errors.push('Invalid email format');
     }
 
