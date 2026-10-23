@@ -16,7 +16,16 @@ class EmailPasswordLoginUseCase {
       throw error;
     }
 
-    const user = await this.userRepository.findByEmail(normalizedEmail);
+    let user;
+    try {
+      user = await this.userRepository.findByEmail(normalizedEmail);
+    } catch (cause) {
+      const error = new Error('Authentication service is temporarily unavailable. Please try again later.');
+      error.code = 'AUTH_USER_STORE_UNAVAILABLE';
+      error.statusCode = 503;
+      error.cause = cause;
+      throw error;
+    }
     // Same response for unknown email and wrong password to reduce account enumeration.
     if (!user || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
       const error = new Error('Invalid email or password');
