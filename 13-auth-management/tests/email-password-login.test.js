@@ -70,6 +70,14 @@ describe('email/password login', () => {
     expect(sessionManager.createSession).not.toHaveBeenCalled();
   });
 
+  test('fails closed with service unavailable when the user database is unavailable', async () => {
+    userRepository.findByEmail.mockRejectedValue(new Error('database unavailable'));
+
+    await expect(useCase.execute('person@example.com', 'correct-password'))
+      .rejects.toMatchObject({ statusCode: 503, code: 'AUTH_USER_STORE_UNAVAILABLE' });
+    expect(sessionManager.createSession).not.toHaveBeenCalled();
+  });
+
   test('fails closed when session storage is unavailable', async () => {
     sessionManager.createSession.mockRejectedValue(new Error('database unavailable'));
 
