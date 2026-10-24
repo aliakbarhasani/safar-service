@@ -54,7 +54,7 @@ export function isSupportedLocale(value: unknown): value is SupportedLocale {
 export function resolveLocale(value: unknown): SupportedLocale {
   if (typeof value !== "string") return DEFAULT_LOCALE;
   const normalized = value.trim().replace(/_/g, "-").toLowerCase();
-  return LOCALE_ALIASES[normalized] ?? DEFAULT_LOCALE;
+  return LOCALE_ALIASES[normalized] ?? LOCALE_ALIASES[normalized.split("-")[0]] ?? DEFAULT_LOCALE;
 }
 
 export function getLocaleSettings(locale: SupportedLocale) {
