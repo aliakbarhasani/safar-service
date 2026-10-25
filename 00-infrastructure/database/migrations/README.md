@@ -46,3 +46,9 @@ PG_HOST=... PG_PORT=5432 PG_DATABASE=... PG_USER=... PG_PASSWORD=... node script
 ```
 
 Set the environment variables in your shell or secret manager; do not commit credentials to the repository. The script refuses to connect unless host, database, username, and password are explicitly supplied. It opens a PostgreSQL `READ ONLY` transaction, reports only aggregate duplicate counts, and never changes data. Exit code `0` means no duplicate trip IDs were found; exit code `2` means stop and manually reconcile duplicates after a verified backup; exit code `1` means the check could not safely complete. A successful preflight is not a substitute for the normal migration backup and release checks.
+
+## Historical migration-number gap (021)
+
+The canonical sequence currently moves from `020_merge_ride_into_trip.sql` to `022_create_driver_tables.sql`; `021` is a historical gap, not a missing runtime migration to be silently invented. The migration runner validates the applied ledger in its declared order and intentionally stops when an already-applied migration appears after a pending gap. Adding a new `021` file retroactively and inserting it before `022` could therefore block existing databases whose ledger already contains `022` or later.
+
+**Policy:** do not create a no-op `021` just to make filenames consecutive. If a real schema change is needed, add a reviewed forward migration after the current latest migration (`036` at this revision), include it in `MIGRATION_ORDER`, and test fresh install plus repeat execution. Any historical numbering cleanup requires a separate compatibility/adoption plan and verified database-ledger review.
